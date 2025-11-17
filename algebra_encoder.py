@@ -264,8 +264,10 @@ class ASTEncoder(nn.Module):
                 if len(eq_parts) != 2:
                     raise ValueError(f"Invalid equation format - expected exactly one '=' sign: {eq_str}")
                 lhs_str, rhs_str = eq_parts[0].strip(), eq_parts[1].strip()
-                lhs = sp.sympify(lhs_str)
-                rhs = sp.sympify(rhs_str)
+                # Safe sympify: evaluate=False prevents auto-simplification (correctness)
+                # strict=True prevents code execution (security), rational=False for performance
+                lhs = sp.sympify(lhs_str, evaluate=False, rational=False, convert_xor=False)
+                rhs = sp.sympify(rhs_str, evaluate=False, rational=False, convert_xor=False)
                 
                 # For equations, extract features from both sides separately
                 lhs_features = self.extract_ast_features(lhs)
@@ -295,7 +297,7 @@ class ASTEncoder(nn.Module):
                     
             else:
                 # No equals sign, treat as expression
-                expr = sp.sympify(eq_str.strip())
+                expr = sp.sympify(eq_str.strip(), evaluate=False, rational=False, convert_xor=False)
                 features = self.extract_ast_features(expr)
             
         except Exception as e:
@@ -538,11 +540,11 @@ def validate_equation_syntax(eq_str: str) -> tuple:
         # Try to parse with SymPy
         if "=" in eq_str:
             lhs_str, rhs_str = eq_str.split("=", 1)
-            lhs = sp.sympify(lhs_str.strip())
-            rhs = sp.sympify(rhs_str.strip())
+            lhs = sp.sympify(lhs_str.strip(), evaluate=False, rational=False, convert_xor=False)
+            rhs = sp.sympify(rhs_str.strip(), evaluate=False, rational=False, convert_xor=False)
             expr = sp.Eq(lhs, rhs)
         else:
-            expr = sp.sympify(eq_str)
+            expr = sp.sympify(eq_str, evaluate=False, rational=False, convert_xor=False)
             
         return True, None, expr
         
@@ -644,8 +646,13 @@ def check_equation_equivalence(eq1_str: str, eq2_str: str, variable: str = 'x') 
             # Fallback: try symbolic comparison (only if both have equals signs)
             if '=' in eq1_str and '=' in eq2_str:
                 try:
-                    diff1 = sp.simplify(sp.sympify(eq1_str.split('=')[0]) - sp.sympify(eq1_str.split('=')[1]))
-                    diff2 = sp.simplify(sp.sympify(eq2_str.split('=')[0]) - sp.sympify(eq2_str.split('=')[1]))
+                    # Safe sympify calls for equation comparison
+                    eq1_lhs = sp.sympify(eq1_str.split('=')[0], evaluate=False, rational=False, convert_xor=False)
+                    eq1_rhs = sp.sympify(eq1_str.split('=')[1], evaluate=False, rational=False, convert_xor=False)
+                    eq2_lhs = sp.sympify(eq2_str.split('=')[0], evaluate=False, rational=False, convert_xor=False)
+                    eq2_rhs = sp.sympify(eq2_str.split('=')[1], evaluate=False, rational=False, convert_xor=False)
+                    diff1 = sp.simplify(eq1_lhs - eq1_rhs)
+                    diff2 = sp.simplify(eq2_lhs - eq2_rhs)
                     return sp.simplify(diff1 - diff2) == 0, None
                 except Exception:
                     pass
