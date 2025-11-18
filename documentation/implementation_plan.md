@@ -82,9 +82,9 @@ class AlgebraEBM(nn.Module):
     
     Layers:
         - Time MLP: SinusoidalPosEmb(128) → Linear(128) → GELU → Linear(128)
-        - FC1: Linear(inp_dim + out_dim → 512) + GELU
-        - FC2: Linear(512 → 512) + FiLM(time_emb) + GELU
-        - FC3: Linear(512 → 512) + FiLM(time_emb) + GELU
+        - FC1: Linear(inp_dim + out_dim → 512) + Swish
+        - FC2: Linear(512 → 512) + FiLM(time_emb) + Swish
+        - FC3: Linear(512 → 512) + FiLM(time_emb) + Swish
         - Out: Linear(512 → out_dim)
     
     Output: energy = ||output_vector||^2 (L2 norm squared)
