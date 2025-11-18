@@ -1,12 +1,6 @@
 ## Command Usage
 
-**`/build-with-review <task>`** - Implements features using a rigorous build-and-review workflow with:
-- Multi-phase analysis and planning
-- Systematic implementation with code reviews
-- Critical analysis at each step to catch issues early
-- Use for significant implementation tasks that require quality assurance
-
----
+/build-with-review 
 
 <task>
 Based on the implementation plan and the summary of the proposal, I want you to carry out the following step of the implementation plan. Make sure you first understand what the main goal we are trying to do here is and then go ahead and implement.
@@ -18,13 +12,23 @@ Look at what we have completed so far in the @documentation/implementation_todo.
 </specifications>
 
 
-<step to complete>
+<step-to-complete>
+## Phase 5: Evaluation Framework ✅ 1/3 Complete
 
-## Phase 3: Training Infrastructure ✅ 2/3 Complete ⏳ **NEXT PRIORITY**
-
-</step to complete>
+</step-to-complete>
 
 
 ---
 
-I want you to write tests in our `tests` directory that will test the changes that were made most recently. Ideally, these tests build upon the previously written ones to ensure that our changes thus far are making progress towards our final goal. Run the tests, fix any issues that arise during test running. be sure to differentiate issues from the tests from issues in the code. 
+<task>
+Check the changes made, which complete the following step of our implementation plan:
+
+<step>
+
+
+</step>
+
+
+@documentation/implementation_todo.md
+@documentation/implementation_plan.md
+</task>

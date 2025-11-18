@@ -1,7 +1,7 @@
 ---
 name: fix-plan-synthesizer
 description: Synthesizes debate findings into an executable, prioritized fix plan with specific code changes
-tools: Read
+tools: Read, Write, Bash(cat*), Touch, Echo
 model: inherit
 ---
 

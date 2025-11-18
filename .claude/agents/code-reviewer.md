@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Specialized code reviewer that analyzes diffs from security, correctness, performance, or maintainability perspectives
-tools: Read, Grep
+tools: Read, Grep, Write, Bash(cat*), Echo, Touch
 model: inherit
 ---
 
@@ -256,3 +256,5 @@ Done when:
 - JSON output written to output_path
 - All required fields populated
 - Valid JSON structure
+
+# NEVER use the cat command. use the write tool instead
