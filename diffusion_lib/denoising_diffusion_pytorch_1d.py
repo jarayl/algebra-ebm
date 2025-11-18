@@ -793,7 +793,7 @@ class Trainer1D(object):
         self.data_workers = data_workers
 
         if self.data_workers is None:
-            self.data_workers = cpu_count()
+            self.data_workers = min(cpu_count(), 16)
 
         # dataset and dataloader
 
@@ -956,6 +956,33 @@ class Trainer1D(object):
                 pbar.update(1)
 
         accelerator.print('training complete')
+        
+        # Always save final model at end of training
+        if self.accelerator.is_local_main_process:
+            import os
+            
+            # Calculate what the final milestone would be  
+            final_milestone = max(1, self.step // self.save_and_sample_every)
+            
+            # Always save the final model state
+            self.save(final_milestone)
+            
+            # Create model.pt symlink for compatibility
+            final_model_path = self.results_folder / f'model-{final_milestone}.pt'
+            model_pt_path = self.results_folder / 'model.pt'
+            
+            if final_model_path.exists():
+                # Remove existing symlink if it exists
+                if model_pt_path.exists() or model_pt_path.is_symlink():
+                    model_pt_path.unlink()
+                # Create new symlink
+                try:
+                    os.symlink(f'model-{final_milestone}.pt', str(model_pt_path))
+                    print(f"Created model.pt -> model-{final_milestone}.pt")
+                except OSError as e:
+                    print(f"Warning: Could not create model.pt symlink: {e}")
+            else:
+                print(f"Warning: Final model file not found at {final_model_path}")
 
     def evaluate(self, device, milestone, inp=None, label=None, mask=None):
         print('Running Evaluation...')

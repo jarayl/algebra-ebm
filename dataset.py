@@ -72,8 +72,8 @@ class NoisyWrapper:
 
     def __getitem__(self, *args, **kwargs):
         x, y = self.dataset.__getitem__(*args, **kwargs)
-        x = torch.tensor(x)
-        y = torch.tensor(y)
+        x = x.detach().clone() if torch.is_tensor(x) else torch.from_numpy(x).float()
+        y = y.detach().clone() if torch.is_tensor(y) else torch.from_numpy(y).float()
 
         t = torch.randint(1, self.timesteps, (1,)).long()
         t_next = t - 1
@@ -102,7 +102,7 @@ class NoisyWrapper:
                 t_next,
                 y.shape) *
             noise)
-        return x, sample, sample_next
+        return x, sample
 
 
 def conjgrad(A, b, x, num_steps=20):

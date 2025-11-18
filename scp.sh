@@ -19,6 +19,8 @@ echo "Running SCP transfers using shared connection..."
 
 scp -o ControlPath="${CTRL_PATH}" eval_algebra.py     "${REMOTE}:~/eval_algebra.py"
 scp -o ControlPath="${CTRL_PATH}" run_eval_algebra.sh                 "${REMOTE}:~/run_eval_algebra.sh"
+scp -o ControlPath="${CTRL_PATH}" train_algebra.py     "${REMOTE}:~/train_algebra.py"
+scp -o ControlPath="${CTRL_PATH}" run_train_algebra.sh                 "${REMOTE}:~/run_train_algebra.sh"
 
 echo "Closing master SSH connection..."
 ssh -O exit -o ControlPath="${CTRL_PATH}" "${REMOTE}"

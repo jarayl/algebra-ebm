@@ -52,30 +52,61 @@ cd "$JOB_SCRATCH" || {
 echo "Now working in scratch: $(pwd)"
 
 # ------------------------------------------------------------------------------
-# 2. Copy necessary files from home → scratch
+# 2. Clone Git repository to get latest codebase
 # ------------------------------------------------------------------------------
 
-echo "Copying algebra evaluation files to scratch..."
+# Git is available system-wide, no module needed
+
+REPO_URL="https://github.com/mdkrasnow/algebra-ebm.git"
+REPO_DIR="$JOB_SCRATCH/algebra-ebm"
+
+echo "Cloning repository to get latest codebase..."
+echo "Repository URL: $REPO_URL"
+echo "Target directory: $REPO_DIR"
+
+# Remove any existing repository directory
+if [ -d "$REPO_DIR" ]; then
+    echo "Removing existing repository directory..."
+    rm -rf "$REPO_DIR"
+fi
+
+# Clone the repository
+git clone "$REPO_URL" "$REPO_DIR" || {
+    echo "ERROR: Failed to clone repository from $REPO_URL"
+    exit 1
+}
+
+echo "Repository cloned successfully to: $REPO_DIR"
+
+# ------------------------------------------------------------------------------
+# 3. Copy necessary files from repository → scratch working directory
+# ------------------------------------------------------------------------------
+
+echo "Copying algebra evaluation files from repository to scratch..."
 
 # Copy all algebra-related Python files
-/bin/cp "$SLURM_SUBMIT_DIR"/eval_algebra.py "$JOB_SCRATCH"/
-/bin/cp "$SLURM_SUBMIT_DIR"/algebra_*.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/eval_algebra.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/algebra_*.py "$JOB_SCRATCH"/
 
 # Copy core infrastructure files  
-/bin/cp "$SLURM_SUBMIT_DIR"/dataset.py "$JOB_SCRATCH"/
-/bin/cp "$SLURM_SUBMIT_DIR"/models.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/dataset.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/models.py "$JOB_SCRATCH"/
 
 # Copy diffusion library (required for model loading)
-/bin/cp -r "$SLURM_SUBMIT_DIR"/diffusion_lib "$JOB_SCRATCH"/
+/bin/cp -r "$REPO_DIR"/diffusion_lib "$JOB_SCRATCH"/
 
 # Copy IREM library if it exists
-if [ -d "$SLURM_SUBMIT_DIR"/irem_lib ]; then
-    /bin/cp -r "$SLURM_SUBMIT_DIR"/irem_lib "$JOB_SCRATCH"/
+if [ -d "$REPO_DIR"/irem_lib ]; then
+    /bin/cp -r "$REPO_DIR"/irem_lib "$JOB_SCRATCH"/
 fi
 
 # Copy trained models from results directory
-if [ -d "$SLURM_SUBMIT_DIR"/results ]; then
-    echo "Copying trained models from results directory..."
+# Check both repository and submit directory for trained models
+if [ -d "$REPO_DIR"/results ]; then
+    echo "Copying trained models from repository results directory..."
+    /bin/cp -r "$REPO_DIR"/results "$JOB_SCRATCH"/
+elif [ -d "$SLURM_SUBMIT_DIR"/results ]; then
+    echo "Copying trained models from submit directory..."
     /bin/cp -r "$SLURM_SUBMIT_DIR"/results "$JOB_SCRATCH"/
 else
     echo "WARNING: No results directory found. Models must be trained first."
@@ -89,13 +120,18 @@ fi
 echo "Files copied successfully."
 
 # ------------------------------------------------------------------------------
-# 3. Modules & Python environment
+# 4. Modules & Python environment
 # ------------------------------------------------------------------------------
 
 module load python/3.10.9-fasrc01
 module load cuda/12.2.0-fasrc01
 
 export PATH="$HOME/.local/bin:$PATH"
+
+# Add repository to Python path for imports
+export PYTHONPATH="${REPO_DIR}:${PYTHONPATH}"
+echo "Added repository to Python path: $REPO_DIR"
+echo "Current PYTHONPATH: $PYTHONPATH"
 
 echo "Installing dependencies to ~/.local ..."
 pip install --user -q torch torchvision einops accelerate tqdm \
@@ -109,7 +145,7 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}');"
 
 # ------------------------------------------------------------------------------
-# 4. Prepare results directory on scratch
+# 5. Prepare results directory on scratch
 # ------------------------------------------------------------------------------
 
 EVAL_RESULTS_DIR="$JOB_SCRATCH/evaluation_results"
@@ -118,7 +154,7 @@ mkdir -p "$EVAL_RESULTS_DIR"
 echo "Evaluation results will be written to: $EVAL_RESULTS_DIR"
 
 # ------------------------------------------------------------------------------
-# 5. Run Algebra EBM Evaluation
+# 6. Run Algebra EBM Evaluation
 # ------------------------------------------------------------------------------
 
 echo "Starting algebra EBM evaluation..."
@@ -184,7 +220,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 6. Copy results back to home directory for safekeeping
+# 7. Copy results back to home directory for safekeeping
 # ------------------------------------------------------------------------------
 
 FINAL_RESULTS_DIR="$SLURM_SUBMIT_DIR/evaluation_results_${SLURM_JOB_ID}"

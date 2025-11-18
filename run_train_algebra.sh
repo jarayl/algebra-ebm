@@ -1,0 +1,292 @@
+#!/bin/bash
+#SBATCH -J train_algebra                      # Job name
+#SBATCH -p gpu_test                                # Use GPU partition (not gpu_test for real training)
+#SBATCH --account=ydu_lab                     # Your lab account
+#SBATCH --gres=gpu:1                          # 1 GPU
+#SBATCH -c 16                                 # 16 CPU cores
+#SBATCH -t 00-04:00:00                        # 4 hours (training can take a while)
+#SBATCH --mem=64G                             # 64 GB RAM
+#SBATCH -o train_algebra_%j.out               # STDOUT file
+#SBATCH -e train_algebra_%j.err               # STDERR file
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=mkrasnow@college.harvard.edu
+
+echo "=============================================="
+echo "  Algebra EBM Training Job Started"
+echo "=============================================="
+echo "Date:          $(date)"
+echo "Node:          $(hostname)"
+echo "Job ID:        $SLURM_JOB_ID"
+echo "Submit Dir:    $SLURM_SUBMIT_DIR"
+echo "SCRATCH:       $SCRATCH"
+echo "=============================================="
+
+# ------------------------------------------------------------------------------
+# 1. Configure correct FASRC Scratch path
+# ------------------------------------------------------------------------------
+
+LAB_NAME="ydu_lab"                              # MUST match your lab account
+LAB_SCRATCH_ROOT="$SCRATCH/${LAB_NAME}/Lab/$USER"
+JOB_SCRATCH="${LAB_SCRATCH_ROOT}/algebra_train_${SLURM_JOB_ID}"
+
+echo "Lab scratch root: $LAB_SCRATCH_ROOT"
+echo "Job scratch dir : $JOB_SCRATCH"
+
+# Create your personal scratch root if missing
+mkdir -p "$LAB_SCRATCH_ROOT" || {
+    echo "ERROR: Cannot create $LAB_SCRATCH_ROOT"
+    exit 1
+}
+
+# Create a per-job scratch workspace
+mkdir -p "$JOB_SCRATCH" || {
+    echo "ERROR: Cannot create $JOB_SCRATCH"
+    exit 1
+}
+
+cd "$JOB_SCRATCH" || {
+    echo "ERROR: cd to JOB_SCRATCH failed"
+    exit 1
+}
+
+echo "Now working in scratch: $(pwd)"
+
+# ------------------------------------------------------------------------------
+# 2. Clone Git repository to get latest codebase
+# ------------------------------------------------------------------------------
+
+# Git is available system-wide, no module needed
+
+REPO_URL="https://github.com/mdkrasnow/algebra-ebm.git"
+REPO_DIR="$JOB_SCRATCH/algebra-ebm"
+
+echo "Cloning repository to get latest codebase..."
+echo "Repository URL: $REPO_URL"
+echo "Target directory: $REPO_DIR"
+
+# Remove any existing repository directory
+if [ -d "$REPO_DIR" ]; then
+    echo "Removing existing repository directory..."
+    rm -rf "$REPO_DIR"
+fi
+
+# Clone the repository
+git clone "$REPO_URL" "$REPO_DIR" || {
+    echo "ERROR: Failed to clone repository from $REPO_URL"
+    exit 1
+}
+
+echo "Repository cloned successfully to: $REPO_DIR"
+
+# ------------------------------------------------------------------------------
+# 3. Copy necessary files from repository → scratch working directory
+# ------------------------------------------------------------------------------
+
+echo "Copying algebra training files from repository to scratch..."
+
+# Copy all algebra-related Python files
+/bin/cp "$REPO_DIR"/train_algebra.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/algebra_*.py "$JOB_SCRATCH"/
+
+# Copy core infrastructure files  
+/bin/cp "$REPO_DIR"/dataset.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/models.py "$JOB_SCRATCH"/
+
+# Copy diffusion library (required for training)
+/bin/cp -r "$REPO_DIR"/diffusion_lib "$JOB_SCRATCH"/
+
+# Copy IREM library if it exists
+if [ -d "$REPO_DIR"/irem_lib ]; then
+    /bin/cp -r "$REPO_DIR"/irem_lib "$JOB_SCRATCH"/
+fi
+
+echo "Files copied successfully."
+
+# ------------------------------------------------------------------------------
+# 4. Modules & Python environment
+# ------------------------------------------------------------------------------
+
+module load python/3.10.9-fasrc01
+module load cuda/12.2.0-fasrc01
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# Add repository to Python path for imports
+export PYTHONPATH="${REPO_DIR}:${PYTHONPATH}"
+echo "Added repository to Python path: $REPO_DIR"
+echo "Current PYTHONPATH: $PYTHONPATH"
+
+echo "Installing dependencies to ~/.local ..."
+pip install --user -q torch torchvision einops accelerate tqdm \
+    tabulate matplotlib numpy pandas ema-pytorch \
+    ipdb seaborn scikit-learn sympy
+echo "Dependencies installed successfully."
+
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+
+# Check GPU availability
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}'); print(f'GPU memory: {torch.cuda.get_device_properties(0).total_memory / (1024**3):.1f}GB')"
+
+# ------------------------------------------------------------------------------
+# 5. Prepare results directory on scratch
+# ------------------------------------------------------------------------------
+
+RESULTS_DIR="$JOB_SCRATCH/results"
+mkdir -p "$RESULTS_DIR"
+
+echo "Training results will be written to: $RESULTS_DIR"
+
+# ------------------------------------------------------------------------------
+# 6. Train Algebra EBM Models (all 4 rules)
+# ------------------------------------------------------------------------------
+
+echo "Starting algebra EBM training for all rules..."
+
+# Define training parameters
+BATCH_SIZE=2048        # Default from script
+TRAIN_STEPS=1000      # Default from script
+NUM_PROBLEMS=1000     # Default from script
+TIMESTEPS=10           # Default from script
+
+# Check GPU memory and adjust batch size if needed
+GPU_MEMORY=$(python -c "import torch; print(torch.cuda.get_device_properties(0).total_memory / (1024**3))" 2>/dev/null || echo "16")
+if (( $(echo "$GPU_MEMORY < 15" | bc -l) )); then
+    echo "GPU has ${GPU_MEMORY}GB memory, reducing batch size to avoid OOM"
+    BATCH_SIZE=1024
+fi
+
+echo "Training parameters:"
+echo "  Batch size: $BATCH_SIZE"
+echo "  Training steps: $TRAIN_STEPS" 
+echo "  Problems per rule: $NUM_PROBLEMS"
+echo "  Timesteps: $TIMESTEPS"
+echo ""
+
+# Train each rule sequentially
+RULES=("distribute" "combine" "isolate" "divide")
+TOTAL_RULES=${#RULES[@]}
+FAILED_RULES=()
+
+for i in "${!RULES[@]}"; do
+    rule="${RULES[$i]}"
+    rule_num=$((i + 1))
+    
+    echo "=============================================="
+    echo "Training rule ${rule_num}/${TOTAL_RULES}: ${rule}"
+    echo "=============================================="
+    
+    # Create rule-specific results directory
+    mkdir -p "$RESULTS_DIR/$rule"
+    
+    # Run training for this rule
+    start_time=$(date +%s)
+    
+    python train_algebra.py \
+        --rule "$rule" \
+        --batch_size $BATCH_SIZE \
+        --train_steps $TRAIN_STEPS \
+        --num_problems $NUM_PROBLEMS \
+        --timesteps $TIMESTEPS \
+        --results_folder "$RESULTS_DIR/$rule" \
+        --save_and_sample_every 1000 \
+        --supervise-energy-landscape True \
+        --use-innerloop-opt True
+    
+    TRAIN_EXIT=$?
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    
+    if [ $TRAIN_EXIT -eq 0 ]; then
+        echo "✓ Rule '$rule' training completed successfully in ${duration}s"
+        echo "  Model saved to: $RESULTS_DIR/$rule/"
+    else
+        echo "✗ Rule '$rule' training FAILED with exit code: $TRAIN_EXIT"
+        FAILED_RULES+=("$rule")
+    fi
+    
+    echo ""
+done
+
+# ------------------------------------------------------------------------------
+# 7. Training Summary and Validation
+# ------------------------------------------------------------------------------
+
+echo "=============================================="
+echo "  Training Summary"
+echo "=============================================="
+
+SUCCESSFUL_RULES=()
+for rule in "${RULES[@]}"; do
+    if [ -f "$RESULTS_DIR/$rule/model.pt" ]; then
+        SUCCESSFUL_RULES+=("$rule")
+        echo "✓ $rule: Model found at $RESULTS_DIR/$rule/model.pt"
+    else
+        echo "✗ $rule: No model file found"
+        if [[ ! " ${FAILED_RULES[@]} " =~ " $rule " ]]; then
+            FAILED_RULES+=("$rule")
+        fi
+    fi
+done
+
+echo ""
+echo "Successful: ${#SUCCESSFUL_RULES[@]}/${TOTAL_RULES} rules"
+echo "Failed:     ${#FAILED_RULES[@]}/${TOTAL_RULES} rules"
+
+if [ ${#FAILED_RULES[@]} -gt 0 ]; then
+    echo "Failed rules: ${FAILED_RULES[*]}"
+fi
+
+# ------------------------------------------------------------------------------
+# 8. Copy results back to submit directory for persistence
+# ------------------------------------------------------------------------------
+
+FINAL_RESULTS_DIR="$SLURM_SUBMIT_DIR/results"
+mkdir -p "$FINAL_RESULTS_DIR"
+
+echo ""
+echo "Copying trained models back to: $FINAL_RESULTS_DIR"
+rsync -av "$RESULTS_DIR/" "$FINAL_RESULTS_DIR/"
+
+# Also copy any training logs
+if [ -f "$JOB_SCRATCH"/*.log ]; then
+    /bin/cp "$JOB_SCRATCH"/*.log "$FINAL_RESULTS_DIR"/
+fi
+
+echo ""
+echo "=============================================="
+echo "  Final Results"
+echo "=============================================="
+echo "Trained models available in: $FINAL_RESULTS_DIR"
+echo ""
+
+# List what was actually created
+for rule in "${RULES[@]}"; do
+    if [ -f "$FINAL_RESULTS_DIR/$rule/model.pt" ]; then
+        model_size=$(du -h "$FINAL_RESULTS_DIR/$rule/model.pt" | cut -f1)
+        echo "✓ $rule: $model_size model saved"
+    else
+        echo "✗ $rule: No model saved"
+    fi
+done
+
+echo ""
+if [ ${#SUCCESSFUL_RULES[@]} -eq $TOTAL_RULES ]; then
+    echo "🎉 ALL MODELS TRAINED SUCCESSFULLY!"
+    echo "Ready to run evaluation with run_eval_algebra.sh"
+    FINAL_EXIT=0
+elif [ ${#SUCCESSFUL_RULES[@]} -gt 0 ]; then
+    echo "⚠️  PARTIAL SUCCESS: ${#SUCCESSFUL_RULES[@]}/${TOTAL_RULES} models trained"
+    echo "You can run evaluation on the successful models"
+    FINAL_EXIT=1
+else
+    echo "❌ ALL TRAINING FAILED"
+    echo "Check error logs and model dependencies"
+    FINAL_EXIT=2
+fi
+
+echo "=============================================="
+echo "  Job Finished at: $(date)"
+echo "  Final Exit Code: $FINAL_EXIT"
+echo "=============================================="
+
+exit $FINAL_EXIT
