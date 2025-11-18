@@ -368,7 +368,7 @@ def evaluate_model(
                 
                 # Encode target for embedding distance computation
                 target_embedding = encoder(target_eq)
-                target_embeddings.append(target_embedding.detach().cpu())
+                target_embeddings.append(target_embedding.detach())
                 
                 # Run inference
                 result = inference_engine.solve_equation(
@@ -386,10 +386,10 @@ def evaluate_model(
                 # Get predicted embedding (ensure consistent device)
                 if result.get('success', False) and 'output_embedding' not in result:
                     # Encode the decoded equation
-                    pred_embedding = encoder(pred_eq).detach().cpu() if pred_eq else torch.zeros_like(target_embedding)
+                    pred_embedding = encoder(pred_eq).detach() if pred_eq else torch.zeros_like(target_embedding)
                 elif 'output_embedding' in result:
                     # Use raw embedding from inference
-                    pred_embedding = result['output_embedding'].detach().cpu()
+                    pred_embedding = result['output_embedding'].detach()
                 else:
                     # Failed inference - create zero embedding on same device
                     pred_embedding = torch.zeros_like(target_embedding)

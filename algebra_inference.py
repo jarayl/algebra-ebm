@@ -194,6 +194,46 @@ class AlgebraInference:
         
         return grad
     
+    def compute_energy_and_gradient(
+        self,
+        inp: torch.Tensor,
+        out: torch.Tensor,
+        k: int,
+        rule_weights: Optional[Dict[str, float]] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute both composed energy and gradient in a single forward pass.
+        
+        This optimizes performance by avoiding redundant energy computation.
+        
+        Args:
+            inp: Input equation embedding (B, 128)
+            out: Output equation embedding (B, 128) 
+            k: Landscape index [0, K-1]
+            rule_weights: Optional weights for each rule
+            
+        Returns:
+            energy: Composed energy value (B, 1)
+            grad: Energy gradient dE/dout (B, 128)
+        """
+        if rule_weights is None:
+            rule_weights = {rule: 1.0 for rule in self.rule_models.keys()}
+        
+        # Enable gradient computation
+        out = out.requires_grad_(True)
+        
+        # Compute composed energy
+        total_energy = self.compose_energies(inp, out, k, rule_weights)
+        
+        # Compute gradient
+        grad = torch.autograd.grad(
+            outputs=total_energy.sum(),
+            inputs=out,
+            create_graph=True
+        )[0]
+        
+        return total_energy, grad
+    
     def ired_inference(
         self,
         inp_embedding: torch.Tensor,
@@ -224,6 +264,20 @@ class AlgebraInference:
         if len(self.rule_models) == 0:
             raise ValueError("No rule models loaded - cannot perform inference")
         
+        # Enhanced validation for production robustness
+        if not torch.is_tensor(inp_embedding):
+            raise TypeError(f"inp_embedding must be torch.Tensor, got {type(inp_embedding)}")
+        if torch.isnan(inp_embedding).any():
+            raise ValueError("inp_embedding contains NaN values")
+        if torch.isinf(inp_embedding).any():
+            raise ValueError("inp_embedding contains Inf values")
+        if T <= 0:
+            raise ValueError(f"T must be positive, got {T}")
+        if step_size <= 0:
+            raise ValueError(f"step_size must be positive, got {step_size}")
+        if energy_threshold < 0:
+            raise ValueError(f"energy_threshold must be non-negative, got {energy_threshold}")
+        
         batch_size = inp_embedding.shape[0]
         
         # Initialize from noise  
@@ -251,9 +305,8 @@ class AlgebraInference:
             
             # T gradient descent steps in this landscape
             for t in range(T):
-                # Compute composed energy and gradient
-                energy_before = self.compose_energies(inp_embedding, out, k, rule_weights)
-                grad = self.compute_composed_gradient(inp_embedding, out, k, rule_weights)
+                # Compute composed energy and gradient in single pass (performance optimization)
+                energy_before, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights)
                 
                 info['energy_history'].append(energy_before.item())
                 info['gradient_norms'].append(torch.norm(grad).item())
@@ -325,7 +378,15 @@ class AlgebraInference:
         Returns:
             result: Dictionary containing solution and metadata
         """
-        logger.info(f"Solving equation: '{input_equation}'")
+        # Input validation
+        if not isinstance(input_equation, str):
+            raise TypeError(f"input_equation must be string, got {type(input_equation)}")
+        if not input_equation.strip():
+            raise ValueError("input_equation cannot be empty")
+        if len(input_equation) > 1000:  # Reasonable length limit
+            raise ValueError(f"input_equation too long ({len(input_equation)} chars), max 1000")
+        
+        logger.info(f"Solving equation: '{input_equation[:100]}{'...' if len(input_equation) > 100 else ''}'")
         
         try:
             # Encode input equation
@@ -364,12 +425,31 @@ class AlgebraInference:
             
             return result
             
-        except Exception as e:
-            logger.error(f"Error solving equation '{input_equation}': {str(e)}")
+        except (ValueError, TypeError) as e:
+            # Input validation or tensor operation errors
+            logger.error(f"Invalid input for equation '{input_equation}': {str(e)}")
             return {
                 'input_equation': input_equation,
                 'success': False,
-                'error': str(e),
+                'error': f"Input error: {str(e)}",
+                'inference_info': {}
+            }
+        except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+            # PyTorch/CUDA runtime errors
+            logger.error(f"Runtime error solving equation '{input_equation}': {str(e)}")
+            return {
+                'input_equation': input_equation,
+                'success': False,
+                'error': f"Runtime error: {str(e)}",
+                'inference_info': {}
+            }
+        except Exception as e:
+            # Unexpected errors - log with more detail for debugging
+            logger.error(f"Unexpected error solving equation '{input_equation}': {type(e).__name__}: {str(e)}", exc_info=True)
+            return {
+                'input_equation': input_equation,
+                'success': False,
+                'error': f"Unexpected error: {type(e).__name__}",
                 'inference_info': {}
             }
     
@@ -440,8 +520,17 @@ def load_rule_models(
             rule_models[rule_name] = wrapper
             logger.info(f"Loaded model for rule: {rule_name}")
             
+        except FileNotFoundError as e:
+            logger.error(f"Model file not found for {rule_name}: {str(e)}")
+            continue
+        except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+            logger.error(f"PyTorch error loading model for {rule_name}: {str(e)}")
+            continue
+        except (KeyError, ValueError) as e:
+            logger.error(f"Invalid model format for {rule_name}: {str(e)}")
+            continue
         except Exception as e:
-            logger.error(f"Error loading model for {rule_name}: {str(e)}")
+            logger.error(f"Unexpected error loading model for {rule_name}: {type(e).__name__}: {str(e)}", exc_info=True)
             continue
     
     return rule_models
@@ -519,8 +608,14 @@ def test_inference_simple():
         logger.info(f"Test result: {result}")
         return result
         
+    except (ValueError, TypeError) as e:
+        logger.error(f"Test failed due to invalid configuration: {str(e)}")
+        return None
+    except RuntimeError as e:
+        logger.error(f"Test failed due to runtime error: {str(e)}")
+        return None
     except Exception as e:
-        logger.error(f"Test failed: {str(e)}")
+        logger.error(f"Test failed unexpectedly: {type(e).__name__}: {str(e)}", exc_info=True)
         return None
 
 

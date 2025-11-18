@@ -276,7 +276,7 @@ This document tracks our progress through implementing the full Algebra EBM syst
 - [x] **ADDITIONAL:** Deterministic seeding for reproducible evaluations
 
 **Implementation Challenges Encountered & Solutions:**
-- **Device Consistency**: Initial implementation had potential tensor device mismatches between predicted and target embeddings. Fixed by ensuring all embeddings are moved to CPU with `.detach().cpu()` calls.
+- **Device Consistency**: Initial implementation had potential tensor device mismatches between predicted and target embeddings. Reverted CPU device forcing to keep tensors on original devices (GPU during training) with `.detach()` calls only.
 - **Memory Usage**: Storing detailed results for large evaluations could cause memory issues. Added `store_detailed_results` parameter to optionally exclude detailed per-sample data.
 - **Integration Errors**: Found syntax error (extra closing brace) during integration testing. Fixed by careful syntax review.
 - **Deterministic Seeding**: Initial use of `hash()` for seed generation was inconsistent across Python runs. Replaced with deterministic rule-specific offsets.

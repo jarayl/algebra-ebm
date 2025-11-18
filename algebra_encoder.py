@@ -30,6 +30,25 @@ import sympy as sp
 from typing import Union, List, Optional, Dict, Any
 
 
+def _validate_simple_expression(expr_str: str) -> None:
+    """
+    Simple expression safety validation for global functions.
+    
+    Blocks dangerous patterns that could execute code while allowing mathematical expressions.
+    """
+    dangerous_patterns = [
+        '__import__', '__builtins__', '__globals__', '__locals__',
+        'eval', 'exec', 'compile', 'open', 'input', 'raw_input',
+        'file', 'execfile', 'reload', 'import', 'from ',
+        'os.', 'sys.', 'subprocess', 'shutil', 'tempfile'
+    ]
+    
+    expr_lower = expr_str.lower()
+    for pattern in dangerous_patterns:
+        if pattern in expr_lower:
+            raise ValueError(f"Expression contains potentially unsafe pattern: {pattern}")
+
+
 class CharacterLevelEncoder(nn.Module):
     """
     Character-level encoder for algebraic equations.
@@ -245,6 +264,39 @@ class ASTEncoder(nn.Module):
         
         return features
     
+    def _validate_expression_safety(self, expr_str: str) -> None:
+        """
+        Validate that expression string is safe for SymPy parsing.
+        
+        Blocks dangerous functions while allowing mathematical expressions.
+        Throws ValueError if expression contains unsafe elements.
+        """
+        # List of dangerous patterns that could execute code
+        dangerous_patterns = [
+            '__import__', '__builtins__', '__globals__', '__locals__',
+            'eval', 'exec', 'compile', 'open', 'input', 'raw_input',
+            'file', 'execfile', 'reload', 'import', 'from ',
+            'os.', 'sys.', 'subprocess', 'shutil', 'tempfile'
+        ]
+        
+        expr_lower = expr_str.lower()
+        for pattern in dangerous_patterns:
+            if pattern in expr_lower:
+                raise ValueError(f"Expression contains potentially unsafe pattern: {pattern}")
+        
+        # Additional check for parentheses with non-mathematical content
+        if '(' in expr_str and ')' in expr_str:
+            # Extract content within parentheses
+            import re
+            paren_contents = re.findall(r'\(([^)]+)\)', expr_str)
+            for content in paren_contents:
+                content_clean = content.strip().lower()
+                # Allow mathematical function calls but block others
+                if (content_clean and 
+                    not re.match(r'^[a-z0-9\s+\-*/^.,]+$', content_clean) and
+                    not any(func in content_clean for func in ['sin', 'cos', 'tan', 'log', 'exp', 'sqrt'])):
+                    raise ValueError(f"Expression contains suspicious parenthetical content: {content}")
+    
     def encode_equation_string(self, eq_str: str) -> torch.Tensor:
         """
         Encode a single equation string using AST features.
@@ -265,7 +317,9 @@ class ASTEncoder(nn.Module):
                     raise ValueError(f"Invalid equation format - expected exactly one '=' sign: {eq_str}")
                 lhs_str, rhs_str = eq_parts[0].strip(), eq_parts[1].strip()
                 # Safe sympify: evaluate=False prevents auto-simplification (correctness)
-                # strict=True prevents code execution (security), rational=False for performance
+                # Input validation prevents code execution (security), rational=False for performance
+                self._validate_expression_safety(lhs_str)
+                self._validate_expression_safety(rhs_str)
                 lhs = sp.sympify(lhs_str, evaluate=False, rational=False, convert_xor=False)
                 rhs = sp.sympify(rhs_str, evaluate=False, rational=False, convert_xor=False)
                 
@@ -297,6 +351,7 @@ class ASTEncoder(nn.Module):
                     
             else:
                 # No equals sign, treat as expression
+                self._validate_expression_safety(eq_str.strip())
                 expr = sp.sympify(eq_str.strip(), evaluate=False, rational=False, convert_xor=False)
                 features = self.extract_ast_features(expr)
             
@@ -540,10 +595,14 @@ def validate_equation_syntax(eq_str: str) -> tuple:
         # Try to parse with SymPy
         if "=" in eq_str:
             lhs_str, rhs_str = eq_str.split("=", 1)
+            # Use a simple validation function for this global function
+            _validate_simple_expression(lhs_str.strip())
+            _validate_simple_expression(rhs_str.strip())
             lhs = sp.sympify(lhs_str.strip(), evaluate=False, rational=False, convert_xor=False)
             rhs = sp.sympify(rhs_str.strip(), evaluate=False, rational=False, convert_xor=False)
             expr = sp.Eq(lhs, rhs)
         else:
+            _validate_simple_expression(eq_str)
             expr = sp.sympify(eq_str, evaluate=False, rational=False, convert_xor=False)
             
         return True, None, expr
@@ -647,10 +706,16 @@ def check_equation_equivalence(eq1_str: str, eq2_str: str, variable: str = 'x') 
             if '=' in eq1_str and '=' in eq2_str:
                 try:
                     # Safe sympify calls for equation comparison
-                    eq1_lhs = sp.sympify(eq1_str.split('=')[0], evaluate=False, rational=False, convert_xor=False)
-                    eq1_rhs = sp.sympify(eq1_str.split('=')[1], evaluate=False, rational=False, convert_xor=False)
-                    eq2_lhs = sp.sympify(eq2_str.split('=')[0], evaluate=False, rational=False, convert_xor=False)
-                    eq2_rhs = sp.sympify(eq2_str.split('=')[1], evaluate=False, rational=False, convert_xor=False)
+                    lhs1, rhs1 = eq1_str.split('=')[0], eq1_str.split('=')[1]
+                    lhs2, rhs2 = eq2_str.split('=')[0], eq2_str.split('=')[1]
+                    _validate_simple_expression(lhs1)
+                    _validate_simple_expression(rhs1)
+                    _validate_simple_expression(lhs2)
+                    _validate_simple_expression(rhs2)
+                    eq1_lhs = sp.sympify(lhs1, evaluate=False, rational=False, convert_xor=False)
+                    eq1_rhs = sp.sympify(rhs1, evaluate=False, rational=False, convert_xor=False)
+                    eq2_lhs = sp.sympify(lhs2, evaluate=False, rational=False, convert_xor=False)
+                    eq2_rhs = sp.sympify(rhs2, evaluate=False, rational=False, convert_xor=False)
                     diff1 = sp.simplify(eq1_lhs - eq1_rhs)
                     diff2 = sp.simplify(eq2_lhs - eq2_rhs)
                     return sp.simplify(diff1 - diff2) == 0, None
