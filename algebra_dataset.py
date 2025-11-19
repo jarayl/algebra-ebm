@@ -608,7 +608,11 @@ class MultiRuleDataset(data.Dataset):
         if index >= len(self.equation_data):
             raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_data)}")
             
-        input_eq, target_eq, _ = self.equation_data[index]
+        # Handle both 3-value and 4-value tuples for compatibility with subclasses
+        equation_tuple = self.equation_data[index]
+        if len(equation_tuple) < 2:
+            raise ValueError(f"Invalid equation tuple length {len(equation_tuple)}, expected at least 2")
+        input_eq, target_eq = equation_tuple[0], equation_tuple[1]
         
         # Encode equations to embeddings
         input_embedding = self.encoder.encode_equation_string(input_eq)
@@ -629,7 +633,11 @@ class MultiRuleDataset(data.Dataset):
         if index >= len(self.equation_data):
             raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_data)}")
             
-        input_eq, target_eq, rules = self.equation_data[index]
+        # Handle both 3-value and 4-value tuples for compatibility with subclasses
+        equation_tuple = self.equation_data[index]
+        if len(equation_tuple) < 3:
+            raise ValueError(f"Invalid equation tuple length {len(equation_tuple)}, expected at least 3")
+        input_eq, target_eq, rules = equation_tuple[0], equation_tuple[1], equation_tuple[2]
         
         return {
             'input_equation': input_eq,

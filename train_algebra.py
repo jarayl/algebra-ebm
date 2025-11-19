@@ -327,6 +327,22 @@ def main():
             print(f"Check that {args.load_milestone} exists and is a valid checkpoint")
             return
     
+    # Add minimal progress logging
+    def log_progress(step, loss, metrics=None):
+        if step % 100 == 0 or step in [500, 1000, 1500, 2000]:
+            msg = f"Step {step:4d}: Loss={loss:8.4f}"
+            if metrics:
+                for key, value in metrics.items():
+                    if key != 'loss':
+                        msg += f", {key}={value:6.3f}"
+            print(msg)
+    
+    # Check if trainer has callback support
+    if hasattr(trainer, 'set_progress_callback'):
+        trainer.set_progress_callback(log_progress)
+    elif hasattr(trainer, 'add_callback'):
+        trainer.add_callback('progress', log_progress)
+    
     # Start training
     print(f"Starting training for {args.train_steps} steps...")
     print("=" * 60)

@@ -356,10 +356,10 @@ class AlgebraInference:
     def solve_equation(
         self,
         input_equation: str,
-        T: int = 20,
-        step_size: float = 0.1,
+        T: int = 50,
+        step_size: float = 0.05,
         rule_weights: Optional[Dict[str, float]] = None,
-        distance_threshold: float = 2.0
+        distance_threshold: float = 1.5
     ) -> Dict[str, Any]:
         """
         Solve an algebraic equation using IRED inference.

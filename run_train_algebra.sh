@@ -148,8 +148,8 @@ echo "Starting algebra EBM training for all rules..."
 
 # Define training parameters
 BATCH_SIZE=2048        # Default from script
-TRAIN_STEPS=1000      # Default from script
-NUM_PROBLEMS=1000     # Default from script
+TRAIN_STEPS=2000      # Default from script
+NUM_PROBLEMS=2000     # Default from script
 TIMESTEPS=10           # Default from script
 
 # Check GPU memory and adjust batch size if needed

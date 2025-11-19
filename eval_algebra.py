@@ -81,7 +81,7 @@ def create_single_rule_datasets(
             # Use consistent deterministic offset for each rule
             rule_offset = {'distribute': 0, 'combine': 100, 'isolate': 200, 'divide': 300}.get(rule, 0)
             np.random.seed(seed + rule_offset)
-            
+
         try:
             dataset = AlgebraDataset(
                 rule=rule,
@@ -538,15 +538,15 @@ def main():
     parser.add_argument(
         '--inference_T',
         type=int,
-        default=20,
-        help='Number of gradient steps per landscape (default: 20)'
+        default=50,
+        help='Number of gradient steps per landscape (default: 50)'
     )
     
     parser.add_argument(
         '--inference_step_size',
         type=float,
-        default=0.1,
-        help='Step size for gradient descent (default: 0.1)'
+        default=0.05,
+        help='Step size for gradient descent (default: 0.05)'
     )
     
     # Misc
@@ -614,7 +614,7 @@ def main():
         
         # Create decoder
         try:
-            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=2.0)
+            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=1.5)
             logger.info("Created decoder with default candidates")
         except ImportError:
             logger.warning("sklearn not available - decoder disabled")
