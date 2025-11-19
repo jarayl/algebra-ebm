@@ -25,9 +25,7 @@ Example Usage:
 """
 
 import torch
-import torch.nn as nn
 import math
-import numpy as np
 from typing import Dict, List, Union, Optional, Tuple, Any
 from pathlib import Path
 import logging
@@ -361,7 +359,6 @@ class AlgebraInference:
         T: int = 20,
         step_size: float = 0.1,
         rule_weights: Optional[Dict[str, float]] = None,
-        max_candidates: int = 1000,
         distance_threshold: float = 2.0
     ) -> Dict[str, Any]:
         """
@@ -372,7 +369,6 @@ class AlgebraInference:
             T: Number of gradient steps per landscape
             step_size: Step size for gradient descent
             rule_weights: Optional weights for rule composition  
-            max_candidates: Maximum candidates for decoder
             distance_threshold: Maximum distance for valid decoding
             
         Returns:
@@ -494,31 +490,106 @@ def load_rule_models(
     rule_models = {}
     
     for rule_name in rule_names:
-        model_path = Path(model_dir) / rule_name / 'model.pt'
+        # Try multiple possible checkpoint paths
+        possible_paths = [
+            Path(model_dir) / rule_name / 'model.pt',
+            Path(model_dir) / rule_name / 'checkpoint.pt',
+            Path(model_dir) / rule_name / 'model-1.pt',
+            Path(model_dir) / rule_name / 'model-final.pt'
+        ]
         
-        if not model_path.exists():
-            logger.warning(f"Model not found: {model_path}")
+        model_path = None
+        for path in possible_paths:
+            if path.exists():
+                model_path = path
+                break
+        
+        if model_path is None:
+            logger.warning(f"Model not found for {rule_name}. Tried paths: {[str(p) for p in possible_paths]}")
             continue
         
         try:
-            # Load model state dict
+            # Load checkpoint
             checkpoint = torch.load(model_path, map_location=device)
+            
+            # Debug logging to understand checkpoint structure
+            logger.info(f"Loading checkpoint for {rule_name} from {model_path}")
+            if isinstance(checkpoint, dict):
+                logger.info(f"Checkpoint keys: {list(checkpoint.keys())}")
+                if 'model' in checkpoint:
+                    if isinstance(checkpoint['model'], dict):
+                        logger.info(f"Found nested 'model' dict with {len(checkpoint['model'])} keys")
+                        logger.info(f"Sample model keys: {list(checkpoint['model'].keys())[:5]}...")
+                    else:
+                        logger.info(f"'model' key exists but value is type: {type(checkpoint['model'])}")
+            else:
+                logger.info(f"Checkpoint is not a dict, type: {type(checkpoint)}")
             
             # Create model architecture 
             ebm = AlgebraEBM(inp_dim=128, out_dim=128, rule_name=rule_name)
             wrapper = AlgebraDiffusionWrapper(ebm)
             
-            # Load weights
-            if 'model_state_dict' in checkpoint:
+            # Handle different checkpoint formats with more robust detection
+            if isinstance(checkpoint, dict) and 'model' in checkpoint and isinstance(checkpoint['model'], dict):
+                # Trainer1D / GaussianDiffusion1D checkpoint
+                logger.info(f"Loading from Trainer1D checkpoint format for {rule_name}")
+                full_state = checkpoint['model']
+                logger.info(f"Model state has {len(full_state)} parameters")
+
+                # Case 1: diffusion-style keys, e.g. 'betas', 'alphas_cumprod', 'model.ebm.fc1.weight', ...
+                if any(k.startswith('model.ebm.') for k in full_state.keys()):
+                    logger.info("Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params")
+
+                    # Keep only the EBM parameters and strip the leading 'model.' prefix
+                    ebm_state = {
+                        k.replace('model.', '', 1): v
+                        for k, v in full_state.items()
+                        if k.startswith('model.ebm.')
+                    }
+
+                    # Optional debug: see how this lines up with the wrapper's expected keys
+                    expected_keys = set(wrapper.state_dict().keys())
+                    got_keys = set(ebm_state.keys())
+                    missing = expected_keys - got_keys
+                    extra = got_keys - expected_keys
+                    logger.info(f"EBM state has {len(ebm_state)} parameters "
+                                f"(missing: {len(missing)}, extra: {len(extra)})")
+
+                    # Now this should match AlgebraDiffusionWrapper's expected keys: 'ebm.*'
+                    wrapper.load_state_dict(ebm_state, strict=True)
+
+                # Case 2: older / simpler checkpoint where 'model' is already just the wrapper state dict
+                else:
+                    logger.info("No 'model.ebm.' keys detected; treating checkpoint['model'] as direct wrapper state_dict")
+                    wrapper.load_state_dict(full_state)
+            elif isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                # Standard PyTorch format
+                logger.info(f"Loading from standard PyTorch checkpoint format for {rule_name}")
                 wrapper.load_state_dict(checkpoint['model_state_dict'])
+            elif isinstance(checkpoint, dict) and any(key.startswith('ebm.') for key in checkpoint.keys()):
+                # Direct state dict format - check for EBM-specific keys
+                logger.info(f"Loading from direct state dict format for {rule_name}")
+                wrapper.load_state_dict(checkpoint)
             else:
+                # Last resort - try loading as direct state dict with detailed error info
+                logger.warning(f"Unknown checkpoint format for {rule_name}")
+                logger.warning(f"Checkpoint type: {type(checkpoint)}")
+                if isinstance(checkpoint, dict):
+                    logger.warning(f"Available keys: {list(checkpoint.keys())}")
+                    # Check if this looks like a Trainer1D checkpoint that we missed
+                    if 'step' in checkpoint and 'model' in checkpoint:
+                        logger.error(f"This looks like a Trainer1D checkpoint but 'model' key handling failed!")
+                        logger.error(f"Type of checkpoint['model']: {type(checkpoint.get('model', 'missing'))}")
+                        if 'model' in checkpoint:
+                            logger.error(f"checkpoint['model'] = {checkpoint['model']}")
+                logger.warning("Attempting direct load anyway...")
                 wrapper.load_state_dict(checkpoint)
             
             wrapper.to(device)
             wrapper.eval()
             
             rule_models[rule_name] = wrapper
-            logger.info(f"Loaded model for rule: {rule_name}")
+            logger.info(f"Successfully loaded model for rule: {rule_name} from {model_path}")
             
         except FileNotFoundError as e:
             logger.error(f"Model file not found for {rule_name}: {str(e)}")
@@ -528,6 +599,7 @@ def load_rule_models(
             continue
         except (KeyError, ValueError) as e:
             logger.error(f"Invalid model format for {rule_name}: {str(e)}")
+            logger.error(f"Available checkpoint keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else 'not a dict'}")
             continue
         except Exception as e:
             logger.error(f"Unexpected error loading model for {rule_name}: {type(e).__name__}: {str(e)}", exc_info=True)

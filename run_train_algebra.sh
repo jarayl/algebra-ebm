@@ -57,6 +57,8 @@ echo "Now working in scratch: $(pwd)"
 
 # Git is available system-wide, no module needed
 
+pip install gh
+
 REPO_URL="https://github.com/mdkrasnow/algebra-ebm.git"
 REPO_DIR="$JOB_SCRATCH/algebra-ebm"
 
@@ -75,6 +77,8 @@ git clone "$REPO_URL" "$REPO_DIR" || {
     echo "ERROR: Failed to clone repository from $REPO_URL"
     exit 1
 }
+# git clone git@github.com:mdkrasnow/algebra-ebm.git
+
 
 echo "Repository cloned successfully to: $REPO_DIR"
 

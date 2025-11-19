@@ -76,6 +76,7 @@ git clone "$REPO_URL" "$REPO_DIR" || {
     exit 1
 }
 
+
 echo "Repository cloned successfully to: $REPO_DIR"
 
 # ------------------------------------------------------------------------------
@@ -101,20 +102,76 @@ if [ -d "$REPO_DIR"/irem_lib ]; then
 fi
 
 # Copy trained models from results directory
-# Check both repository and submit directory for trained models
+# Check multiple locations for trained models
+MODELS_COPIED=false
+
+# Check repository results directory
 if [ -d "$REPO_DIR"/results ]; then
     echo "Copying trained models from repository results directory..."
     /bin/cp -r "$REPO_DIR"/results "$JOB_SCRATCH"/
+    MODELS_COPIED=true
+# Check submit directory 
 elif [ -d "$SLURM_SUBMIT_DIR"/results ]; then
     echo "Copying trained models from submit directory..."
     /bin/cp -r "$SLURM_SUBMIT_DIR"/results "$JOB_SCRATCH"/
+    MODELS_COPIED=true
+# Check home directory
+elif [ -d "$HOME"/results ]; then
+    echo "Copying trained models from home directory..."
+    /bin/cp -r "$HOME"/results "$JOB_SCRATCH"/
+    MODELS_COPIED=true
+# Check if models are already in scratch (from previous runs)
+elif [ -d "$LAB_SCRATCH_ROOT"/results ]; then
+    echo "Copying trained models from lab scratch..."
+    /bin/cp -r "$LAB_SCRATCH_ROOT"/results "$JOB_SCRATCH"/
+    MODELS_COPIED=true
+fi
+
+if [ "$MODELS_COPIED" = false ]; then
+    echo "WARNING: No trained models found in any expected location!"
+    echo "Checked locations:"
+    echo "  - $REPO_DIR/results"
+    echo "  - $SLURM_SUBMIT_DIR/results"
+    echo "  - $HOME/results"
+    echo "  - $LAB_SCRATCH_ROOT/results"
+    echo ""
+    echo "Expected model structure:"
+    echo "  - results/distribute/model.pt (or model-*.pt)"
+    echo "  - results/combine/model.pt (or model-*.pt)"
+    echo "  - results/isolate/model.pt (or model-*.pt)"
+    echo "  - results/divide/model.pt (or model-*.pt)"
+    echo ""
+    echo "Models must be trained first using the training script."
+    echo "Continuing anyway to test the evaluation pipeline..."
+fi
+
+# Verify model files after copying
+if [ -d "$JOB_SCRATCH/results" ]; then
+    echo "Checking for model files in copied results..."
+    find "$JOB_SCRATCH/results" -name "*.pt" -type f | head -10
+    
+    # Count models found
+    MODEL_COUNT=$(find "$JOB_SCRATCH/results" -name "*.pt" -type f | wc -l)
+    echo "Found $MODEL_COUNT model files total"
+    
+    # Check each rule directory
+    for rule in distribute combine isolate divide; do
+        RULE_DIR="$JOB_SCRATCH/results/$rule"
+        if [ -d "$RULE_DIR" ]; then
+            MODEL_FILES=$(find "$RULE_DIR" -name "*.pt" -type f | wc -l)
+            echo "Rule $rule: $MODEL_FILES model files"
+            if [ $MODEL_FILES -eq 0 ]; then
+                echo "  WARNING: No model files found for rule $rule"
+            else
+                echo "  Model files for $rule:"
+                find "$RULE_DIR" -name "*.pt" -type f | head -3
+            fi
+        else
+            echo "Rule $rule: directory not found"
+        fi
+    done
 else
-    echo "WARNING: No results directory found. Models must be trained first."
-    echo "Expected model directories:"
-    echo "  - results/distribute/"
-    echo "  - results/combine/"
-    echo "  - results/isolate/"
-    echo "  - results/divide/"
+    echo "WARNING: No results directory created - evaluation will fail"
 fi
 
 echo "Files copied successfully."
