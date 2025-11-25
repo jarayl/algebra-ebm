@@ -13,7 +13,8 @@ Classes:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union, Dict
+from collections import deque
 
 # Import utilities from existing models
 from models import SinusoidalPosEmb, swish
@@ -114,6 +115,28 @@ class AlgebraEBM(nn.Module):
         # Energy = ||output_vector||^2 (L2 norm squared for non-negative energy)
         energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
         
+        # Minimal numerical stability - only handle genuine NaN/inf cases
+        # EBMs need unbounded energy differences for proper contrastive learning
+        if torch.isnan(energy).any() or torch.isinf(energy).any():
+            # Only replace pathological values, preserve gradient flow for normal values
+            energy = torch.where(
+                torch.isnan(energy) | torch.isinf(energy),
+                torch.full_like(energy, 100.0),  # Reasonable fallback energy
+                energy
+            )
+        
+        # For extremely high energies (>1e6), use log-based soft limiting to preserve gradients
+        # This protects against numerical overflow while maintaining EBM dynamics
+        extreme_mask = energy > 1e6
+        if extreme_mask.any():
+            # Soft log-based clamping: log(1 + (x - 1e6)) + 1e6
+            # Preserves gradients unlike sigmoid, only affects truly extreme values
+            energy = torch.where(
+                extreme_mask,
+                torch.log1p(energy - 1e6) + 1e6,
+                energy
+            )
+        
         return energy
 
 
@@ -187,3 +210,125 @@ class AlgebraDiffusionWrapper(nn.Module):
             return energy, grad
         else:
             return grad
+
+
+class ContrastiveEnergyLoss:
+    """
+    Contrastive energy loss for training algebraic EBMs.
+    
+    Implements proper energy supervision where:
+    - E_pos (valid transformations) should have LOW energy (< margin/2)
+    - E_neg (invalid transformations) should have HIGH energy (> margin) 
+    - Energy gap E_neg - E_pos should be >= margin for good separation
+    
+    Args:
+        margin: Energy separation margin (default: 10.0)
+        pos_target: Target energy for positive samples (default: 1.0)
+        neg_target: Target energy for negative samples (default: 15.0)
+    """
+    
+    def __init__(self, margin: float = 10.0, pos_target: float = 1.0, neg_target: float = 15.0):
+        self.margin = margin
+        self.pos_target = pos_target
+        self.neg_target = neg_target
+        
+        # Track energy gap statistics for monitoring (bounded history to prevent memory leaks)
+        self.energy_gap_history = deque(maxlen=1000)
+        self.pos_energy_history = deque(maxlen=1000)
+        self.neg_energy_history = deque(maxlen=1000)
+    
+    def compute_loss(
+        self,
+        pos_energies: torch.Tensor,
+        neg_energies: torch.Tensor,
+        return_metrics: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, float]]]:
+        """
+        Compute contrastive energy loss.
+        
+        Args:
+            pos_energies: Energies for positive (valid) samples (B_pos, 1)
+            neg_energies: Energies for negative (invalid) samples (B_neg, 1)
+            return_metrics: If True, return additional metrics dict
+            
+        Returns:
+            loss: Contrastive loss value
+            metrics: Dict with energy statistics (if return_metrics=True)
+        """
+        # Input validation - cannot compute contrastive loss without both positive and negative samples
+        if pos_energies.numel() == 0 or neg_energies.numel() == 0:
+            # Fail fast for empty batches to prevent silent training failure
+            error_msg = (
+                f"ContrastiveEnergyLoss received empty batch: "
+                f"pos_energies={pos_energies.numel()}, neg_energies={neg_energies.numel()}. "
+                f"This indicates a data pipeline issue and prevents gradient computation. "
+                f"Training cannot proceed with empty batches."
+            )
+            raise ValueError(error_msg)
+        
+        # L2 loss pushing positive energies toward low target
+        pos_loss = F.mse_loss(pos_energies, torch.full_like(pos_energies, self.pos_target))
+        
+        # L2 loss pushing negative energies toward high target  
+        neg_loss = F.mse_loss(neg_energies, torch.full_like(neg_energies, self.neg_target))
+        
+        # Margin loss ensuring separation E_neg > E_pos + margin
+        pos_mean = pos_energies.mean()
+        neg_mean = neg_energies.mean()
+        energy_gap = neg_mean - pos_mean
+        margin_loss = F.relu(self.margin - energy_gap)
+        
+        # Combined loss with equal weighting
+        total_loss = pos_loss + neg_loss + margin_loss
+        
+        # Update monitoring statistics (deque automatically maintains size limit)
+        self.energy_gap_history.append(energy_gap.item())
+        self.pos_energy_history.append(pos_mean.item())
+        self.neg_energy_history.append(neg_mean.item())
+        
+        if return_metrics:
+            metrics = {
+                'energy_gap': energy_gap.item(),
+                'pos_energy_mean': pos_mean.item(),
+                'neg_energy_mean': neg_mean.item(),
+                'pos_loss': pos_loss.item(),
+                'neg_loss': neg_loss.item(),
+                'margin_loss': margin_loss.item(),
+                'energy_ratio': (neg_mean / torch.clamp(pos_mean, min=1e-6)).item()
+            }
+            return total_loss, metrics
+        else:
+            return total_loss
+    
+    def get_energy_gap_stats(self) -> Dict[str, float]:
+        """Get recent energy gap statistics for monitoring."""
+        if not self.energy_gap_history:
+            return {'gap_mean': 0.0, 'gap_std': 0.0, 'ratio_mean': 1.0}
+        
+        gaps = torch.tensor(self.energy_gap_history)
+        pos_energies = torch.tensor(self.pos_energy_history)
+        neg_energies = torch.tensor(self.neg_energy_history)
+        
+        # Compute ratios with numerical safety
+        ratios = neg_energies / torch.clamp(pos_energies, min=1e-6)
+        
+        return {
+            'gap_mean': gaps.mean().item(),
+            'gap_std': gaps.std().item(),
+            'ratio_mean': ratios.mean().item(),
+            'ratio_std': ratios.std().item(),
+            'success_rate': (gaps >= self.margin).float().mean().item()
+        }
+    
+    def is_well_separated(self, threshold_ratio: float = 5.0) -> bool:
+        """
+        Check if energy gap indicates good contrastive learning.
+        
+        Args:
+            threshold_ratio: Required E_neg/E_pos ratio for success
+            
+        Returns:
+            True if recent energy gaps indicate good separation
+        """
+        stats = self.get_energy_gap_stats()
+        return stats['ratio_mean'] >= threshold_ratio and stats['success_rate'] >= 0.8

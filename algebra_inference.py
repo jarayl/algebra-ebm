@@ -29,6 +29,8 @@ import math
 from typing import Dict, List, Union, Optional, Tuple, Any
 from pathlib import Path
 import logging
+from dataclasses import dataclass
+from collections import deque
 
 # Import existing components
 from algebra_encoder import CharacterLevelEncoder, ASTEncoder, EquationDecoder
@@ -37,6 +39,69 @@ from algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class InferenceConfig:
+    """
+    Configuration for IRED algebra inference parameters.
+    
+    These parameters control the annealed gradient descent process used
+    for solving algebraic equations through energy landscape optimization.
+    """
+    
+    # Core inference parameters  
+    step_size: float = 0.01  # Gradient descent step size (reduced from 0.1 for stability)
+    max_iterations: int = 50  # Gradient steps per landscape (increased from 20 for convergence)
+    K: int = 10  # Number of energy landscapes to traverse
+    
+    # Advanced parameters
+    use_adaptive_step: bool = True  # Whether to adapt step size per landscape
+    energy_threshold: float = 1e-6  # Early stopping threshold for very low energy
+    
+    # Safety parameters
+    max_gradient_norm: float = 10.0  # Maximum allowed gradient norm
+    energy_bounds: Tuple[float, float] = (0.0, 1000.0)  # [min, max] energy bounds
+    
+    # Convergence criteria
+    convergence_threshold: float = 1e-5  # Threshold for energy change convergence
+    min_improvement_steps: int = 5  # Minimum steps before convergence check
+    
+    def __post_init__(self):
+        """Validate configuration parameters."""
+        if self.step_size <= 0:
+            raise ValueError(f"step_size must be positive, got {self.step_size}")
+        if self.max_iterations <= 0:
+            raise ValueError(f"max_iterations must be positive, got {self.max_iterations}")
+        if self.K <= 0:
+            raise ValueError(f"K must be positive, got {self.K}")
+        if self.energy_threshold < 0:
+            raise ValueError(f"energy_threshold must be non-negative, got {self.energy_threshold}")
+        if self.max_gradient_norm <= 0:
+            raise ValueError(f"max_gradient_norm must be positive, got {self.max_gradient_norm}")
+        if self.energy_bounds[0] >= self.energy_bounds[1]:
+            raise ValueError(f"energy_bounds must be [min, max] with min < max, got {self.energy_bounds}")
+        if self.convergence_threshold <= 0:
+            raise ValueError(f"convergence_threshold must be positive, got {self.convergence_threshold}")
+        
+        logger.debug(f"InferenceConfig validated: step_size={self.step_size}, max_iterations={self.max_iterations}")
+    
+    def get_adaptive_step_size(self, landscape_idx: int) -> float:
+        """Get step size for a specific landscape, optionally with adaptation."""
+        if not self.use_adaptive_step:
+            return self.step_size
+        
+        # Decrease step size for later landscapes (smoother optimization)
+        decay_factor = 0.7 ** (landscape_idx // 3)
+        return self.step_size * decay_factor
+    
+    def should_early_stop(self, energy: float) -> bool:
+        """Check if energy is low enough for early stopping."""
+        return energy < self.energy_threshold
+    
+    def is_gradient_safe(self, grad_norm: float) -> bool:
+        """Check if gradient norm is within safe bounds."""
+        return grad_norm <= self.max_gradient_norm
 
 
 def cosine_beta_schedule(timesteps: int, s: float = 0.008) -> torch.Tensor:
@@ -86,7 +151,7 @@ class AlgebraInference:
         rule_models: Dict mapping rule names to trained EBM models
         encoder: Equation encoder (CharacterLevelEncoder or ASTEncoder) 
         decoder: Equation decoder for converting embeddings back to strings
-        K: Number of energy landscapes (default: 10)
+        config: InferenceConfig with optimization parameters (uses defaults if None)
         device: Device to run inference on ('cuda' or 'cpu')
     """
     
@@ -95,13 +160,14 @@ class AlgebraInference:
         rule_models: Dict[str, AlgebraDiffusionWrapper],
         encoder: Union[CharacterLevelEncoder, ASTEncoder],
         decoder: Optional[EquationDecoder] = None,
-        K: int = 10,
+        config: Optional[InferenceConfig] = None,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
         self.rule_models = rule_models
         self.encoder = encoder
         self.decoder = decoder
-        self.K = K
+        self.config = config if config is not None else InferenceConfig()
+        self.K = self.config.K  # For backward compatibility
         self.device = device
         
         # Move models and encoder to device
@@ -114,7 +180,7 @@ class AlgebraInference:
             # Encoder might not support .to() method, that's ok
         
         # Compute cosine schedule for landscape scaling
-        self.alphas_cumprod = compute_alphas_cumprod(K).to(device)
+        self.alphas_cumprod = compute_alphas_cumprod(self.config.K).to(device)
         
         # Set models to evaluation mode
         for model in self.rule_models.values():
@@ -235,27 +301,32 @@ class AlgebraInference:
     def ired_inference(
         self,
         inp_embedding: torch.Tensor,
-        T: int = 20,
-        step_size: float = 0.1,
-        rule_weights: Optional[Dict[str, float]] = None,
-        use_adaptive_step: bool = True,
-        energy_threshold: float = 1e-6
+        config: Optional[InferenceConfig] = None,
+        rule_weights: Optional[Dict[str, float]] = None
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """
         Core IRED inference algorithm with annealed gradient descent.
         
         Args:
             inp_embedding: Input equation embedding (B, 128)  
-            T: Number of gradient steps per landscape (default: 20)
-            step_size: Initial step size for gradient descent (default: 0.1)
+            config: InferenceConfig with optimization parameters (uses self.config if None)
             rule_weights: Optional weights for rule composition
-            use_adaptive_step: Whether to adapt step size per landscape
-            energy_threshold: Early stopping threshold for energy
             
         Returns:
             out_embedding: Final optimized embedding (B, 128)
             info: Dictionary with optimization statistics
         """
+        # Use provided config or fall back to instance config
+        if config is None:
+            config = self.config
+        else:
+            # Validate that runtime config.K matches precomputed alphas_cumprod
+            if config.K != len(self.alphas_cumprod):
+                raise ValueError(
+                    f"config.K={config.K} does not match precomputed alphas_cumprod length={len(self.alphas_cumprod)}. "
+                    f"Either use instance config (K={self.config.K}) or reinitialize AlgebraInference with new config."
+                )
+            
         # Input validation
         if len(inp_embedding.shape) != 2 or inp_embedding.shape[1] != 128:
             raise ValueError(f"inp_embedding must have shape (B, 128), got {inp_embedding.shape}")
@@ -269,40 +340,40 @@ class AlgebraInference:
             raise ValueError("inp_embedding contains NaN values")
         if torch.isinf(inp_embedding).any():
             raise ValueError("inp_embedding contains Inf values")
-        if T <= 0:
-            raise ValueError(f"T must be positive, got {T}")
-        if step_size <= 0:
-            raise ValueError(f"step_size must be positive, got {step_size}")
-        if energy_threshold < 0:
-            raise ValueError(f"energy_threshold must be non-negative, got {energy_threshold}")
         
         batch_size = inp_embedding.shape[0]
         
         # Initialize from noise  
         out = torch.randn(batch_size, 128, device=self.device, requires_grad=True)
         
-        # Track optimization statistics
+        # Track optimization statistics (bounded by config parameters)
         info = {
             'energy_history': [],
             'step_sizes': [],
             'landscape_transitions': [],
             'gradient_norms': [],
             'accepted_steps': 0,
-            'total_steps': 0
+            'total_steps': 0,
+            'config_used': {
+                'step_size': config.step_size,
+                'max_iterations': config.max_iterations,
+                'K': config.K,
+                'use_adaptive_step': config.use_adaptive_step
+            }
         }
         
         # Iterate through K landscapes
-        for k in range(self.K):
+        for k in range(config.K):
             sigma_k = torch.sqrt(1 - self.alphas_cumprod[k]).item()
             
-            # Adaptive step size (decrease for later landscapes)
-            current_step_size = step_size * (0.5 ** (k // 3)) if use_adaptive_step else step_size
+            # Adaptive step size using config method
+            current_step_size = config.get_adaptive_step_size(k)
             info['step_sizes'].append(current_step_size)
             
             logger.debug(f"Landscape {k}, sigma_k={sigma_k:.4f}, step_size={current_step_size:.4f}")
             
-            # T gradient descent steps in this landscape
-            for t in range(T):
+            # max_iterations gradient descent steps in this landscape
+            for t in range(config.max_iterations):
                 # Compute composed energy and gradient in single pass (performance optimization)
                 energy_before, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights)
                 
@@ -321,8 +392,8 @@ class AlgebraInference:
                     out = out_new.detach().requires_grad_(True)  # Detach to avoid graph accumulation
                     info['accepted_steps'] += 1
                     
-                    # Early stopping if energy is very low
-                    if energy_after.item() < energy_threshold:
+                    # Early stopping using config threshold
+                    if config.should_early_stop(energy_after.item()):
                         logger.debug(f"Early stopping at landscape {k}, step {t}, energy={energy_after.item():.6f}")
                         break
                 
@@ -331,7 +402,7 @@ class AlgebraInference:
             info['landscape_transitions'].append(k)
             
             # Scale for next landscape (except for last)
-            if k < self.K - 1:
+            if k < config.K - 1:
                 sigma_k_next = torch.sqrt(1 - self.alphas_cumprod[k + 1]).item()
                 
                 # Handle numerical edge cases in scaling
@@ -345,7 +416,7 @@ class AlgebraInference:
                 out = out.requires_grad_(True)
         
         # Final statistics
-        info['final_energy'] = self.compose_energies(inp_embedding, out, self.K-1, rule_weights).item()
+        info['final_energy'] = self.compose_energies(inp_embedding, out, config.K-1, rule_weights).item()
         info['acceptance_rate'] = info['accepted_steps'] / max(info['total_steps'], 1)
         
         logger.info(f"Inference completed. Final energy: {info['final_energy']:.6f}, "
@@ -356,8 +427,7 @@ class AlgebraInference:
     def solve_equation(
         self,
         input_equation: str,
-        T: int = 50,
-        step_size: float = 0.05,
+        config: Optional[InferenceConfig] = None,
         rule_weights: Optional[Dict[str, float]] = None,
         distance_threshold: float = 1.5
     ) -> Dict[str, Any]:
@@ -366,8 +436,7 @@ class AlgebraInference:
         
         Args:
             input_equation: Input equation string (e.g., "2*(x+3)+4=10")
-            T: Number of gradient steps per landscape
-            step_size: Step size for gradient descent
+            config: InferenceConfig with optimization parameters (uses self.config if None)
             rule_weights: Optional weights for rule composition  
             distance_threshold: Maximum distance for valid decoding
             
@@ -391,7 +460,7 @@ class AlgebraInference:
             
             # Run IRED inference
             out_embedding, info = self.ired_inference(
-                inp_embedding, T=T, step_size=step_size, rule_weights=rule_weights
+                inp_embedding, config=config, rule_weights=rule_weights
             )
             
             # Decode output embedding
