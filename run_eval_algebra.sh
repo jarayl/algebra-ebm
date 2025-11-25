@@ -226,9 +226,9 @@ python eval_algebra.py \
     --model_dir "$MODEL_DIR" \
     --output_dir "$OUTPUT_DIR" \
     --eval_type full \
-    --single_rule_problems 100 \
-    --multi_rule_problems 100 \
-    --constrained_problems 50 \
+    --single_rule_problems 1000 \
+    --multi_rule_problems 1000 \
+    --constrained_problems 500 \
     --save_detailed \
     --verbose \
     --device auto \
@@ -251,7 +251,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --output_dir "$OUTPUT_DIR" \
             --eval_type single_rule \
             --rule "$rule" \
-            --single_rule_problems 100 \
+            --single_rule_problems 1000 \
             --verbose \
             --device auto \
             --seed 42
@@ -265,7 +265,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --output_dir "$OUTPUT_DIR" \
             --eval_type multi_rule \
             --num_rules "$num_rules" \
-            --multi_rule_problems 100 \
+            --multi_rule_problems 1000 \
             --verbose \
             --device auto \
             --seed 42

@@ -29,6 +29,7 @@ Example Usage:
 import torch
 import numpy as np
 import logging
+import traceback
 from typing import Dict, List, Union, Optional, Any, Tuple
 from pathlib import Path
 import json
@@ -416,6 +417,7 @@ def evaluate_model(
                 
             except Exception as e:
                 logger.error(f"Error evaluating sample {idx}: {str(e)}")
+                logger.debug(f"Sample {idx} traceback:\n{traceback.format_exc()}")
                 # Add placeholder results to maintain alignment
                 predicted_equations.append(None)
                 target_equations.append("x=0")  # Dummy target
@@ -547,7 +549,8 @@ def evaluate_model_suite(
             
         except Exception as e:
             logger.error(f"Error evaluating {test_name}: {str(e)}")
-            suite_results[test_name] = {'error': str(e)}
+            logger.error(f"Traceback for {test_name}:\n{traceback.format_exc()}")
+            suite_results[test_name] = {'error': str(e), 'traceback': traceback.format_exc()}
     
     total_time = time.time() - total_start_time
     logger.info(f"Suite evaluation completed in {total_time:.2f} seconds")

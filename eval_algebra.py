@@ -32,6 +32,7 @@ import argparse
 import logging
 import time
 import json
+import traceback
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -94,6 +95,7 @@ def create_single_rule_datasets(
             
         except Exception as e:
             logger.error(f"Failed to create dataset for rule {rule}: {str(e)}")
+            logger.error(f"Traceback for rule {rule}:\n{traceback.format_exc()}")
             continue
     
     return datasets
@@ -138,6 +140,7 @@ def create_multi_rule_datasets(
             
         except Exception as e:
             logger.error(f"Failed to create {num_rules}-rule dataset: {str(e)}")
+            logger.error(f"Traceback for {num_rules}-rule dataset:\n{traceback.format_exc()}")
             continue
     
     return datasets
@@ -185,6 +188,7 @@ def create_constrained_datasets(
             
         except Exception as e:
             logger.error(f"Failed to create {constraint} constrained dataset: {str(e)}")
+            logger.error(f"Traceback for {constraint} constrained dataset:\n{traceback.format_exc()}")
             continue
     
     return datasets
@@ -279,6 +283,7 @@ def run_full_evaluation_suite(
         logger.info(f"Created {len(single_datasets)} single-rule datasets")
     except Exception as e:
         logger.error(f"Error creating single-rule datasets: {str(e)}")
+        logger.error(f"Single-rule datasets traceback:\n{traceback.format_exc()}")
     
     # 2. Multi-rule datasets
     try:
@@ -290,6 +295,7 @@ def run_full_evaluation_suite(
         logger.info(f"Created {len(multi_datasets)} multi-rule datasets")
     except Exception as e:
         logger.error(f"Error creating multi-rule datasets: {str(e)}")
+        logger.error(f"Multi-rule datasets traceback:\n{traceback.format_exc()}")
     
     # 3. Constrained datasets
     try:
@@ -301,6 +307,7 @@ def run_full_evaluation_suite(
         logger.info(f"Created {len(constrained_datasets)} constrained datasets")
     except Exception as e:
         logger.error(f"Error creating constrained datasets: {str(e)}")
+        logger.error(f"Constrained datasets traceback:\n{traceback.format_exc()}")
     
     if not all_datasets:
         raise ValueError("No test datasets were created successfully")
@@ -345,7 +352,11 @@ def generate_evaluation_report(results: Dict[str, Dict[str, Any]], output_file: 
         if name.startswith('_'):  # Skip metadata
             continue
         elif 'error' in result:
-            report_lines.append(f"ERROR in {name}: {result['error']}") # we want to get the traceback for this because this error goes offf each time
+            report_lines.append(f"ERROR in {name}: {result['error']}")
+            if 'traceback' in result:
+                report_lines.append(f"TRACEBACK for {name}:")
+                report_lines.append(result['traceback'])
+                report_lines.append("")
             continue
             
         if name.startswith('single_rule_'):
@@ -710,6 +721,7 @@ def main():
         
     except Exception as e:
         logger.error(f"Evaluation failed: {str(e)}")
+        logger.error(f"Main evaluation traceback:\n{traceback.format_exc()}")
         raise
 
 
