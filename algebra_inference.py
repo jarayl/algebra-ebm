@@ -59,13 +59,18 @@ class InferenceConfig:
     use_adaptive_step: bool = True  # Whether to adapt step size per landscape
     energy_threshold: float = 1e-6  # Early stopping threshold for very low energy
     
-    # Safety parameters
-    max_gradient_norm: float = 10.0  # Maximum allowed gradient norm
-    energy_bounds: Tuple[float, float] = (0.0, 1000.0)  # [min, max] energy bounds
-    
-    # Convergence criteria
-    convergence_threshold: float = 1e-5  # Threshold for energy change convergence
-    min_improvement_steps: int = 5  # Minimum steps before convergence check
+    # TODO: Future safety features (currently not implemented to avoid "security theater")
+    # 
+    # Previously had unused parameters: max_gradient_norm, energy_bounds, convergence_threshold, min_improvement_steps
+    # These were validated but never enforced in the inference logic, creating false sense of security.
+    # 
+    # If implementing these features in the future:
+    # - energy_bounds: Should be optional and disabled by default for EBMs (need unbounded energy differences)
+    # - max_gradient_norm: Would require modification of optimization loop with gradient clipping
+    # - convergence_threshold/min_improvement_steps: Would require tracking energy changes across iterations
+    # - All should have clear enforcement mechanisms, not just validation
+    #
+    # Design principle: Better to have no safety feature than one that doesn't work
     
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -77,12 +82,6 @@ class InferenceConfig:
             raise ValueError(f"K must be positive, got {self.K}")
         if self.energy_threshold < 0:
             raise ValueError(f"energy_threshold must be non-negative, got {self.energy_threshold}")
-        if self.max_gradient_norm <= 0:
-            raise ValueError(f"max_gradient_norm must be positive, got {self.max_gradient_norm}")
-        if self.energy_bounds[0] >= self.energy_bounds[1]:
-            raise ValueError(f"energy_bounds must be [min, max] with min < max, got {self.energy_bounds}")
-        if self.convergence_threshold <= 0:
-            raise ValueError(f"convergence_threshold must be positive, got {self.convergence_threshold}")
         
         logger.debug(f"InferenceConfig validated: step_size={self.step_size}, max_iterations={self.max_iterations}")
     
@@ -99,9 +98,6 @@ class InferenceConfig:
         """Check if energy is low enough for early stopping."""
         return energy < self.energy_threshold
     
-    def is_gradient_safe(self, grad_norm: float) -> bool:
-        """Check if gradient norm is within safe bounds."""
-        return grad_norm <= self.max_gradient_norm
 
 
 def cosine_beta_schedule(timesteps: int, s: float = 0.008) -> torch.Tensor:

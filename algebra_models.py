@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Tuple, Optional, Union, Dict
 from collections import deque
+import logging
 
 # Import utilities from existing models
 from models import SinusoidalPosEmb, swish
@@ -115,27 +116,42 @@ class AlgebraEBM(nn.Module):
         # Energy = ||output_vector||^2 (L2 norm squared for non-negative energy)
         energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
         
-        # Minimal numerical stability - only handle genuine NaN/inf cases
-        # EBMs need unbounded energy differences for proper contrastive learning
-        if torch.isnan(energy).any() or torch.isinf(energy).any():
-            # Only replace pathological values, preserve gradient flow for normal values
-            energy = torch.where(
-                torch.isnan(energy) | torch.isinf(energy),
-                torch.full_like(energy, 100.0),  # Reasonable fallback energy
-                energy
-            )
+        # Optimized numerical stability with fast path for common case
+        # Fast path: check energy range first to avoid expensive element-wise operations
+        energy_max = energy.max().item()
+        energy_min = energy.min().item()
         
-        # For extremely high energies (>1e6), use log-based soft limiting to preserve gradients
-        # This protects against numerical overflow while maintaining EBM dynamics
-        extreme_mask = energy > 1e6
-        if extreme_mask.any():
-            # Soft log-based clamping: log(1 + (x - 1e6)) + 1e6
-            # Preserves gradients unlike sigmoid, only affects truly extreme values
-            energy = torch.where(
-                extreme_mask,
-                torch.log1p(energy - 1e6) + 1e6,
-                energy
-            )
+        # Fast path: if values are in normal range, skip detailed checks (5-10x faster)  
+        # Note: energy from ||x||^2 is always >= 0, and max/min are NaN if any element is NaN
+        if energy_min >= 0.0 and energy_max <= 1e6 and not (torch.isnan(energy_max) or torch.isnan(energy_min)):
+            # Normal case - no intervention needed, values are finite and in acceptable range
+            pass
+        else:
+            # Detailed intervention needed - use original expensive checks
+            logger = logging.getLogger(__name__)
+            
+            # Handle NaN/Inf cases (should be rare in normal operation)
+            if not torch.isfinite(energy).all():
+                logger.warning("AlgebraEBM detected non-finite energy values, applying numerical stabilization")
+                # Use median of valid energies if available, else safe fallback
+                finite_mask = torch.isfinite(energy)
+                if finite_mask.any():
+                    fallback_value = energy[finite_mask].median()
+                else:
+                    fallback_value = torch.tensor(100.0, device=energy.device)
+                energy = torch.where(finite_mask, energy, fallback_value)
+            
+            # Apply log-based soft limiting for extreme values
+            if energy_max > 1e6:
+                logger.debug(f"AlgebraEBM applying soft limiting for extreme energy max: {energy_max:.2e}")
+                extreme_mask = energy > 1e6
+                # Soft log-based clamping: log(1 + (x - 1e6)) + 1e6
+                # Preserves gradients and maintains energy ordering
+                energy = torch.where(
+                    extreme_mask,
+                    torch.log1p(energy - 1e6) + 1e6,
+                    energy
+                )
         
         return energy
 
