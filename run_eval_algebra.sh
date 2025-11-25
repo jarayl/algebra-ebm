@@ -4,7 +4,7 @@
 #SBATCH --account=ydu_lab                    # Your lab account
 #SBATCH --gres=gpu:1                         # 1 GPU
 #SBATCH -c 16                                # 16 CPU cores
-#SBATCH -t 00-04:00:00                       # 4 hours
+#SBATCH -t 00-07:00:00                       # 2 days
 #SBATCH --mem=64G                            # 64 GB RAM
 #SBATCH -o eval_algebra_%j.out               # STDOUT file
 #SBATCH -e eval_algebra_%j.err               # STDERR file
@@ -226,9 +226,9 @@ python eval_algebra.py \
     --model_dir "$MODEL_DIR" \
     --output_dir "$OUTPUT_DIR" \
     --eval_type full \
-    --single_rule_problems 1000 \
-    --multi_rule_problems 1000 \
-    --constrained_problems 500 \
+    --single_rule_problems 100 \
+    --multi_rule_problems 100 \
+    --constrained_problems 50 \
     --save_detailed \
     --verbose \
     --device auto \
@@ -251,7 +251,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --output_dir "$OUTPUT_DIR" \
             --eval_type single_rule \
             --rule "$rule" \
-            --single_rule_problems 1000 \
+            --single_rule_problems 100 \
             --verbose \
             --device auto \
             --seed 42
@@ -265,7 +265,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --output_dir "$OUTPUT_DIR" \
             --eval_type multi_rule \
             --num_rules "$num_rules" \
-            --multi_rule_problems 1000 \
+            --multi_rule_problems 100 \
             --verbose \
             --device auto \
             --seed 42

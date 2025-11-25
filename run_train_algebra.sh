@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -J train_algebra                      # Job name
-#SBATCH -p gpu_test                                # Use GPU partition (not gpu_test for real training)
+#SBATCH -p gpu                               # Use GPU partition (not gpu_test for real training)
 #SBATCH --account=ydu_lab                     # Your lab account
 #SBATCH --gres=gpu:1                          # 1 GPU
 #SBATCH -c 16                                 # 16 CPU cores
-#SBATCH -t 00-04:00:00                        # 4 hours (training can take a while)
+#SBATCH -t 03-00:00:00                        # 2 days
 #SBATCH --mem=64G                             # 64 GB RAM
 #SBATCH -o train_algebra_%j.out               # STDOUT file
 #SBATCH -e train_algebra_%j.err               # STDERR file
@@ -148,8 +148,8 @@ echo "Starting algebra EBM training for all rules..."
 
 # Define training parameters
 BATCH_SIZE=2048        # Default from script
-TRAIN_STEPS=2000      # Default from script
-NUM_PROBLEMS=2000     # Default from script
+TRAIN_STEPS=50000      # Default from script
+NUM_PROBLEMS=50000     # Default from script
 TIMESTEPS=10           # Default from script
 
 # Check GPU memory and adjust batch size if needed

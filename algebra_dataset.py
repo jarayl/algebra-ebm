@@ -911,7 +911,19 @@ class ConstrainedDataset(MultiRuleDataset):
         if index >= len(self.equation_data):
             raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_data)}")
             
-        input_eq, target_eq, _, _ = self.equation_data[index]
+        # Defensive unpacking with validation (following parent class pattern)
+        equation_tuple = self.equation_data[index]
+        
+        # Essential validation: ensure we have minimum required elements  
+        if len(equation_tuple) < 2:
+            raise ValueError(f"Invalid equation tuple at index {index}: expected at least 2 elements (input_eq, target_eq), got {len(equation_tuple)}")
+        
+        # Extract core elements using defensive pattern
+        input_eq, target_eq = equation_tuple[0], equation_tuple[1]
+        
+        # Basic type validation to prevent encoder failures
+        if not isinstance(input_eq, str) or not isinstance(target_eq, str):
+            raise TypeError(f"Equations must be strings at index {index}, got input: {type(input_eq)}, target: {type(target_eq)}")
         
         # Encode equations to embeddings
         input_embedding = self.encoder.encode_equation_string(input_eq)
@@ -932,7 +944,19 @@ class ConstrainedDataset(MultiRuleDataset):
         if index >= len(self.equation_data):
             raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_data)}")
             
-        input_eq, target_eq, rules, constraints = self.equation_data[index]
+        # Defensive unpacking with validation (consistent with __getitem__ pattern)
+        equation_tuple = self.equation_data[index]
+        
+        # Validate 4-tuple structure for constraint data access
+        if len(equation_tuple) < 4:
+            raise ValueError(f"Invalid equation tuple at index {index}: expected 4 elements (input_eq, target_eq, rules, constraints), got {len(equation_tuple)}")
+        
+        # Extract all elements using defensive pattern
+        input_eq, target_eq, rules, constraints = equation_tuple[0], equation_tuple[1], equation_tuple[2], equation_tuple[3]
+        
+        # Basic type validation for core elements
+        if not isinstance(input_eq, str) or not isinstance(target_eq, str):
+            raise TypeError(f"Equations must be strings at index {index}, got input: {type(input_eq)}, target: {type(target_eq)}")
         
         return {
             'input_equation': input_eq,
@@ -972,13 +996,21 @@ class ConstrainedDataset(MultiRuleDataset):
     
     def get_dataset_info(self) -> Dict:
         """Get information about the constrained dataset."""
-        base_info = super().get_dataset_info()
+        # Count rules manually since parent method expects 3-tuples but we have 4-tuples
+        rule_counts = {}
+        for _, _, rules, _ in self.equation_data:  # 4-tuple unpacking for constrained data
+            for rule in rules:
+                rule_counts[rule] = rule_counts.get(rule, 0) + 1
+        
+        # Get constraint information
         constraint_info = self.get_constraint_stats()
         
-        # Merge the dictionaries
-        base_info.update({
+        return {
+            'num_rules': self.num_rules,
+            'split': self.split,
+            'num_problems': len(self.equation_data),
+            'coeff_range': self.coeff_range,
+            'rule_counts': rule_counts,
             'constraints': self.constraints,
             'constraint_stats': constraint_info
-        })
-        
-        return base_info
+        }

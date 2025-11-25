@@ -345,7 +345,7 @@ def generate_evaluation_report(results: Dict[str, Dict[str, Any]], output_file: 
         if name.startswith('_'):  # Skip metadata
             continue
         elif 'error' in result:
-            report_lines.append(f"ERROR in {name}: {result['error']}")
+            report_lines.append(f"ERROR in {name}: {result['error']}") # we want to get the traceback for this because this error goes offf each time
             continue
             
         if name.startswith('single_rule_'):
@@ -614,7 +614,7 @@ def main():
         
         # Create decoder
         try:
-            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=1.5)
+            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=10.0)
             logger.info("Created decoder with default candidates")
         except ImportError:
             logger.warning("sklearn not available - decoder disabled")
