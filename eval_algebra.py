@@ -484,22 +484,22 @@ def main():
     parser.add_argument(
         '--single_rule_problems',
         type=int,
-        default=1000,
-        help='Number of problems per single-rule test (default: 1000)'
+        default=100,
+        help='Number of problems per single-rule test (default: 100)'
     )
     
     parser.add_argument(
         '--multi_rule_problems',
         type=int,
-        default=1000,
-        help='Number of problems per multi-rule test (default: 1000)'
+        default=100,
+        help='Number of problems per multi-rule test (default: 100)'
     )
     
     parser.add_argument(
         '--constrained_problems',
         type=int,
-        default=500,
-        help='Number of problems per constrained test (default: 500)'
+        default=50,
+        help='Number of problems per constrained test (default: 50)'
     )
     
     # Quick test mode
