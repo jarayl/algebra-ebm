@@ -59,6 +59,10 @@ class InferenceConfig:
     use_adaptive_step: bool = True  # Whether to adapt step size per landscape
     energy_threshold: float = 1e-6  # Early stopping threshold for very low energy
     
+    # Adaptive step size parameters
+    step_size_decay_rate: float = 0.7  # Exponential decay rate for adaptive step sizing
+    step_size_decay_interval: int = 3  # Apply decay every N landscapes
+    
     # TODO: Future safety features (currently not implemented to avoid "security theater")
     # 
     # Previously had unused parameters: max_gradient_norm, energy_bounds, convergence_threshold, min_improvement_steps
@@ -80,19 +84,48 @@ class InferenceConfig:
             raise ValueError(f"max_iterations must be positive, got {self.max_iterations}")
         if self.K <= 0:
             raise ValueError(f"K must be positive, got {self.K}")
+        if self.K > 10000:
+            raise ValueError(
+                f"K exceeds maximum of 10000 (got {self.K}). "
+                f"Large K causes memory exhaustion during step size precomputation. "
+                f"Typical use: K=5-20 landscapes, maximum supported: K=10000."
+            )
         if self.energy_threshold < 0:
             raise ValueError(f"energy_threshold must be non-negative, got {self.energy_threshold}")
+        if self.step_size_decay_rate <= 0 or self.step_size_decay_rate >= 1:
+            raise ValueError(
+                f"step_size_decay_rate must be in (0, 1), got {self.step_size_decay_rate}. "
+                f"Value of 1.0 disables decay (no-op). Use use_adaptive_step=False instead."
+            )
+        if self.step_size_decay_interval <= 0:
+            raise ValueError(f"step_size_decay_interval must be positive, got {self.step_size_decay_interval}")
+        
+        # Precompute step sizes for performance optimization
+        if self.use_adaptive_step:
+            self._step_sizes = [
+                self.step_size * (self.step_size_decay_rate ** (k // self.step_size_decay_interval)) 
+                for k in range(self.K)
+            ]
+        else:
+            self._step_sizes = [self.step_size] * self.K
         
         logger.debug(f"InferenceConfig validated: step_size={self.step_size}, max_iterations={self.max_iterations}")
     
     def get_adaptive_step_size(self, landscape_idx: int) -> float:
-        """Get step size for a specific landscape, optionally with adaptation."""
-        if not self.use_adaptive_step:
-            return self.step_size
+        """Get step size for a specific landscape, optionally with adaptation.
         
-        # Decrease step size for later landscapes (smoother optimization)
-        decay_factor = 0.7 ** (landscape_idx // 3)
-        return self.step_size * decay_factor
+        Uses exponential decay: step_size * (decay_rate ** (landscape_idx // interval))
+        This gradually reduces step size to enable fine-grained optimization in later landscapes.
+        
+        Args:
+            landscape_idx: Index of current landscape (0 to K-1)
+            
+        Returns:
+            Step size for this landscape
+        """
+        if landscape_idx < 0 or landscape_idx >= len(self._step_sizes):
+            raise IndexError(f"landscape_idx {landscape_idx} out of bounds [0, {len(self._step_sizes)})")
+        return self._step_sizes[landscape_idx]
     
     def should_early_stop(self, energy: float) -> bool:
         """Check if energy is low enough for early stopping."""
@@ -190,7 +223,8 @@ class AlgebraInference:
         inp: torch.Tensor,
         out: torch.Tensor, 
         k: int,
-        rule_weights: Optional[Dict[str, float]] = None
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Compose energy functions from multiple rules by weighted summation.
@@ -200,6 +234,7 @@ class AlgebraInference:
             out: Output equation embedding (B, 128)
             k: Landscape index [0, K-1]
             rule_weights: Optional weights for each rule (default: all 1.0)
+            t: Optional pre-allocated timestep tensor (default: allocate new)
             
         Returns:
             total_energy: Composed energy value (B, 1)
@@ -208,7 +243,13 @@ class AlgebraInference:
             rule_weights = {rule: 1.0 for rule in self.rule_models.keys()}
         
         total_energy = 0.0
-        t = torch.full((inp.shape[0],), k, dtype=torch.long, device=self.device)
+        # Use pre-allocated tensor if provided, otherwise allocate new one
+        if t is None:
+            t = torch.full((inp.shape[0],), k, dtype=torch.long, device=inp.device)
+        else:
+            # Validate pre-allocated tensor is on correct device
+            if t.device != inp.device:
+                raise ValueError(f"Pre-allocated tensor device {t.device} does not match input device {inp.device}")
         
         for rule_name, model in self.rule_models.items():
             weight = rule_weights.get(rule_name, 1.0)
@@ -222,7 +263,8 @@ class AlgebraInference:
         inp: torch.Tensor,
         out: torch.Tensor,
         k: int,
-        rule_weights: Optional[Dict[str, float]] = None
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Compute gradient of composed energy w.r.t. output embedding.
@@ -232,6 +274,7 @@ class AlgebraInference:
             out: Output equation embedding (B, 128) 
             k: Landscape index [0, K-1]
             rule_weights: Optional weights for each rule
+            t: Optional pre-allocated timestep tensor (default: allocate new)
             
         Returns:
             grad: Energy gradient dE/dout (B, 128)
@@ -243,7 +286,7 @@ class AlgebraInference:
         out = out.requires_grad_(True)
         
         # Compute composed energy
-        total_energy = self.compose_energies(inp, out, k, rule_weights)
+        total_energy = self.compose_energies(inp, out, k, rule_weights, t)
         
         # Compute gradient
         grad = torch.autograd.grad(
@@ -259,7 +302,8 @@ class AlgebraInference:
         inp: torch.Tensor,
         out: torch.Tensor,
         k: int,
-        rule_weights: Optional[Dict[str, float]] = None
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute both composed energy and gradient in a single forward pass.
@@ -271,6 +315,7 @@ class AlgebraInference:
             out: Output equation embedding (B, 128) 
             k: Landscape index [0, K-1]
             rule_weights: Optional weights for each rule
+            t: Optional pre-allocated timestep tensor (default: allocate new)
             
         Returns:
             energy: Composed energy value (B, 1)
@@ -283,7 +328,7 @@ class AlgebraInference:
         out = out.requires_grad_(True)
         
         # Compute composed energy
-        total_energy = self.compose_energies(inp, out, k, rule_weights)
+        total_energy = self.compose_energies(inp, out, k, rule_weights, t)
         
         # Compute gradient
         grad = torch.autograd.grad(
@@ -349,13 +394,9 @@ class AlgebraInference:
             'landscape_transitions': [],
             'gradient_norms': [],
             'accepted_steps': 0,
-            'total_steps': 0,
-            'config_used': {
-                'step_size': config.step_size,
-                'max_iterations': config.max_iterations,
-                'K': config.K,
-                'use_adaptive_step': config.use_adaptive_step
-            }
+            'total_steps': 0
+            # config_used removed to eliminate unnecessary overhead
+            # If needed for debugging, can be added behind a config.include_debug_info flag
         }
         
         # Iterate through K landscapes
@@ -368,30 +409,45 @@ class AlgebraInference:
             
             logger.debug(f"Landscape {k}, sigma_k={sigma_k:.4f}, step_size={current_step_size:.4f}")
             
+            # Pre-allocate timestep tensor for this landscape (tensor pre-allocation optimization)
+            timestep_tensor = torch.full((batch_size,), k, dtype=torch.long, device=inp_embedding.device)
+            
+            # Compute initial energy before gradient descent loop (eliminates redundant computation)
+            energy_before = self.compose_energies(inp_embedding, out, k, rule_weights, timestep_tensor)
+            
             # max_iterations gradient descent steps in this landscape
             for t in range(config.max_iterations):
-                # Compute composed energy and gradient in single pass (performance optimization)
-                energy_before, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights)
+                # Cache energy value to avoid redundant GPU sync
+                energy_before_val = energy_before.item()
+                info['energy_history'].append(energy_before_val)
                 
-                info['energy_history'].append(energy_before.item())
+                # Compute gradient only (energy already cached from previous iteration)
+                grad = self.compute_composed_gradient(inp_embedding, out, k, rule_weights, timestep_tensor)
                 info['gradient_norms'].append(torch.norm(grad).item())
                 
                 # Gradient descent step
                 out_new = out - current_step_size * grad
                 
                 # Energy-based acceptance criteria with numerical tolerance
-                energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights)
-                energy_diff = energy_after.item() - energy_before.item()
+                energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights, timestep_tensor)
+                energy_after_val = energy_after.item()
+                energy_diff = energy_after_val - energy_before_val
                 
                 # Accept if energy decreases or stays roughly the same (within tolerance)
-                if energy_diff < 1e-8:  # Small tolerance for numerical precision
-                    out = out_new.detach().requires_grad_(True)  # Detach to avoid graph accumulation
+                # Use relative tolerance to handle different energy scales
+                # Ensure minimum tolerance of 1e-8 for small energies, scale up for large energies  
+                relative_tolerance = max(1e-8, 1e-6 * abs(energy_before_val))  # Scale with energy magnitude
+                if energy_diff < relative_tolerance:
+                    # Update with gradient tracking preserved (detach to avoid graph accumulation)
+                    out = out_new.detach().requires_grad_(True)
+                    energy_before = energy_after  # Cache energy for next iteration - KEY OPTIMIZATION
                     info['accepted_steps'] += 1
                     
                     # Early stopping using config threshold
-                    if config.should_early_stop(energy_after.item()):
-                        logger.debug(f"Early stopping at landscape {k}, step {t}, energy={energy_after.item():.6f}")
+                    if config.should_early_stop(energy_after_val):
+                        logger.debug(f"Early stopping at landscape {k}, step {t}, energy={energy_after_val:.6f}")
                         break
+                # If step rejected, energy_before remains unchanged for next iteration
                 
                 info['total_steps'] += 1
             
@@ -412,7 +468,9 @@ class AlgebraInference:
                 out = out.requires_grad_(True)
         
         # Final statistics
-        info['final_energy'] = self.compose_energies(inp_embedding, out, config.K-1, rule_weights).item()
+        final_k = k  # k is the last completed landscape
+        final_timestep_tensor = torch.full((batch_size,), final_k, dtype=torch.long, device=inp_embedding.device)
+        info['final_energy'] = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor).item()
         info['acceptance_rate'] = info['accepted_steps'] / max(info['total_steps'], 1)
         
         logger.info(f"Inference completed. Final energy: {info['final_energy']:.6f}, "

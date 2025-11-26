@@ -123,7 +123,8 @@ class AlgebraEBM(nn.Module):
         
         # Fast path: if values are in normal range, skip detailed checks (5-10x faster)  
         # Note: energy from ||x||^2 is always >= 0, and max/min are NaN if any element is NaN
-        if energy_min >= 0.0 and energy_max <= 1e6 and not (torch.isnan(energy_max) or torch.isnan(energy_min)):
+        import math
+        if energy_min >= 0.0 and energy_max <= 1e6 and not (math.isnan(energy_max) or math.isnan(energy_min)):
             # Normal case - no intervention needed, values are finite and in acceptable range
             pass
         else:
@@ -317,22 +318,46 @@ class ContrastiveEnergyLoss:
             return total_loss
     
     def get_energy_gap_stats(self) -> Dict[str, float]:
-        """Get recent energy gap statistics for monitoring."""
-        if not self.energy_gap_history:
-            return {'gap_mean': 0.0, 'gap_std': 0.0, 'ratio_mean': 1.0}
+        """Get recent energy gap statistics for monitoring.
         
-        gaps = torch.tensor(self.energy_gap_history)
-        pos_energies = torch.tensor(self.pos_energy_history)
-        neg_energies = torch.tensor(self.neg_energy_history)
+        Returns:
+            Dictionary with keys:
+            - gap_mean: mean energy gap
+            - gap_std: standard deviation (NaN if insufficient data)
+            - ratio_mean: mean energy ratio  
+            - ratio_std: standard deviation (NaN if insufficient data)
+            - sample_count: number of samples used
+            
+        Note: std returns NaN for single-element case (mathematically undefined).
+        Consumers should check math.isnan() or sample_count < 2 before using std values.
+        """
+        if not self.energy_gap_history:
+            return {
+                'gap_mean': 0.0, 
+                'gap_std': float('nan'), 
+                'ratio_mean': 1.0,
+                'ratio_std': float('nan'),
+                'sample_count': 0
+            }
+        
+        gaps = torch.tensor(self.energy_gap_history, dtype=torch.float32)
+        pos_energies = torch.tensor(self.pos_energy_history, dtype=torch.float32)
+        neg_energies = torch.tensor(self.neg_energy_history, dtype=torch.float32)
         
         # Compute ratios with numerical safety
         ratios = neg_energies / torch.clamp(pos_energies, min=1e-6)
         
+        # Return NaN for insufficient data (mathematically correct)
+        # This distinguishes 'no variance' (std=0.0) from 'insufficient data' (std=NaN)
+        gap_std = gaps.std().item() if len(gaps) > 1 else float('nan')
+        ratio_std = ratios.std().item() if len(ratios) > 1 else float('nan')
+        
         return {
             'gap_mean': gaps.mean().item(),
-            'gap_std': gaps.std().item(),
+            'gap_std': gap_std,
             'ratio_mean': ratios.mean().item(),
-            'ratio_std': ratios.std().item(),
+            'ratio_std': ratio_std,
+            'sample_count': len(gaps),
             'success_rate': (gaps >= self.margin).float().mean().item()
         }
     
