@@ -37,7 +37,7 @@ import time
 from collections import defaultdict
 
 # Import algebra components
-from algebra_inference import AlgebraInference, load_rule_models
+from algebra_inference import AlgebraInference, load_rule_models, InferenceConfig
 from algebra_encoder import (
     CharacterLevelEncoder, ASTEncoder, EquationDecoder,
     check_equation_equivalence, validate_equation_syntax
@@ -372,9 +372,27 @@ def evaluate_model(
                 target_embeddings.append(target_embedding.detach())
                 
                 # Run inference
+                # Create InferenceConfig from inference_params
+                config_params = {}
+                if inference_params:
+                    if 'T' in inference_params:
+                        config_params['max_iterations'] = inference_params['T']
+                    if 'step_size' in inference_params:
+                        config_params['step_size'] = inference_params['step_size']
+                    if 'K' in inference_params:
+                        config_params['K'] = inference_params['K']
+                    if 'use_adaptive_step' in inference_params:
+                        config_params['use_adaptive_step'] = inference_params['use_adaptive_step']
+                    if 'energy_threshold' in inference_params:
+                        config_params['energy_threshold'] = inference_params['energy_threshold']
+                
+                inference_config = InferenceConfig(**config_params)
+                rule_weights = inference_params.get('rule_weights') if inference_params else None
+                
                 result = inference_engine.solve_equation(
                     input_eq,
-                    **inference_params
+                    config=inference_config,
+                    rule_weights=rule_weights
                 )
                 
                 # Extract results
@@ -421,9 +439,9 @@ def evaluate_model(
                 # Add placeholder results to maintain alignment
                 predicted_equations.append(None)
                 target_equations.append("x=0")  # Dummy target
-                target_embedding = torch.zeros(encoder.d_model)
-                target_embeddings.append(target_embedding)
-                predicted_embeddings.append(target_embedding)
+                # Note: target_embedding was already appended before inference call
+                placeholder_embedding = torch.zeros(encoder.d_model)
+                predicted_embeddings.append(placeholder_embedding)
                 if store_detailed_results:
                     inference_infos.append({})
                 
