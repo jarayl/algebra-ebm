@@ -540,7 +540,7 @@ class AlgebraInference:
                     result['decoding_distance'] = distance
             else:
                 logger.warning("No decoder provided - returning raw embedding")
-                result['output_embedding'] = out_embedding.squeeze(0).cpu()
+                result['output_embedding'] = out_embedding.squeeze(0).detach()
             
             return result
             

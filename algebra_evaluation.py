@@ -450,8 +450,26 @@ def evaluate_model(
         result['equivalent'] = detail['equivalent']
     
     # 2. Embedding L2 Distance (Auxiliary)
-    predicted_embeddings_tensor = torch.stack(predicted_embeddings)
-    target_embeddings_tensor = torch.stack(target_embeddings)
+    # Ensure all embeddings are on the same device before stacking
+    if predicted_embeddings and target_embeddings:
+        # Use the first target embedding's device as reference (encoder's device)
+        reference_device = target_embeddings[0].device
+        
+        # Move all embeddings to the reference device
+        predicted_embeddings_same_device = []
+        for emb in predicted_embeddings:
+            predicted_embeddings_same_device.append(emb.to(reference_device))
+        
+        target_embeddings_same_device = []
+        for emb in target_embeddings:
+            target_embeddings_same_device.append(emb.to(reference_device))
+        
+        predicted_embeddings_tensor = torch.stack(predicted_embeddings_same_device)
+        target_embeddings_tensor = torch.stack(target_embeddings_same_device)
+    else:
+        # Fallback for empty lists
+        predicted_embeddings_tensor = torch.empty(0, encoder.d_model)
+        target_embeddings_tensor = torch.empty(0, encoder.d_model)
     embedding_results = compute_embedding_distances(predicted_embeddings_tensor, target_embeddings_tensor)
     
     # 3. Invalid Step Rate
