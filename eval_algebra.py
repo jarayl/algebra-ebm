@@ -94,9 +94,9 @@ def create_single_rule_datasets(
             logger.info(f"Created {rule} dataset: {len(dataset)} problems")
             
         except Exception as e:
-            logger.error(f"Failed to create dataset for rule {rule}: {str(e)}")
+            logger.error(f"CRITICAL: Failed to create dataset for rule {rule}: {str(e)}")
             logger.error(f"Traceback for rule {rule}:\n{traceback.format_exc()}")
-            continue
+            raise RuntimeError(f"Fast fail: Cannot create essential dataset for rule {rule}") from e
     
     return datasets
 
@@ -139,9 +139,9 @@ def create_multi_rule_datasets(
             logger.info(f"Created {num_rules}-rule dataset: {len(dataset)} problems")
             
         except Exception as e:
-            logger.error(f"Failed to create {num_rules}-rule dataset: {str(e)}")
+            logger.error(f"CRITICAL: Failed to create {num_rules}-rule dataset: {str(e)}")
             logger.error(f"Traceback for {num_rules}-rule dataset:\n{traceback.format_exc()}")
-            continue
+            raise RuntimeError(f"Fast fail: Cannot create essential multi-rule dataset for {num_rules} rules") from e
     
     return datasets
 
@@ -187,9 +187,9 @@ def create_constrained_datasets(
             logger.info(f"Created {constraint} constrained dataset: {len(dataset)} problems")
             
         except Exception as e:
-            logger.error(f"Failed to create {constraint} constrained dataset: {str(e)}")
+            logger.error(f"CRITICAL: Failed to create {constraint} constrained dataset: {str(e)}")
             logger.error(f"Traceback for {constraint} constrained dataset:\n{traceback.format_exc()}")
-            continue
+            raise RuntimeError(f"Fast fail: Cannot create essential constrained dataset for {constraint}") from e
     
     return datasets
 
@@ -273,7 +273,7 @@ def run_full_evaluation_suite(
     # Create all test datasets
     all_datasets = {}
     
-    # 1. Single-rule datasets
+    # 1. Single-rule datasets - CRITICAL: must succeed for basic evaluation
     try:
         single_datasets = create_single_rule_datasets(
             rules=['distribute', 'combine', 'isolate', 'divide'],
@@ -281,11 +281,17 @@ def run_full_evaluation_suite(
         )
         all_datasets.update(single_datasets)
         logger.info(f"Created {len(single_datasets)} single-rule datasets")
+        
+        # Fast fail if no single-rule datasets created
+        if len(single_datasets) == 0:
+            raise RuntimeError("Fast fail: No single-rule datasets created")
+            
     except Exception as e:
-        logger.error(f"Error creating single-rule datasets: {str(e)}")
+        logger.error(f"CRITICAL: Error creating single-rule datasets: {str(e)}")
         logger.error(f"Single-rule datasets traceback:\n{traceback.format_exc()}")
+        raise RuntimeError("Fast fail: Cannot proceed without single-rule datasets") from e
     
-    # 2. Multi-rule datasets
+    # 2. Multi-rule datasets - CRITICAL: must succeed for compositional evaluation
     try:
         multi_datasets = create_multi_rule_datasets(
             num_rules_list=[2, 3, 4],
@@ -293,11 +299,17 @@ def run_full_evaluation_suite(
         )
         all_datasets.update(multi_datasets)
         logger.info(f"Created {len(multi_datasets)} multi-rule datasets")
+        
+        # Fast fail if no multi-rule datasets created
+        if len(multi_datasets) == 0:
+            raise RuntimeError("Fast fail: No multi-rule datasets created")
+            
     except Exception as e:
-        logger.error(f"Error creating multi-rule datasets: {str(e)}")
+        logger.error(f"CRITICAL: Error creating multi-rule datasets: {str(e)}")
         logger.error(f"Multi-rule datasets traceback:\n{traceback.format_exc()}")
+        raise RuntimeError("Fast fail: Cannot proceed without multi-rule datasets") from e
     
-    # 3. Constrained datasets
+    # 3. Constrained datasets - OPTIONAL: can continue without these
     try:
         constrained_datasets = create_constrained_datasets(
             constraint_types=['positive', 'integer', 'both'],
@@ -306,8 +318,9 @@ def run_full_evaluation_suite(
         all_datasets.update(constrained_datasets)
         logger.info(f"Created {len(constrained_datasets)} constrained datasets")
     except Exception as e:
-        logger.error(f"Error creating constrained datasets: {str(e)}")
-        logger.error(f"Constrained datasets traceback:\n{traceback.format_exc()}")
+        logger.warning(f"Non-critical: Error creating constrained datasets: {str(e)}")
+        logger.warning(f"Constrained datasets traceback:\n{traceback.format_exc()}")
+        logger.info("Continuing evaluation without constrained datasets")
     
     if not all_datasets:
         raise ValueError("No test datasets were created successfully")
@@ -609,7 +622,15 @@ def main():
         )
         
         if not rule_models:
-            raise ValueError(f"No models loaded from {args.model_dir}")
+            raise ValueError(f"CRITICAL: No models loaded from {args.model_dir}")
+        
+        # Fast fail if we don't have models for all basic rules
+        required_rules = {'distribute', 'combine', 'isolate', 'divide'}
+        loaded_rules = set(rule_models.keys())
+        missing_rules = required_rules - loaded_rules
+        
+        if missing_rules:
+            raise ValueError(f"CRITICAL: Missing models for essential rules: {missing_rules}. Fast fail.")
         
         logger.info(f"Loaded {len(rule_models)} rule models: {list(rule_models.keys())}")
         
@@ -627,9 +648,10 @@ def main():
         try:
             decoder = create_decoder_with_default_candidates(encoder, distance_threshold=10.0)
             logger.info("Created decoder with default candidates")
-        except ImportError:
-            logger.warning("sklearn not available - decoder disabled")
-            decoder = None
+        except ImportError as e:
+            logger.error(f"CRITICAL: sklearn not available - decoder creation failed: {str(e)}")
+            logger.error("Fast fail: Cannot proceed without decoder functionality")
+            raise RuntimeError("Fast fail: Missing required sklearn dependency") from e
         
         # Set up evaluation parameters
         eval_params = {
@@ -720,8 +742,9 @@ def main():
         logger.info(f"Evaluation complete. Results saved to {output_dir}")
         
     except Exception as e:
-        logger.error(f"Evaluation failed: {str(e)}")
+        logger.error(f"CRITICAL: Evaluation failed: {str(e)}")
         logger.error(f"Main evaluation traceback:\n{traceback.format_exc()}")
+        logger.error("Fast fail: Evaluation cannot continue due to critical error")
         raise
 
 

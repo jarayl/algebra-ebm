@@ -128,7 +128,7 @@ elif [ -d "$LAB_SCRATCH_ROOT"/results ]; then
 fi
 
 if [ "$MODELS_COPIED" = false ]; then
-    echo "WARNING: No trained models found in any expected location!"
+    echo "ERROR: No trained models found in any expected location!"
     echo "Checked locations:"
     echo "  - $REPO_DIR/results"
     echo "  - $SLURM_SUBMIT_DIR/results"
@@ -142,7 +142,8 @@ if [ "$MODELS_COPIED" = false ]; then
     echo "  - results/divide/model.pt (or model-*.pt)"
     echo ""
     echo "Models must be trained first using the training script."
-    echo "Continuing anyway to test the evaluation pipeline..."
+    echo "FAST FAIL: Cannot run evaluation without trained models."
+    exit 1
 fi
 
 # Verify model files after copying
@@ -154,24 +155,41 @@ if [ -d "$JOB_SCRATCH/results" ]; then
     MODEL_COUNT=$(find "$JOB_SCRATCH/results" -name "*.pt" -type f | wc -l)
     echo "Found $MODEL_COUNT model files total"
     
-    # Check each rule directory
+    if [ $MODEL_COUNT -eq 0 ]; then
+        echo "ERROR: No model files (.pt) found in results directory!"
+        echo "FAST FAIL: Cannot run evaluation without model files."
+        exit 1
+    fi
+    
+    # Check each rule directory - require at least one model per rule
+    MISSING_RULES=0
     for rule in distribute combine isolate divide; do
         RULE_DIR="$JOB_SCRATCH/results/$rule"
         if [ -d "$RULE_DIR" ]; then
             MODEL_FILES=$(find "$RULE_DIR" -name "*.pt" -type f | wc -l)
             echo "Rule $rule: $MODEL_FILES model files"
             if [ $MODEL_FILES -eq 0 ]; then
-                echo "  WARNING: No model files found for rule $rule"
+                echo "  ERROR: No model files found for rule $rule"
+                MISSING_RULES=$((MISSING_RULES + 1))
             else
                 echo "  Model files for $rule:"
                 find "$RULE_DIR" -name "*.pt" -type f | head -3
             fi
         else
             echo "Rule $rule: directory not found"
+            MISSING_RULES=$((MISSING_RULES + 1))
         fi
     done
+    
+    if [ $MISSING_RULES -gt 0 ]; then
+        echo "ERROR: $MISSING_RULES rules are missing models!"
+        echo "FAST FAIL: Cannot run complete evaluation without all rule models."
+        exit 1
+    fi
 else
-    echo "WARNING: No results directory created - evaluation will fail"
+    echo "ERROR: No results directory created - evaluation will fail"
+    echo "FAST FAIL: Missing results directory."
+    exit 1
 fi
 
 echo "Files copied successfully."
@@ -198,8 +216,15 @@ echo "Dependencies installed successfully."
 
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
-# Check GPU availability
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}');"
+# Check GPU availability and fail fast if CUDA required but not available
+echo "Checking GPU availability..."
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}'); exit(0 if torch.cuda.is_available() else 1)" || {
+    echo "WARNING: CUDA not available, falling back to CPU (evaluation will be much slower)"
+    echo "If you specifically need GPU evaluation, this job should fail fast."
+    # Uncomment the following lines to fail fast when GPU is required:
+    # echo "FAST FAIL: GPU required but CUDA not available."
+    # exit 1
+}
 
 # ------------------------------------------------------------------------------
 # 5. Prepare results directory on scratch
@@ -255,6 +280,14 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --verbose \
             --device auto \
             --seed 42
+        
+        # Check individual rule evaluation exit code
+        RULE_EXIT=$?
+        if [ $RULE_EXIT -ne 0 ]; then
+            echo "ERROR: Individual evaluation for rule $rule failed with exit code: $RULE_EXIT"
+            echo "FAST FAIL: Stopping further individual evaluations."
+            exit $RULE_EXIT
+        fi
     done
     
     # Run multi-rule evaluations
@@ -269,11 +302,21 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --verbose \
             --device auto \
             --seed 42
+        
+        # Check multi-rule evaluation exit code
+        MULTI_EXIT=$?
+        if [ $MULTI_EXIT -ne 0 ]; then
+            echo "ERROR: Multi-rule evaluation for $num_rules rules failed with exit code: $MULTI_EXIT"
+            echo "FAST FAIL: Stopping further multi-rule evaluations."
+            exit $MULTI_EXIT
+        fi
     done
     
     echo "All evaluations completed!"
 else
     echo "Full evaluation failed with exit code: $EVAL_EXIT"
+    echo "FAST FAIL: Main evaluation failed, skipping additional evaluations."
+    exit $EVAL_EXIT
 fi
 
 # ------------------------------------------------------------------------------
