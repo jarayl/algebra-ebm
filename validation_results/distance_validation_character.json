@@ -1,0 +1,186 @@
+{
+  "summary": {
+    "total_tests": 38,
+    "passed_tests": 36,
+    "failed_tests": 2,
+    "pass_rate": 0.9473684210526315,
+    "critical_failures": []
+  },
+  "test_results": [
+    {
+      "test_name": "identical_zero",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "zero",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_unit_first",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "unit_first",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_unit_last",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "unit_last",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_unit_middle",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "unit_middle",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_uniform_ones",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "uniform_ones",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_uniform_twos",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "uniform_twos",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_uniform_halves",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "uniform_halves",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_random_norm",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "random_norm",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_random_scaled",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "random_scaled",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_orthogonal_1",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "orthogonal_1",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "identical_orthogonal_2",
+      "passed": true,
+      "expected_distance": 0.0,
+      "actual_distance": 0.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "embedding_name": "orthogonal_2",
+        "test_type": "identical"
+      }
+    },
+    {
+      "test_name": "known_distance_zero_to_unit_first",
+      "passed": true,
+      "expected_distance": 1.0,
+      "actual_distance": 1.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "emb1_name": "zero",
+        "emb2_name": "unit_first",
+        "description": "Zero to unit vector",
+        "test_type": "known_distance"
+      }
+    },
+    {
+      "test_name": "known_distance_zero_to_unit_last",
+      "passed": true,
+      "expected_distance": 1.0,
+      "actual_distance": 1.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "emb1_name": "zero",
+        "emb2_name": "unit_last",
+        "description": "Zero to unit vector (different position)",
+        "test_type": "known_distance"
+      }
+    },
+    {
+      "test_name": "known_distance_zero_to_unit_middle",
+      "passed": true,
+      "expected_distance": 1.0,
+      "actual_distance": 1.0,
+      "tolerance": 1e-06,
+      "error_message": null,
+      "test_metadata": {
+        "emb1_name": "zero",
+        "emb2_name": "unit_middle",
+        "description": "Zero to unit vector (middle position)",
+        "test_type": "known_distance"
+      }
+    },
+    {
+      "test_name": "known_distance_unit_first_to_unit_last",
+      "passed": 
