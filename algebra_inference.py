@@ -288,12 +288,29 @@ class AlgebraInference:
         # Compute composed energy
         total_energy = self.compose_energies(inp, out, k, rule_weights, t)
         
-        # Compute gradient
-        grad = torch.autograd.grad(
-            outputs=total_energy.sum(),
-            inputs=out,
-            create_graph=True
-        )[0]
+        # Compute gradient with numerical stability protection
+        # Early detection of problematic energy values before expensive gradient computation
+        if not torch.isfinite(total_energy).all():
+            logger.warning("AlgebraInference: Non-finite energy detected in composed gradient, returning zero gradient")
+            grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+        else:
+            try:
+                grad = torch.autograd.grad(
+                    outputs=total_energy.sum(),
+                    inputs=out,
+                    create_graph=True
+                )[0]
+                
+                # Verify gradient is finite (additional safety check)
+                if not torch.isfinite(grad).all():
+                    logger.warning("AlgebraInference: Non-finite gradient computed in composed gradient, using zero gradient")
+                    grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+                    
+            except RuntimeError as e:
+                # Handle gradient computation failures gracefully
+                logger.error(f"AlgebraInference: Composed gradient computation failed: {e}")
+                logger.error(f"Energy stats: min={total_energy.min().item():.6e}, max={total_energy.max().item():.6e}")
+                grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
         
         return grad
     
@@ -330,12 +347,29 @@ class AlgebraInference:
         # Compute composed energy
         total_energy = self.compose_energies(inp, out, k, rule_weights, t)
         
-        # Compute gradient
-        grad = torch.autograd.grad(
-            outputs=total_energy.sum(),
-            inputs=out,
-            create_graph=True
-        )[0]
+        # Compute gradient with numerical stability protection
+        # Early detection of problematic energy values before expensive gradient computation
+        if not torch.isfinite(total_energy).all():
+            logger.warning("AlgebraInference: Non-finite energy detected in energy+gradient computation, returning zero gradient")
+            grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+        else:
+            try:
+                grad = torch.autograd.grad(
+                    outputs=total_energy.sum(),
+                    inputs=out,
+                    create_graph=True
+                )[0]
+                
+                # Verify gradient is finite (additional safety check)
+                if not torch.isfinite(grad).all():
+                    logger.warning("AlgebraInference: Non-finite gradient computed in energy+gradient computation, using zero gradient")
+                    grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+                    
+            except RuntimeError as e:
+                # Handle gradient computation failures gracefully
+                logger.error(f"AlgebraInference: Energy+gradient computation failed: {e}")
+                logger.error(f"Energy stats: min={total_energy.min().item():.6e}, max={total_energy.max().item():.6e}")
+                grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
         
         return total_energy, grad
     
@@ -421,8 +455,26 @@ class AlgebraInference:
                 
                 # Use current energy from atomic computation for accuracy
                 energy_before_val = energy_current.item()
+                grad_norm = torch.norm(grad).item()
                 info['energy_history'].append(energy_before_val)
-                info['gradient_norms'].append(torch.norm(grad).item())
+                info['gradient_norms'].append(grad_norm)
+                
+                # Convergence detection - gradient explosion protection
+                if grad_norm > 100.0:  # Configurable threshold for gradient explosion
+                    logger.warning(f"Gradient explosion detected at landscape {k}, step {t}: "
+                                   f"grad_norm={grad_norm:.2e}. Stopping optimization.")
+                    info['convergence_reason'] = f'gradient_explosion_k{k}_t{t}'
+                    break
+                
+                # Energy stagnation detection (check last few steps)
+                if len(info['energy_history']) >= 10:
+                    recent_energies = info['energy_history'][-10:]
+                    energy_std = torch.tensor(recent_energies).std().item()
+                    if energy_std < 1e-6 and grad_norm < 1e-4:
+                        logger.info(f"Convergence detected at landscape {k}, step {t}: "
+                                   f"energy_std={energy_std:.2e}, grad_norm={grad_norm:.2e}")
+                        info['convergence_reason'] = f'converged_k{k}_t{t}'
+                        break
                 
                 # Gradient descent step
                 out_new = out - current_step_size * grad
@@ -488,6 +540,31 @@ class AlgebraInference:
             
             info['landscape_transitions'].append(k)
             
+            # Check for convergence between landscapes - overall convergence monitoring
+            # Only check after completing at least a few landscapes
+            if k >= 2 and len(info['gradient_norms']) >= 20:
+                # Check if recent gradients are consistently small across landscapes
+                recent_grads = info['gradient_norms'][-20:]
+                avg_grad_norm = sum(recent_grads) / len(recent_grads)
+                max_grad_norm = max(recent_grads)
+                
+                # Check if recent energies are stable across landscapes 
+                recent_energies = info['energy_history'][-20:]
+                energy_range = max(recent_energies) - min(recent_energies)
+                
+                # Overall convergence criteria: small gradients and stable energy
+                if avg_grad_norm < 1e-3 and max_grad_norm < 1e-2 and energy_range < 0.01:
+                    logger.info(f"Overall convergence achieved after landscape {k}: "
+                               f"avg_grad={avg_grad_norm:.2e}, max_grad={max_grad_norm:.2e}, "
+                               f"energy_range={energy_range:.2e}")
+                    info['convergence_reason'] = f'overall_convergence_k{k}'
+                    break
+                    
+            # Check if we broke out of inner loop due to convergence
+            if 'convergence_reason' in info:
+                logger.info(f"Early exit from outer loop due to: {info['convergence_reason']}")
+                break
+            
             # Scale for next landscape (except for last)
             if k < config.K - 1:
                 sigma_k_next = torch.sqrt(1 - self.alphas_cumprod[k + 1]).item()
@@ -508,8 +585,11 @@ class AlgebraInference:
         info['final_energy'] = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor).item()
         info['acceptance_rate'] = info['accepted_steps'] / max(info['total_steps'], 1)
         
+        # Add convergence status to final reporting
+        convergence_status = info.get('convergence_reason', 'completed_all_landscapes')
         logger.info(f"Inference completed. Final energy: {info['final_energy']:.6f}, "
-                   f"Acceptance rate: {info['acceptance_rate']:.3f}")
+                   f"Acceptance rate: {info['acceptance_rate']:.3f}, "
+                   f"Convergence: {convergence_status}")
         
         return out.detach(), info
     

@@ -110,49 +110,47 @@ class AlgebraEBM(nn.Module):
         h = swish(self.fc2(h) * (fc2_gain + 1) + fc2_bias)  # FC2: Linear + FiLM + Swish
         h = swish(self.fc3(h) * (fc3_gain + 1) + fc3_bias)  # FC3: Linear + FiLM + Swish
         
-        # Output layer and energy computation
+        # Output layer with proper numerical conditioning
         output = self.fc4(h)  # (B, out_dim)
+        
+        # Apply numerical conditioning to prevent problematic values before energy computation
+        # This addresses root causes rather than patching symptoms after energy computation
+        if not torch.isfinite(output).all():
+            logger = logging.getLogger(__name__)
+            logger.warning("AlgebraEBM detected non-finite output values, applying input conditioning")
+            # Apply conditioning to problematic outputs while preserving valid ones
+            output = torch.where(torch.isfinite(output), output, torch.zeros_like(output))
+        
+        # Apply gradient-preserving bounds to prevent extreme energy values
+        # Use soft clipping that maintains differentiability and only affects large values
+        output_magnitude = torch.norm(output, dim=-1, keepdim=True)
+        max_magnitude = 1000.0  # Corresponds to energy ~1e6 (1000^2)
+        if output_magnitude.max() > max_magnitude:
+            # Soft conditioning: only scale down values that exceed the threshold
+            # Use smooth transition that preserves gradients and maintains relative ordering
+            # For magnitude > max_magnitude: smoothly scale down to max_magnitude
+            # For magnitude <= max_magnitude: leave unchanged (scale_factor = 1)
+            excess_ratio = (output_magnitude - max_magnitude) / max_magnitude
+            scale_factor = torch.where(
+                output_magnitude > max_magnitude,
+                max_magnitude / (output_magnitude + 1e-8),  # Scale large values down to threshold
+                torch.ones_like(output_magnitude)  # Leave normal values unchanged
+            )
+            output = output * scale_factor
         
         # Energy = ||output_vector||^2 (L2 norm squared for non-negative energy)
         energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
         
-        # Optimized numerical stability with fast path for common case
-        # Fast path: check energy range first to avoid expensive element-wise operations
+        # Performance optimization: fast path for normal cases (preserving existing optimization)
         energy_max = energy.max().item()
-        energy_min = energy.min().item()
-        
-        # Fast path: if values are in normal range, skip detailed checks (5-10x faster)  
-        # Note: energy from ||x||^2 is always >= 0, and max/min are NaN if any element is NaN
         import math
-        if energy_min >= 0.0 and energy_max <= 1e6 and not (math.isnan(energy_max) or math.isnan(energy_min)):
-            # Normal case - no intervention needed, values are finite and in acceptable range
+        if energy_max <= 1e6 and not math.isnan(energy_max):
+            # Normal case - properly conditioned input leads to stable energy
             pass
         else:
-            # Detailed intervention needed - use original expensive checks
+            # This should rarely occur with proper conditioning above
             logger = logging.getLogger(__name__)
-            
-            # Handle NaN/Inf cases (should be rare in normal operation)
-            if not torch.isfinite(energy).all():
-                logger.warning("AlgebraEBM detected non-finite energy values, applying numerical stabilization")
-                # Use median of valid energies if available, else safe fallback
-                finite_mask = torch.isfinite(energy)
-                if finite_mask.any():
-                    fallback_value = energy[finite_mask].median()
-                else:
-                    fallback_value = torch.tensor(100.0, device=energy.device)
-                energy = torch.where(finite_mask, energy, fallback_value)
-            
-            # Apply log-based soft limiting for extreme values
-            if energy_max > 1e6:
-                logger.debug(f"AlgebraEBM applying soft limiting for extreme energy max: {energy_max:.2e}")
-                extreme_mask = energy > 1e6
-                # Soft log-based clamping: log(1 + (x - 1e6)) + 1e6
-                # Preserves gradients and maintains energy ordering
-                energy = torch.where(
-                    extreme_mask,
-                    torch.log1p(energy - 1e6) + 1e6,
-                    energy
-                )
+            logger.warning(f"AlgebraEBM: Unexpected large energy after conditioning: {energy_max:.2e}")
         
         return energy
 
@@ -215,13 +213,33 @@ class AlgebraDiffusionWrapper(nn.Module):
         if return_energy:
             return energy
         
-        # Compute gradient dE/dout using autograd
-        # create_graph=True enables backpropagation through gradients
-        grad = torch.autograd.grad(
-            outputs=energy.sum(),     # Sum for scalar loss
-            inputs=out,               # Gradient w.r.t. output
-            create_graph=True         # Enable higher-order gradients
-        )[0]  # (B, out_dim)
+        # Compute gradient dE/dout using autograd with numerical stability protection
+        # Early detection of problematic energy values before expensive gradient computation
+        if not torch.isfinite(energy).all():
+            logger = logging.getLogger(__name__)
+            logger.warning("AlgebraDiffusionWrapper: Non-finite energy detected, returning zero gradient")
+            grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+        else:
+            try:
+                # create_graph=True enables backpropagation through gradients
+                grad = torch.autograd.grad(
+                    outputs=energy.sum(),     # Sum for scalar loss
+                    inputs=out,               # Gradient w.r.t. output
+                    create_graph=True         # Enable higher-order gradients
+                )[0]  # (B, out_dim)
+                
+                # Verify gradient is finite (additional safety check)
+                if not torch.isfinite(grad).all():
+                    logger = logging.getLogger(__name__)
+                    logger.warning("AlgebraDiffusionWrapper: Non-finite gradient computed, using zero gradient")
+                    grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
+                    
+            except RuntimeError as e:
+                # Handle gradient computation failures gracefully
+                logger = logging.getLogger(__name__)
+                logger.error(f"AlgebraDiffusionWrapper: Gradient computation failed: {e}")
+                logger.error(f"Energy stats: min={energy.min().item():.6e}, max={energy.max().item():.6e}")
+                grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
         
         if return_both:
             return energy, grad

@@ -516,15 +516,55 @@ def main():
             print(f"Check that {args.load_milestone} exists and is a valid checkpoint")
             return
     
-    # Add minimal progress logging
+    # Enhanced progress logging with convergence monitoring
+    loss_history = []
+    training_unstable = False
+    
     def log_progress(step, loss, metrics=None):
-        if step % 100 == 0 or step in [500, 1000, 1500, 2000]:
+        nonlocal training_unstable
+        
+        # Track loss and gradient information
+        loss_history.append(loss)
+        
+        # Check for gradient explosion through loss explosion
+        if loss > 1000.0 or (len(loss_history) > 1 and loss > 10 * loss_history[-2]):
+            print(f"\n⚠️  TRAINING UNSTABLE: Step {step}, Loss exploded to {loss:.2e}")
+            print("Consider reducing learning rate or checking dataset quality")
+            training_unstable = True
+        
+        # Check for training stagnation (last 1000 steps)
+        elif len(loss_history) >= 1000:
+            recent_losses = loss_history[-1000:]
+            loss_std = (sum((l - sum(recent_losses)/len(recent_losses))**2 for l in recent_losses) / len(recent_losses))**0.5
+            if loss_std < 1e-6 and loss > 0.01:
+                print(f"\n📊 Training may have stagnated at step {step}: Loss std={loss_std:.2e}")
+                print("Consider adjusting learning rate or optimization parameters")
+        
+        # Regular progress logging
+        if step % 100 == 0 or step in [500, 1000, 1500, 2000] or training_unstable:
             msg = f"Step {step:4d}: Loss={loss:8.4f}"
             if metrics:
                 for key, value in metrics.items():
                     if key != 'loss':
                         msg += f", {key}={value:6.3f}"
+            
+            # Add convergence status indicators
+            if len(loss_history) >= 100:
+                recent_trend = (loss_history[-1] - loss_history[-100]) / 100
+                trend_indicator = "📈" if recent_trend > 0.01 else "📉" if recent_trend < -0.01 else "➡️"
+                msg += f" {trend_indicator}"
+                
             print(msg)
+            
+        # Early stopping check for severe instability
+        if training_unstable and loss > 10000.0:
+            print(f"\n🚨 EARLY STOPPING: Training critically unstable at step {step}")
+            print("Loss has exploded beyond recovery threshold")
+            if hasattr(trainer, 'stop_training'):
+                trainer.stop_training()
+            return False  # Signal to stop if callback supports return values
+            
+        return True
     
     # Check if trainer has callback support
     if hasattr(trainer, 'set_progress_callback'):
@@ -537,8 +577,53 @@ def main():
     print("=" * 60)
     try:
         trainer.train()
-        print("Training completed successfully!")
-        print(f"Model saved to: {args.results_folder}")
+        
+        # Post-training analysis and convergence summary
+        print("\n" + "=" * 60)
+        print("Training Convergence Analysis")
+        print("=" * 60)
+        
+        if len(loss_history) > 0:
+            final_loss = loss_history[-1]
+            initial_loss = loss_history[0] if len(loss_history) > 1 else final_loss
+            
+            # Training stability assessment
+            if training_unstable:
+                print("🚨 Training Stability: UNSTABLE - Detected loss explosions")
+                print("   Recommendation: Reduce learning rate or check dataset quality")
+            elif final_loss < 0.01:
+                print("✅ Training Stability: EXCELLENT - Low final loss achieved")
+            elif final_loss < 0.1:
+                print("✅ Training Stability: GOOD - Reasonable final loss")
+            else:
+                print("⚠️ Training Stability: MARGINAL - High final loss")
+                print(f"   Final loss: {final_loss:.4f} - Consider longer training")
+            
+            # Convergence trend analysis
+            if len(loss_history) >= 1000:
+                recent_losses = loss_history[-1000:]
+                loss_std = (sum((l - sum(recent_losses)/len(recent_losses))**2 for l in recent_losses) / len(recent_losses))**0.5
+                if loss_std < 1e-6:
+                    print("📊 Convergence Status: CONVERGED - Loss stabilized")
+                elif len(loss_history) >= 100:
+                    recent_trend = (loss_history[-1] - loss_history[-100]) / 100
+                    if recent_trend < -0.001:
+                        print("📉 Convergence Status: IMPROVING - Loss still decreasing")
+                    elif recent_trend > 0.001:
+                        print("📈 Convergence Status: DEGRADING - Loss increasing")
+                    else:
+                        print("➡️ Convergence Status: STABLE - Minimal change")
+                        
+            print(f"📈 Loss Progress: {initial_loss:.4f} → {final_loss:.4f} "
+                  f"({((final_loss - initial_loss) / initial_loss * 100):+.1f}%)")
+                  
+        if training_unstable:
+            print("\n⚠️ Training completed with instability warnings")
+            print("   Consider reviewing training configuration before production use")
+        else:
+            print("\n✅ Training completed successfully!")
+            
+        print(f"📁 Model saved to: {args.results_folder}")
         
         # Report dataset variability results if adaptive generation was used
         if variability_config['enable_stratified_sampling'] or variability_config['enable_solution_first']:
