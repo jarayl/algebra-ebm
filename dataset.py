@@ -62,9 +62,9 @@ class NoisyWrapper:
         alphas_cumprod = np.cumprod(alphas, axis=0)
 
         alphas_cumprod = np.linspace(1, 0, timesteps)
-        self.sqrt_alphas_cumprod = torch.tensor(np.sqrt(alphas_cumprod))
+        self.sqrt_alphas_cumprod = torch.tensor(np.sqrt(alphas_cumprod)).float()
         self.sqrt_one_minus_alphas_cumprod = torch.tensor(
-            np.sqrt(1. - alphas_cumprod))
+            np.sqrt(1. - alphas_cumprod)).float()
         self.extract = extract
 
     def __len__(self):

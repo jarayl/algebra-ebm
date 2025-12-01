@@ -682,16 +682,17 @@ class GaussianDiffusion1D(nn.Module):
                 xmin_noise = xmin_noise * (1 - mask) + mask * data_cond
 
             # Compute energy of both distributions
-                inp_concat = torch.cat([inp, inp], dim=0)
-                x_concat = torch.cat([data_sample, xmin_noise], dim=0)
-                t_concat = torch.cat([t, t], dim=0)
-                
-                energy = self.model(inp_concat, x_concat, t_concat, return_energy=True)
-                energy_real, energy_fake_opt = torch.chunk(energy, 2, 0)
-                energy_stack = torch.cat([energy_real, energy_fake_opt], dim=-1)
+            inp_concat = torch.cat([inp, inp], dim=0)
+            x_concat = torch.cat([data_sample, xmin_noise], dim=0)
+            # x_concat = torch.cat([xmin, xmin_noise_min], dim=0)
+            t_concat = torch.cat([t, t], dim=0)
+            energy = self.model(inp_concat, x_concat, t_concat, return_energy=True)
 
-            target = torch.zeros(energy_real.size(0), device=energy_real.device).long()
-            loss_energy = F.cross_entropy(-1 * energy_stack, target, reduction='none')[:, None]
+            # Compute noise contrastive energy loss
+            energy_real, energy_fake = torch.chunk(energy, 2, 0)
+            energy_stack = torch.cat([energy_real, energy_fake], dim=-1)
+            target = torch.zeros(energy_real.size(0)).to(energy_stack.device)
+            loss_energy = F.cross_entropy(-1 * energy_stack, target.long(), reduction='none')[:, None]
 
             # loss_energy = energy_real.mean() - energy_fake.mean()# loss_energy.mean()
 

@@ -57,6 +57,92 @@ def str2bool(x):
     raise ValueError('Invalid boolean value: {}'.format(x))
 
 
+def parse_range(range_str):
+    """Parse comma-separated range string to [min, max] list."""
+    try:
+        parts = range_str.split(',')
+        if len(parts) != 2:
+            raise ValueError(f"Range must have exactly 2 values, got {len(parts)}")
+        return [int(parts[0].strip()), int(parts[1].strip())]
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"Invalid range format '{range_str}': {e}")
+
+
+def parse_distribution(dist_str):
+    """Parse comma-separated distribution string to probabilities list."""
+    try:
+        parts = dist_str.split(',')
+        probs = [float(p.strip()) for p in parts]
+        total = sum(probs)
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"Distribution probabilities must sum to 1.0, got {total}")
+        return probs
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"Invalid distribution format '{dist_str}': {e}")
+
+
+def build_variability_config(args):
+    """Build variability configuration from command line arguments."""
+    config = {
+        'enable_stratified_sampling': args.enable_stratified_sampling,
+        'enable_solution_first': args.enable_solution_first
+    }
+    
+    # Parse stratified sampling configuration
+    if args.enable_stratified_sampling:
+        try:
+            basic_range = parse_range(args.stratified_basic_range)
+            extended_range = parse_range(args.stratified_extended_range)
+            challenge_range = parse_range(args.stratified_challenge_range)
+            distribution_probs = parse_distribution(args.stratified_distribution)
+            
+            if len(distribution_probs) != 3:
+                raise ValueError("Stratified distribution must have exactly 3 probabilities")
+            
+            config['stratified_ranges'] = {
+                'basic': basic_range,
+                'extended': extended_range,
+                'challenge': challenge_range
+            }
+            config['stratified_distribution'] = {
+                'basic': distribution_probs[0],
+                'extended': distribution_probs[1], 
+                'challenge': distribution_probs[2]
+            }
+            
+        except ValueError as e:
+            print(f"Error in stratified sampling configuration: {e}")
+            return None
+    
+    # Parse solution-first configuration
+    if args.enable_solution_first:
+        try:
+            small_range = parse_range(args.solution_small_range)
+            medium_range = parse_range(args.solution_medium_range)
+            large_range = parse_range(args.solution_large_range)
+            solution_probs = parse_distribution(args.solution_range_distribution)
+            
+            if len(solution_probs) != 3:
+                raise ValueError("Solution range distribution must have exactly 3 probabilities")
+            
+            config['target_solution_ranges'] = {
+                'small': small_range,
+                'medium': medium_range,
+                'large': large_range
+            }
+            config['solution_range_distribution'] = {
+                'small': solution_probs[0],
+                'medium': solution_probs[1],
+                'large': solution_probs[2]
+            }
+            
+        except ValueError as e:
+            print(f"Error in solution-first configuration: {e}")
+            return None
+    
+    return config
+
+
 def parse_args():
     """Parse command-line arguments for algebra training."""
     parser = argparse.ArgumentParser(
@@ -146,6 +232,77 @@ def parse_args():
         help='Model embedding dimension'
     )
     
+    # Variability enhancement parameters
+    parser.add_argument(
+        '--enable_stratified_sampling',
+        type=str2bool,
+        default=False,
+        help='Enable stratified coefficient sampling for enhanced variability'
+    )
+    
+    parser.add_argument(
+        '--stratified_basic_range',
+        type=str,
+        default='-5,5',
+        help='Basic coefficient range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--stratified_extended_range', 
+        type=str,
+        default='-20,20',
+        help='Extended coefficient range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--stratified_challenge_range',
+        type=str,
+        default='-50,50', 
+        help='Challenge coefficient range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--stratified_distribution',
+        type=str,
+        default='0.4,0.4,0.2',
+        help='Stratified distribution probabilities (comma-separated: basic,extended,challenge)'
+    )
+    
+    parser.add_argument(
+        '--enable_solution_first',
+        type=str2bool,
+        default=False,
+        help='Enable solution-first equation generation for systematic coverage'
+    )
+    
+    parser.add_argument(
+        '--solution_small_range',
+        type=str,
+        default='-10,10',
+        help='Small solution range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--solution_medium_range',
+        type=str,
+        default='-25,25', 
+        help='Medium solution range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--solution_large_range',
+        type=str,
+        default='-50,50',
+        help='Large solution range (comma-separated: min,max)'
+    )
+    
+    parser.add_argument(
+        '--solution_range_distribution',
+        type=str,
+        default='0.5,0.35,0.15',
+        help='Solution range distribution probabilities (comma-separated: small,medium,large)'
+    )
+    
     # IRED-specific parameters
     parser.add_argument(
         '--supervise-energy-landscape',
@@ -225,15 +382,47 @@ def main():
     
     print(f"Results will be saved to: {args.results_folder}")
     
+    # Parse variability configuration
+    variability_config = build_variability_config(args)
+    if variability_config is None:
+        print("Failed to parse variability configuration")
+        return
+    
     # Create algebra dataset for specified rule
     print(f"Creating dataset for rule '{args.rule}' with {args.num_problems} problems...")
+    if variability_config['enable_stratified_sampling'] or variability_config['enable_solution_first']:
+        print("Enhanced variability features enabled:")
+        if variability_config['enable_stratified_sampling']:
+            print(f"  - Stratified coefficient sampling: {variability_config['stratified_distribution']}")
+        if variability_config['enable_solution_first']:
+            print(f"  - Solution-first generation: {variability_config['solution_range_distribution']}")
+    
     try:
-        dataset = AlgebraDataset(
-            rule=args.rule,
-            split=args.split,
-            num_problems=args.num_problems,
-            d_model=args.d_model
-        )
+        # Build dataset arguments with variability configuration
+        dataset_kwargs = {
+            'rule': args.rule,
+            'split': args.split,
+            'num_problems': args.num_problems,
+            'd_model': args.d_model,
+            'enable_stratified_sampling': variability_config['enable_stratified_sampling'],
+            'enable_solution_first': variability_config['enable_solution_first']
+        }
+        
+        # Add stratified sampling parameters if enabled
+        if variability_config['enable_stratified_sampling']:
+            dataset_kwargs.update({
+                'stratified_ranges': variability_config['stratified_ranges'],
+                'stratified_distribution': variability_config['stratified_distribution']
+            })
+        
+        # Add solution-first parameters if enabled
+        if variability_config['enable_solution_first']:
+            dataset_kwargs.update({
+                'target_solution_ranges': variability_config['target_solution_ranges'],
+                'solution_range_distribution': variability_config['solution_range_distribution']
+            })
+        
+        dataset = AlgebraDataset(**dataset_kwargs)
     except Exception as e:
         print(f"Error creating dataset: {e}")
         print("Check that algebra_dataset.py and dependencies are properly installed")
@@ -350,6 +539,40 @@ def main():
         trainer.train()
         print("Training completed successfully!")
         print(f"Model saved to: {args.results_folder}")
+        
+        # Report dataset variability results if adaptive generation was used
+        if variability_config['enable_stratified_sampling'] or variability_config['enable_solution_first']:
+            print("\n" + "=" * 60)
+            print("Dataset Variability Report")
+            print("=" * 60)
+            
+            try:
+                # Get coverage history if available
+                coverage_history = dataset.get_coverage_history()
+                if coverage_history:
+                    print(f"Adaptive generation performed {len(coverage_history)} quality checkpoints")
+                    if hasattr(dataset, '_generation_stats'):
+                        stats = dataset._generation_stats
+                        print(f"Generation statistics:")
+                        print(f"  - Total attempts: {stats.get('attempts', 0)}")
+                        print(f"  - Successful equations: {stats.get('successes', 0)}")
+                        print(f"  - Coverage adjustments: {stats.get('coverage_adjustments', 0)}")
+                
+                # Get final coverage validation
+                coverage_report = dataset.validate_current_coverage()
+                if 'overall_passed' in coverage_report:
+                    status = "PASSED" if coverage_report['overall_passed'] else "NEEDS IMPROVEMENT"
+                    print(f"Final coverage validation: {status}")
+                    
+                    if coverage_report.get('recommendations'):
+                        print("Coverage recommendations:")
+                        for rec in coverage_report['recommendations'][:3]:  # Show top 3
+                            print(f"  - {rec}")
+                            
+            except Exception as e:
+                print(f"Error generating variability report: {e}")
+            
+            print("=" * 60)
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
         print(f"Partial training results may be available in: {args.results_folder}")
