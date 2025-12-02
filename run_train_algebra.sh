@@ -56,8 +56,7 @@ echo "Now working in scratch: $(pwd)"
 # ------------------------------------------------------------------------------
 
 # Git is available system-wide, no module needed
-
-pip install gh
+# Note: Skip gh installation for now - not essential for training
 
 REPO_URL="https://github.com/mdkrasnow/algebra-ebm.git"
 REPO_DIR="$JOB_SCRATCH/algebra-ebm"
@@ -110,10 +109,25 @@ echo "Files copied successfully."
 # 4. Modules & Python environment
 # ------------------------------------------------------------------------------
 
-module load python/3.10.9-fasrc01
-module load cuda/12.2.0-fasrc01
+echo "Loading Python and CUDA modules..."
+module load python/3.10.9-fasrc01 || {
+    echo "ERROR: Failed to load Python module"
+    exit 1
+}
+module load cuda/12.2.0-fasrc01 || {
+    echo "ERROR: Failed to load CUDA module"
+    exit 1
+}
 
 export PATH="$HOME/.local/bin:$PATH"
+
+echo "Verifying Python installation..."
+python --version || {
+    echo "ERROR: Python not found after module load"
+    exit 1
+}
+which python
+echo "Python executable: $(which python)"
 
 # Add repository to Python path for imports
 export PYTHONPATH="${REPO_DIR}:${PYTHONPATH}"
@@ -121,9 +135,13 @@ echo "Added repository to Python path: $REPO_DIR"
 echo "Current PYTHONPATH: $PYTHONPATH"
 
 echo "Installing dependencies to ~/.local ..."
-pip install --user -q torch torchvision einops accelerate tqdm \
+python -m pip install --user -q torch torchvision einops accelerate tqdm \
     tabulate matplotlib numpy pandas ema-pytorch \
-    ipdb seaborn scikit-learn sympy
+    ipdb seaborn scikit-learn sympy || {
+    echo "ERROR: Dependency installation failed!"
+    echo "Check that Python modules are loaded correctly"
+    exit 1
+}
 echo "Dependencies installed successfully."
 
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"

@@ -3,7 +3,6 @@ import sys
 import collections
 from multiprocessing import cpu_count
 from pathlib import Path
-from random import random
 from functools import partial
 from collections import namedtuple
 from tabulate import tabulate
@@ -11,11 +10,10 @@ from tabulate import tabulate
 import torch
 from accelerate import Accelerator
 from ema_pytorch import EMA
-from torch import nn, einsum
+from torch import nn
 import torch.nn.functional as F
 
-from einops import rearrange, reduce
-from einops.layers.torch import Rearrange
+from einops import reduce
 from torch.optim import Adam
 from torch.utils.data import Dataset, DataLoader
 
@@ -23,7 +21,6 @@ from tqdm.auto import tqdm
 
 import os.path as osp
 import time
-import numpy as np
 
 
 def _custom_exception_hook(type, value, tb):
@@ -32,7 +29,8 @@ def _custom_exception_hook(type, value, tb):
         # device, so we call the default hook
         sys.__excepthook__(type, value, tb)
     else:
-        import traceback, ipdb
+        import traceback
+        import ipdb
         # we are NOT in interactive mode, print the exception...
         traceback.print_exception(type, value, tb)
         # ...then start the debugger in post-mortem mode.
@@ -682,13 +680,13 @@ class GaussianDiffusion1D(nn.Module):
                 xmin_noise = xmin_noise * (1 - mask) + mask * data_cond
 
             # Compute energy of both distributions
-                inp_concat = torch.cat([inp, inp], dim=0)
-                x_concat = torch.cat([data_sample, xmin_noise], dim=0)
-                t_concat = torch.cat([t, t], dim=0)
-                
-                energy = self.model(inp_concat, x_concat, t_concat, return_energy=True)
-                energy_real, energy_fake_opt = torch.chunk(energy, 2, 0)
-                energy_stack = torch.cat([energy_real, energy_fake_opt], dim=-1)
+            inp_concat = torch.cat([inp, inp], dim=0)
+            x_concat = torch.cat([data_sample, xmin_noise], dim=0)
+            t_concat = torch.cat([t, t], dim=0)
+            
+            energy = self.model(inp_concat, x_concat, t_concat, return_energy=True)
+            energy_real, energy_fake_opt = torch.chunk(energy, 2, 0)
+            energy_stack = torch.cat([energy_real, energy_fake_opt], dim=-1)
 
             target = torch.zeros(energy_real.size(0), device=energy_real.device).long()
             loss_energy = F.cross_entropy(-1 * energy_stack, target, reduction='none')[:, None]
