@@ -327,6 +327,13 @@ def parse_args():
     )
     
     parser.add_argument(
+        '--use-contrastive-energy-loss',
+        type=str2bool,
+        default=True,
+        help='Use ContrastiveEnergyLoss (pos_target=1.0, neg_target=15.0, margin=10.0) instead of cross-entropy for energy supervision. CRITICAL for non-flat energy landscapes.'
+    )
+    
+    parser.add_argument(
         '--use-innerloop-opt', 
         type=str2bool,
         default=True,
@@ -563,6 +570,7 @@ def main():
             timesteps=args.timesteps,
             sampling_timesteps=args.timesteps,
             supervise_energy_landscape=args.supervise_energy_landscape,
+            use_contrastive_energy_loss=args.use_contrastive_energy_loss,
             use_innerloop_opt=args.use_innerloop_opt,
             step_size_multiplier=args.step_size_multiplier,
             enable_semantic_corruption=args.enable_semantic_corruption,
