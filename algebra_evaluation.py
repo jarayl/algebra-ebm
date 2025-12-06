@@ -703,6 +703,245 @@ def print_evaluation_summary(results: Dict[str, Any]):
     print("="*60 + "\n")
 
 
+def validate_energy_landscape(model, dataset, num_samples: int = 1000) -> Dict[str, Any]:
+    """
+    Validate that trained model has sharp energy landscape for algebraic reasoning.
+    
+    This function empirically verifies energy separation between correct and incorrect
+    solutions, ensuring the model has learned proper energy-based discrimination.
+    
+    Validation Criteria (from research report):
+    - E(correct) < 5.0 (low energy for valid solutions)
+    - E(incorrect) > 10.0 (high energy for invalid solutions) 
+    - E(incorrect) - E(correct) > 8.0 (sufficient energy gap for discrimination)
+    
+    Args:
+        model: Trained energy-based model with return_energy=True capability
+        dataset: Dataset with algebraic problems for testing
+        num_samples: Number of samples to evaluate (default: 1000)
+        
+    Returns:
+        Dict with validation results:
+        - 'passed': bool indicating if landscape meets criteria
+        - 'e_correct_mean': Average energy for correct solutions
+        - 'e_incorrect_mean': Average energy for incorrect solutions  
+        - 'energy_gap': Mean difference between incorrect and correct energies
+        - 'correct_below_threshold': Fraction of correct solutions with E < 5.0
+        - 'incorrect_above_threshold': Fraction of incorrect solutions with E > 10.0
+        - 'sufficient_gap_samples': Fraction of samples with gap > 8.0
+        - 'statistics': Detailed statistical breakdown
+        
+    Example:
+        results = validate_energy_landscape(trained_model, test_dataset, 500)
+        if results['passed']:
+            print("✅ Energy landscape validation passed!")
+        else:
+            print("❌ Energy landscape needs improvement")
+            print(f"Gap: {results['energy_gap']:.2f} (target: >8.0)")
+    """
+    logger.info(f"Starting energy landscape validation with {num_samples} samples...")
+    
+    correct_energies = []
+    incorrect_energies = []
+    gap_samples = []
+    
+    try:
+        # Set model to evaluation mode
+        model.eval()
+        
+        with torch.no_grad():
+            samples_processed = 0
+            
+            for i, sample in enumerate(dataset):
+                if samples_processed >= num_samples:
+                    break
+                    
+                try:
+                    # Extract input and correct output
+                    if isinstance(sample, dict):
+                        inp = sample.get('input', sample.get('source', None))
+                        correct_out = sample.get('output', sample.get('target', None))
+                    elif isinstance(sample, (list, tuple)) and len(sample) >= 2:
+                        inp, correct_out = sample[0], sample[1]
+                    else:
+                        logger.warning(f"Sample {i}: Unexpected format, skipping")
+                        continue
+                        
+                    if inp is None or correct_out is None:
+                        logger.warning(f"Sample {i}: Missing input/output, skipping")
+                        continue
+                        
+                    # Ensure tensors are properly shaped and on correct device
+                    if not torch.is_tensor(inp):
+                        inp = torch.tensor(inp, dtype=torch.float32)
+                    if not torch.is_tensor(correct_out):
+                        correct_out = torch.tensor(correct_out, dtype=torch.float32)
+                        
+                    # Add batch dimension if needed
+                    if inp.dim() == 1:
+                        inp = inp.unsqueeze(0)
+                    if correct_out.dim() == 1:
+                        correct_out = correct_out.unsqueeze(0)
+                        
+                    # Generate incorrect solution via corruption
+                    incorrect_out = _generate_corrupted_solution(correct_out)
+                    
+                    # Compute energies
+                    # Create dummy timestep (model expects t parameter)
+                    t = torch.zeros(inp.size(0), dtype=torch.long)
+                    
+                    e_correct = model(inp, correct_out, t, return_energy=True)
+                    e_incorrect = model(inp, incorrect_out, t, return_energy=True)
+                    
+                    # Extract energies as synchronized pairs
+                    if torch.is_tensor(e_correct) and torch.is_tensor(e_incorrect):
+                        e_c = e_correct.item() if e_correct.numel() == 1 else e_correct.mean().item()
+                        e_i = e_incorrect.item() if e_incorrect.numel() == 1 else e_incorrect.mean().item()
+                        
+                        # Store as synchronized pairs to enforce pairing
+                        correct_energies.append(e_c)
+                        incorrect_energies.append(e_i)
+                        gap_samples.append(e_i - e_c)
+                    else:
+                        # Skip if either energy is invalid
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.debug(f"Skipping sample {i}: invalid energy tensors (e_correct={type(e_correct)}, e_incorrect={type(e_incorrect)})")
+                    
+                    samples_processed += 1
+                    
+                except Exception as e:
+                    logger.warning(f"Sample {i}: Error during processing - {e}")
+                    continue
+                    
+        if len(correct_energies) == 0 or len(incorrect_energies) == 0:
+            return {
+                'passed': False,
+                'error': 'No valid energy measurements obtained',
+                'samples_processed': samples_processed
+            }
+            
+    except Exception as e:
+        logger.error(f"Energy landscape validation failed: {e}")
+        return {
+            'passed': False, 
+            'error': str(e),
+            'samples_processed': 0
+        }
+    
+    # Statistical analysis
+    e_correct_mean = float(np.mean(correct_energies))
+    e_incorrect_mean = float(np.mean(incorrect_energies))
+    energy_gap = e_incorrect_mean - e_correct_mean
+    
+    e_correct_std = float(np.std(correct_energies)) 
+    e_incorrect_std = float(np.std(incorrect_energies))
+    
+    # Validation criteria checks
+    correct_below_threshold = sum(1 for e in correct_energies if e < 5.0) / len(correct_energies)
+    incorrect_above_threshold = sum(1 for e in incorrect_energies if e > 10.0) / len(incorrect_energies)  
+    sufficient_gap_samples = sum(1 for gap in gap_samples if gap > 8.0) / len(gap_samples) if gap_samples else 0.0
+    
+    # Overall pass/fail determination
+    criteria_met = [
+        e_correct_mean < 5.0,              # Correct solutions have low energy
+        e_incorrect_mean > 10.0,           # Incorrect solutions have high energy
+        energy_gap > 8.0                   # Sufficient energy gap
+    ]
+    passed = all(criteria_met)
+    
+    # Compile results
+    results = {
+        'passed': passed,
+        'samples_processed': samples_processed,
+        'e_correct_mean': e_correct_mean,
+        'e_incorrect_mean': e_incorrect_mean,
+        'energy_gap': energy_gap,
+        'correct_below_threshold': correct_below_threshold,
+        'incorrect_above_threshold': incorrect_above_threshold,
+        'sufficient_gap_samples': sufficient_gap_samples,
+        'criteria_met': {
+            'correct_energy_low': criteria_met[0], 
+            'incorrect_energy_high': criteria_met[1],
+            'sufficient_gap': criteria_met[2]
+        },
+        'statistics': {
+            'correct_energies': {
+                'mean': e_correct_mean,
+                'std': e_correct_std,
+                'min': float(np.min(correct_energies)),
+                'max': float(np.max(correct_energies)),
+                'count': len(correct_energies)
+            },
+            'incorrect_energies': {
+                'mean': e_incorrect_mean, 
+                'std': e_incorrect_std,
+                'min': float(np.min(incorrect_energies)),
+                'max': float(np.max(incorrect_energies)),
+                'count': len(incorrect_energies)
+            },
+            'energy_gaps': {
+                'mean': float(np.mean(gap_samples)) if gap_samples else 0.0,
+                'std': float(np.std(gap_samples)) if gap_samples else 0.0,
+                'count': len(gap_samples)
+            }
+        }
+    }
+    
+    # Print validation summary
+    print("="*60)
+    print("ENERGY LANDSCAPE VALIDATION RESULTS")
+    print("="*60)
+    print(f"Samples processed: {samples_processed}")
+    print(f"E(correct):        {e_correct_mean:.2f} ± {e_correct_std:.2f} (target: <5.0)")
+    print(f"E(incorrect):      {e_incorrect_mean:.2f} ± {e_incorrect_std:.2f} (target: >10.0)")
+    print(f"Energy gap:        {energy_gap:.2f} (target: >8.0)")
+    print()
+    print("CRITERIA VALIDATION:")
+    print(f"✅ Low correct energy:    {correct_below_threshold:.1%} below 5.0" if criteria_met[0] else f"❌ High correct energy:   {e_correct_mean:.2f} >= 5.0")
+    print(f"✅ High incorrect energy: {incorrect_above_threshold:.1%} above 10.0" if criteria_met[1] else f"❌ Low incorrect energy:  {e_incorrect_mean:.2f} <= 10.0") 
+    print(f"✅ Sufficient gap:       {energy_gap:.2f} > 8.0" if criteria_met[2] else f"❌ Insufficient gap:     {energy_gap:.2f} <= 8.0")
+    print()
+    status = "✅ PASS" if passed else "❌ FAIL"
+    print(f"OVERALL STATUS: {status}")
+    print("="*60)
+    
+    logger.info(f"Energy landscape validation completed: {'PASSED' if passed else 'FAILED'}")
+    
+    return results
+
+
+def _generate_corrupted_solution(correct_out: torch.Tensor) -> torch.Tensor:
+    """
+    Generate corrupted version of correct solution for energy validation.
+    
+    Uses simple corruption strategies to create "incorrect" solutions that should
+    have higher energy than correct ones.
+    """
+    corrupted = correct_out.clone()
+    
+    # Strategy 1: Add noise (70% probability)
+    if torch.rand(1).item() < 0.7:
+        noise_scale = 0.5 * corrupted.std() + 0.1  # Ensure minimum noise
+        noise = noise_scale * torch.randn_like(corrupted)
+        corrupted = corrupted + noise
+    
+    # Strategy 2: Random permutation (30% probability)  
+    if torch.rand(1).item() < 0.3:
+        batch_size = corrupted.size(0)
+        for b in range(batch_size):
+            # Permute within each batch element
+            perm_idx = torch.randperm(corrupted.size(-1))
+            corrupted[b] = corrupted[b, perm_idx]
+    
+    # Strategy 3: Sign flip (20% probability)
+    if torch.rand(1).item() < 0.2:
+        flip_mask = torch.rand_like(corrupted) < 0.3
+        corrupted = torch.where(flip_mask, -corrupted, corrupted)
+        
+    return corrupted
+
+
 if __name__ == "__main__":
     # Example usage
     logger.info("Algebra evaluation framework loaded successfully")

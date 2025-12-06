@@ -36,13 +36,15 @@ class AlgebraEBM(nn.Module):
         inp_dim: Input equation embedding dimension (default: 128)
         out_dim: Output equation embedding dimension (default: 128)  
         rule_name: Name of algebraic rule ('distribute', 'combine', 'isolate', 'divide')
+        enable_magnitude_clipping: Whether to apply magnitude clipping to prevent extreme energy values (default: True)
     """
     
     def __init__(
         self, 
         inp_dim: int = 128, 
         out_dim: int = 128,
-        rule_name: Optional[str] = None
+        rule_name: Optional[str] = None,
+        enable_magnitude_clipping: bool = True
     ):
         super(AlgebraEBM, self).__init__()
         
@@ -50,6 +52,7 @@ class AlgebraEBM(nn.Module):
         self.inp_dim = inp_dim
         self.out_dim = out_dim
         self.rule_name = rule_name
+        self.enable_magnitude_clipping = enable_magnitude_clipping
         
         # Architecture parameters matching IRED Table 8
         fourier_dim = 128  # For SinusoidalPosEmb
@@ -121,25 +124,59 @@ class AlgebraEBM(nn.Module):
             # Apply conditioning to problematic outputs while preserving valid ones
             output = torch.where(torch.isfinite(output), output, torch.zeros_like(output))
         
-        # Apply gradient-preserving bounds to prevent extreme energy values
-        # Use soft clipping that maintains differentiability and only affects large values
-        output_magnitude = torch.norm(output, dim=-1, keepdim=True)
-        max_magnitude = 1000.0  # Corresponds to energy ~1e6 (1000^2)
-        if output_magnitude.max() > max_magnitude:
-            # Soft conditioning: only scale down values that exceed the threshold
-            # Use smooth transition that preserves gradients and maintains relative ordering
-            # For magnitude > max_magnitude: smoothly scale down to max_magnitude
-            # For magnitude <= max_magnitude: leave unchanged (scale_factor = 1)
-            excess_ratio = (output_magnitude - max_magnitude) / max_magnitude
-            scale_factor = torch.where(
-                output_magnitude > max_magnitude,
-                max_magnitude / (output_magnitude + 1e-8),  # Scale large values down to threshold
-                torch.ones_like(output_magnitude)  # Leave normal values unchanged
-            )
-            output = output * scale_factor
+        # Apply gradient-preserving bounds to prevent extreme energy values (if enabled)
+        if self.enable_magnitude_clipping:
+            # Use soft clipping that maintains differentiability and only affects large values
+            output_magnitude = torch.norm(output, dim=-1, keepdim=True)
+            max_magnitude = 1000.0  # Corresponds to energy ~1e6 (1000^2)
+            if output_magnitude.max() > max_magnitude:
+                # Soft conditioning: only scale down values that exceed the threshold
+                # Use smooth transition that preserves gradients and maintains relative ordering
+                # For magnitude > max_magnitude: smoothly scale down to max_magnitude
+                # For magnitude <= max_magnitude: leave unchanged (scale_factor = 1)
+                excess_ratio = (output_magnitude - max_magnitude) / max_magnitude
+                scale_factor = torch.where(
+                    output_magnitude > max_magnitude,
+                    max_magnitude / (output_magnitude + 1e-8),  # Scale large values down to threshold
+                    torch.ones_like(output_magnitude)  # Leave normal values unchanged
+                )
+                output = output * scale_factor
         
         # Energy = ||output_vector||^2 (L2 norm squared for non-negative energy)
         energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
+        
+        # Energy statistics monitoring for debugging and analysis
+        logger = logging.getLogger(__name__)
+        if logger.isEnabledFor(logging.DEBUG):
+            energy_stats = {
+                'min': energy.min().item(),
+                'max': energy.max().item(),
+                'mean': energy.mean().item(),
+                'std': energy.std().item()
+            }
+            logger.debug(f"AlgebraEBM energy stats: min={energy_stats['min']:.6e}, "
+                        f"max={energy_stats['max']:.6e}, mean={energy_stats['mean']:.6e}, "
+                        f"std={energy_stats['std']:.6e}, clipping={'enabled' if self.enable_magnitude_clipping else 'disabled'}")
+        
+        # Numerical stability monitoring - detect Inf/NaN values in energy
+        if not torch.isfinite(energy).all():
+            logger = logging.getLogger(__name__)
+            inf_count = torch.isinf(energy).sum().item()
+            nan_count = torch.isnan(energy).sum().item()
+            finite_count = torch.isfinite(energy).sum().item()
+            batch_size = energy.shape[0]
+            
+            logger.warning(f"AlgebraEBM numerical instability detected: "
+                          f"batch_size={batch_size}, finite={finite_count}, "
+                          f"inf={inf_count}, nan={nan_count}, "
+                          f"clipping={'enabled' if self.enable_magnitude_clipping else 'disabled'}")
+            
+            # Additional debug info for troubleshooting
+            if logger.isEnabledFor(logging.DEBUG):
+                output_magnitude = torch.norm(output, dim=-1, keepdim=True)
+                logger.debug(f"Output magnitude stats: min={output_magnitude.min().item():.6e}, "
+                           f"max={output_magnitude.max().item():.6e}, "
+                           f"output_finite={torch.isfinite(output).all().item()}")
         
         # Performance optimization: fast path for normal cases (preserving existing optimization)
         energy_max = energy.max().item()

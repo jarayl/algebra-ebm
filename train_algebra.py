@@ -7,7 +7,7 @@ This script implements Step 8 of Phase 3 from the implementation plan.
 
 Usage:
     python train_algebra.py --rule distribute --batch_size 2048 --timesteps 10
-    python train_algebra.py --rule combine --train_steps 50000
+    python train_algebra.py --rule combine --train_steps 200000
     python train_algebra.py --rule isolate --supervise-energy-landscape True
     python train_algebra.py --rule divide --use-innerloop-opt True
 
@@ -192,8 +192,8 @@ def parse_args():
     parser.add_argument(
         '--train_steps',
         type=int,
-        default=50000,
-        help='Total number of training steps'
+        default=1000000,
+        help='Total number of training steps (1M recommended for sharp energy landscapes, 5K for quick testing, 1.3M for full IRED baseline)'
     )
     
     parser.add_argument(
@@ -215,6 +215,13 @@ def parse_args():
         type=int,
         default=1,
         help='Gradient accumulation steps'
+    )
+    
+    parser.add_argument(
+        '--step_size_multiplier',
+        type=float,
+        default=0.1,
+        help='Step size scaling factor for optimization (smaller = more stable for algebra)'
     )
     
     # Dataset parameters
@@ -318,6 +325,56 @@ def parse_args():
         help='Enable T-step optimization during training'
     )
     
+    parser.add_argument(
+        '--enable-semantic-corruption',
+        type=str2bool,
+        default=False,
+        help='Enable semantic corruption strategy for richer negative sampling'
+    )
+    
+    parser.add_argument(
+        '--corruption-strategy-probs',
+        type=str,
+        default=None,
+        help='JSON string specifying corruption strategy probabilities (e.g., \'{"heavy_gaussian": 0.3, "extreme_gaussian": 0.3, "pure_random": 0.2, "semantic": 0.2}\')'
+    )
+    
+    # Performance optimization parameters
+    parser.add_argument(
+        '--amp',
+        type=str2bool,
+        default=True,
+        help='Enable Automatic Mixed Precision (AMP) for ~2x speedup'
+    )
+    
+    parser.add_argument(
+        '--fp16',
+        type=str2bool,
+        default=True,
+        help='Use FP16 mixed precision training'
+    )
+    
+    parser.add_argument(
+        '--pin_memory',
+        type=str2bool,
+        default=True,
+        help='Pin memory in data loaders for faster GPU transfer'
+    )
+    
+    parser.add_argument(
+        '--persistent_workers',
+        type=str2bool,
+        default=True,
+        help='Keep data loader workers persistent between epochs'
+    )
+    
+    parser.add_argument(
+        '--compile_model',
+        type=str2bool,
+        default=True,
+        help='Use torch.compile for ~20% additional speedup (PyTorch 2.0+)'
+    )
+    
     # I/O parameters
     parser.add_argument(
         '--results_folder',
@@ -387,6 +444,29 @@ def main():
     if variability_config is None:
         print("Failed to parse variability configuration")
         return
+    
+    # Parse corruption strategy probabilities if provided
+    corruption_strategy_probs = None
+    if args.corruption_strategy_probs:
+        try:
+            import json
+            corruption_strategy_probs = json.loads(args.corruption_strategy_probs)
+            if not isinstance(corruption_strategy_probs, dict):
+                print(f"Error: corruption-strategy-probs must be a JSON object, got {type(corruption_strategy_probs)}")
+                return
+            print(f"Using custom corruption strategy probabilities: {corruption_strategy_probs}")
+        except json.JSONDecodeError as e:
+            print(f"Error parsing corruption-strategy-probs JSON: {e}")
+            return
+        except Exception as e:
+            print(f"Error processing corruption-strategy-probs: {e}")
+            return
+    
+    # Log corruption strategy configuration
+    if args.enable_semantic_corruption:
+        print("Semantic corruption strategy enabled for enhanced negative sampling")
+    else:
+        print("Using standard noise corruption strategies only")
     
     # Create algebra dataset for specified rule
     print(f"Creating dataset for rule '{args.rule}' with {args.num_problems} problems...")
@@ -463,6 +543,8 @@ def main():
         print(f"Error creating diffusion wrapper: {e}")
         return
     
+    # Note: torch.compile will be applied to diffusion model after creation
+    
     # Create diffusion model with IRED configuration
     print("Setting up GaussianDiffusion1D...")
     try:
@@ -474,6 +556,9 @@ def main():
             sampling_timesteps=args.timesteps,
             supervise_energy_landscape=args.supervise_energy_landscape,
             use_innerloop_opt=args.use_innerloop_opt,
+            step_size_multiplier=args.step_size_multiplier,
+            enable_semantic_corruption=args.enable_semantic_corruption,
+            corruption_strategy_probs=corruption_strategy_probs,
             show_inference_tqdm=False,
             continuous=True  # For continuous algebraic embeddings
         )
@@ -482,8 +567,40 @@ def main():
         print("Check diffusion_lib installation and parameter compatibility")
         return
     
-    # Create trainer
-    print("Setting up Trainer1D...")
+    # Apply PyTorch compilation to diffusion model (actual hot path)
+    if args.compile_model:
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            if hasattr(torch, 'compile'):
+                logger.info("Compiling diffusion model with torch.compile (mode='reduce-overhead')...")
+                diffusion = torch.compile(diffusion, mode='reduce-overhead')
+                logger.info("✓ Diffusion model compiled successfully")
+                print("✓ Diffusion model compiled successfully")
+            else:
+                logger.warning("⚠ torch.compile not available, skipping compilation")
+                print("⚠ torch.compile not available, skipping compilation")
+                args.compile_model = False
+        except (RuntimeError, AttributeError) as e:
+            logger.warning(f"⚠ torch.compile failed: {e}")
+            logger.warning("Continuing without compilation...")
+            print(f"⚠ torch.compile failed: {e}, continuing without compilation")
+            args.compile_model = False
+        except Exception as e:
+            logger.warning(f"⚠ Unexpected error during compilation: {e}")
+            print(f"⚠ Model compilation failed: {e}, continuing without compilation")
+            args.compile_model = False
+    
+    # Create trainer with performance optimizations
+    print("Setting up Trainer1D with performance optimizations...")
+    if args.amp and args.fp16:
+        print("✓ Mixed precision training enabled (FP16)")
+    if args.pin_memory:
+        print("✓ Pinned memory enabled for faster GPU transfers")
+    if args.persistent_workers and args.data_workers and args.data_workers > 0:
+        print("✓ Persistent data workers enabled")
+    
     try:
         trainer = Trainer1D(
             diffusion,
@@ -495,7 +612,10 @@ def main():
             gradient_accumulate_every=args.gradient_accumulate_every,
             ema_decay=args.ema_decay,
             data_workers=args.data_workers,
-            amp=False,  # No mixed precision for algebra tasks
+            amp=args.amp,  # Enable mixed precision for major speedup
+            fp16=args.fp16,  # Use FP16 mixed precision
+            pin_memory=args.pin_memory,  # Faster GPU memory transfers
+            persistent_workers=args.persistent_workers,  # Keep workers alive
             metric='mse',  # Use MSE for continuous embeddings
             results_folder=args.results_folder,
             save_and_sample_every=args.save_and_sample_every,

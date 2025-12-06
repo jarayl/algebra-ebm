@@ -833,8 +833,7 @@ if __name__ == "__main__":
     x = np.random.uniform(-1, 1, (5, 1))
     b = np.random.uniform(-1, 1, (5, 1))
     sol = conjgrad(A, b, x)
-    import pdb
-    pdb.set_trace()
+    # Removed pdb breakpoint - use debugger attachment or logging instead
     print(A)
     print(sol)
     print(b)

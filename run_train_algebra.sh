@@ -164,11 +164,21 @@ echo "Training results will be written to: $RESULTS_DIR"
 
 echo "Starting algebra EBM training for all rules..."
 
-# Define training parameters
+# Define training parameters with performance optimizations
 BATCH_SIZE=2048        # Default from script
-TRAIN_STEPS=50000      # Default from script
+# Training steps configuration (based on energy landscape research):
+# - Quick test: 5000 steps (fail fast development)  
+# - Standard: 200000 steps (baseline, may have flat landscapes)
+# - Production: 1000000 steps (recommended for sharp energy landscapes, closer to IRED baseline)
+# - Research optimal: 1300000 steps (full IRED baseline)
+TRAIN_STEPS=1000000    # Production setting for optimal energy landscape formation
 NUM_PROBLEMS=50000     # Default from script
 TIMESTEPS=10           # Default from script
+GRADIENT_ACCUMULATE=2  # Effective batch size: 4096 for better convergence
+STEP_SIZE_MULTIPLIER=0.2  # Slightly increased for faster convergence
+
+# Override for quick testing (uncomment for development)
+# TRAIN_STEPS=5000     # Quick test mode
 
 # Check GPU memory and adjust batch size if needed
 GPU_MEMORY=$(python -c "import torch; print(torch.cuda.get_device_properties(0).total_memory / (1024**3))" 2>/dev/null || echo "16")
@@ -179,9 +189,12 @@ fi
 
 echo "Training parameters:"
 echo "  Batch size: $BATCH_SIZE"
+echo "  Gradient accumulation: $GRADIENT_ACCUMULATE (effective batch: $((BATCH_SIZE * GRADIENT_ACCUMULATE)))"
 echo "  Training steps: $TRAIN_STEPS" 
 echo "  Problems per rule: $NUM_PROBLEMS"
 echo "  Timesteps: $TIMESTEPS"
+echo "  Step size multiplier: $STEP_SIZE_MULTIPLIER"
+echo "  Performance optimizations: AMP, FP16, pinned memory, persistent workers, model compilation"
 echo ""
 
 # Train each rule sequentially
@@ -209,10 +222,17 @@ for i in "${!RULES[@]}"; do
         --train_steps $TRAIN_STEPS \
         --num_problems $NUM_PROBLEMS \
         --timesteps $TIMESTEPS \
+        --gradient_accumulate_every $GRADIENT_ACCUMULATE \
+        --step_size_multiplier $STEP_SIZE_MULTIPLIER \
         --results_folder "$RESULTS_DIR/$rule" \
         --save_and_sample_every 1000 \
         --supervise-energy-landscape True \
-        --use-innerloop-opt True
+        --use-innerloop-opt True \
+        --amp True \
+        --fp16 True \
+        --pin_memory True \
+        --persistent_workers True \
+        --compile_model True
     
     TRAIN_EXIT=$?
     end_time=$(date +%s)
