@@ -25,6 +25,14 @@ import os.path as osp
 import argparse
 import torch
 
+# PyTorch dynamo configuration to handle .item() calls in compiled graphs
+# This prevents graph breaks from scalar tensor extractions during training
+try:
+    torch._dynamo.config.capture_scalar_outputs = True
+    print("Dynamo scalar output capture enabled for optimization")
+except AttributeError:
+    print("Warning: PyTorch dynamo not available, .item() calls may cause graph breaks")
+
 # Prevent numpy over multithreading
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'

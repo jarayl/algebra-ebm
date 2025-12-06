@@ -887,7 +887,7 @@ class GaussianDiffusion1D(nn.Module):
                 xmin_noise = self.q_sample(x_start=x_start, t=t, noise=noise * 3.0)
             
             # Efficient logging with minimal overhead
-            selected_strategy = strategy_name
+            selected_strategy = strategy_name 
             self.corruption_strategy_counts[selected_strategy] = self.corruption_strategy_counts.get(selected_strategy, 0) + 1
             self.total_corruption_samples += 1
             
