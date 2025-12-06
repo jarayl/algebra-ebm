@@ -197,6 +197,10 @@ echo "  Step size multiplier: $STEP_SIZE_MULTIPLIER"
 echo "  Performance optimizations: AMP, FP16, pinned memory, persistent workers, model compilation"
 echo ""
 
+# Workaround for TorchInductor/Triton compilation bug (zuf0 not defined)
+# This disables fusion optimizations that cause Triton kernel generation errors
+export TORCHINDUCTOR_DISABLE_FUSION=1
+
 # Train each rule sequentially
 RULES=("distribute" "combine" "isolate" "divide")
 TOTAL_RULES=${#RULES[@]}
