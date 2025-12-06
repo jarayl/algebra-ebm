@@ -803,8 +803,8 @@ class GaussianDiffusion1D(nn.Module):
         # Add controlled noise to break algebraic relationships
         if torch.rand(1).item() < 0.3:
             # Add structured noise with magnitude scaled to input
-            # Use torch.clamp instead of torch.max with scalar tensor for torch.compile compatibility
-            noise_scale = torch.clamp(0.5 * corrupted.std(), min=0.1)
+            # Use torch.clamp with tensor min for torch.compile compatibility (fixes zuf0 undefined error)
+            noise_scale = torch.clamp(0.5 * corrupted.std(), min=torch.tensor(0.1, device=corrupted.device, dtype=corrupted.dtype))
             structural_noise = noise_scale * torch.randn_like(corrupted)
             corrupted = corrupted + structural_noise
             
