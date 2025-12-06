@@ -227,6 +227,7 @@ for i in "${!RULES[@]}"; do
         --results_folder "$RESULTS_DIR/$rule" \
         --save_and_sample_every 1000 \
         --supervise-energy-landscape True \
+        --use-contrastive-energy-loss True \
         --use-innerloop-opt True \
         --amp True \
         --fp16 True \
