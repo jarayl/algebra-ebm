@@ -49,19 +49,35 @@ def cosine_beta_schedule(timesteps, s=0.008):
 
 
 class NoisyWrapper:
+    """
+    Wrapper that passes through clean data to the diffusion model.
+    
+    CRITICAL FIX: The diffusion model (GaussianDiffusion1D) handles noise addition
+    internally in its p_losses() method via q_sample(). This wrapper should NOT
+    add noise - it should return clean (input, target) pairs.
+    
+    The previous implementation was DOUBLE-NOISING the data:
+    1. NoisyWrapper added noise here
+    2. GaussianDiffusion1D.p_losses() added noise again via q_sample()
+    
+    This caused training to fail because the model was trying to denoise
+    already-noisy data that then got even more noise added.
+    """
 
     def __init__(self, dataset, timesteps):
 
         self.dataset = dataset
         self.timesteps = timesteps
-        betas = cosine_beta_schedule(timesteps)
         self.inp_dim = dataset.inp_dim
         self.out_dim = dataset.out_dim
-
+        
+        # NOTE: We keep these for compatibility but don't use them for noising
+        # The diffusion model has its own noise schedule
+        betas = cosine_beta_schedule(timesteps)
         alphas = 1. - betas
         alphas_cumprod = np.cumprod(alphas, axis=0)
-
-        alphas_cumprod = np.linspace(1, 0, timesteps)
+        # REMOVED: The buggy overwrite with linspace
+        # alphas_cumprod = np.linspace(1, 0, timesteps)  # BUG: This was overwriting proper schedule
         self.sqrt_alphas_cumprod = torch.tensor(np.sqrt(alphas_cumprod)).float()
         self.sqrt_one_minus_alphas_cumprod = torch.tensor(
             np.sqrt(1. - alphas_cumprod)).float()
@@ -71,38 +87,19 @@ class NoisyWrapper:
         return len(self.dataset)
 
     def __getitem__(self, *args, **kwargs):
+        """
+        Return clean (input, target) pairs.
+        
+        CRITICAL: Do NOT add noise here! The diffusion model's forward() method
+        calls p_losses() which adds noise via q_sample(). Adding noise here
+        causes double-noising and training failure.
+        """
         x, y = self.dataset.__getitem__(*args, **kwargs)
         x = x.detach().clone() if torch.is_tensor(x) else torch.from_numpy(x).float()
         y = y.detach().clone() if torch.is_tensor(y) else torch.from_numpy(y).float()
 
-        t = torch.randint(1, self.timesteps, (1,)).long()
-        t_next = t - 1
-        noise = torch.randn_like(y)
-
-        sample = (
-            self.extract(
-                self.sqrt_alphas_cumprod,
-                t,
-                y.shape) *
-            y +
-            self.extract(
-                self.sqrt_one_minus_alphas_cumprod,
-                t,
-                y.shape) *
-            noise)
-
-        sample_next = (
-            self.extract(
-                self.sqrt_alphas_cumprod,
-                t_next,
-                y.shape) *
-            y +
-            self.extract(
-                self.sqrt_one_minus_alphas_cumprod,
-                t_next,
-                y.shape) *
-            noise)
-        return x, sample
+        # FIXED: Return clean data - the diffusion model handles noise addition internally
+        return x, y
 
 
 def conjgrad(A, b, x, num_steps=20):

@@ -59,9 +59,10 @@ class CharacterLevelEncoder(nn.Module):
     Args:
         d_model: Output embedding dimension (default: 128)
         max_len: Maximum sequence length with padding (default: 64)
+        normalize_embeddings: Whether to normalize embeddings to unit norm (default: True)
     """
     
-    def __init__(self, d_model: int = 128, max_len: int = 64):
+    def __init__(self, d_model: int = 128, max_len: int = 64, normalize_embeddings: bool = True):
         super().__init__()
         
         # Vocabulary as specified in proposal
@@ -72,6 +73,7 @@ class CharacterLevelEncoder(nn.Module):
         self.d_model = d_model
         self.max_len = max_len
         self.vocab_size = len(self.vocab)
+        self.normalize_embeddings = normalize_embeddings
         
         # Codebase compatibility attributes
         self.inp_dim = d_model  # For interface compatibility
@@ -81,8 +83,9 @@ class CharacterLevelEncoder(nn.Module):
         input_dim = max_len * self.vocab_size
         self.projection = nn.Linear(input_dim, d_model)
         
-        # Initialize projection weights
-        nn.init.xavier_uniform_(self.projection.weight)
+        # Initialize projection weights with smaller scale for bounded outputs
+        # Using orthogonal initialization helps maintain stable gradient flow
+        nn.init.orthogonal_(self.projection.weight, gain=0.1)
         nn.init.zeros_(self.projection.bias)
     
     def encode_equation_string(self, eq_str: str) -> torch.Tensor:
@@ -94,6 +97,11 @@ class CharacterLevelEncoder(nn.Module):
             
         Returns:
             Tensor of shape (d_model,) containing the embedding
+            
+        Note:
+            Embeddings are normalized to have unit L2 norm by default,
+            which is important for the diffusion process that expects
+            data in a bounded range.
         """
         # Get device from projection layer for consistency
         device = next(self.projection.parameters()).device
@@ -117,6 +125,12 @@ class CharacterLevelEncoder(nn.Module):
         
         # Project to embedding space
         embedding = self.projection(flat)
+        
+        # CRITICAL FIX: Normalize embeddings for diffusion process
+        # The diffusion model expects data roughly in [-1, 1] range
+        # Normalizing to unit L2 norm ensures bounded, well-behaved embeddings
+        if self.normalize_embeddings:
+            embedding = torch.nn.functional.normalize(embedding, p=2, dim=-1)
         
         return embedding
     
@@ -727,18 +741,20 @@ def check_equation_equivalence(eq1_str: str, eq2_str: str, variable: str = 'x') 
         return False, f"Error checking equivalence: {str(e)}"
 
 
-def create_character_encoder(d_model: int = 128, max_len: int = 64) -> CharacterLevelEncoder:
+def create_character_encoder(d_model: int = 128, max_len: int = 64, normalize_embeddings: bool = True) -> CharacterLevelEncoder:
     """
     Factory function to create a CharacterLevelEncoder with standard settings.
     
     Args:
         d_model: Output embedding dimension
         max_len: Maximum sequence length
+        normalize_embeddings: Whether to normalize embeddings to unit norm (default: True)
+            This is important for diffusion training which expects bounded data.
         
     Returns:
         CharacterLevelEncoder instance
     """
-    return CharacterLevelEncoder(d_model=d_model, max_len=max_len)
+    return CharacterLevelEncoder(d_model=d_model, max_len=max_len, normalize_embeddings=normalize_embeddings)
 
 
 def create_ast_encoder(d_model: int = 128, max_features: int = 64) -> ASTEncoder:

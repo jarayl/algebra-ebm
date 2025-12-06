@@ -1,0 +1,27 @@
+# Core ML/DL frameworks
+torch>=2.0.0
+numpy>=1.24.0
+
+# PyTorch ecosystem
+torchvision>=0.15.0
+einops>=0.7.0
+accelerate>=0.20.0
+ema-pytorch>=0.3.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# Visualization
+matplotlib>=3.7.0
+
+# Image processing
+Pillow>=9.5.0
+
+# Progress bars and UI
+tqdm>=4.65.0
+
+# Table formatting
+tabulate>=0.9.0
+
+# Debugging tools
+ipdb>=0.13.13
