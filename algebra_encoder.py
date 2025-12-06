@@ -788,6 +788,52 @@ def create_decoder_with_default_candidates(encoder: Union[CharacterLevelEncoder,
     return decoder
 
 
+def create_decoder_from_dataset(encoder: Union[CharacterLevelEncoder, ASTEncoder],
+                                dataset,
+                                distance_threshold: float = 2.0,
+                                include_inputs: bool = False) -> EquationDecoder:
+    """
+    Create an EquationDecoder with candidates from a dataset.
+    
+    This is CRITICAL for proper evaluation - the decoder needs to have
+    the actual target equations from the dataset as candidates, not just
+    a small fixed set of default equations.
+    
+    Args:
+        encoder: Encoder to use for decoding
+        dataset: AlgebraDataset or similar with get_equation_pair method
+        distance_threshold: Maximum distance for valid matches (default 2.0 for normalized embeddings)
+        include_inputs: If True, also include input equations as candidates
+        
+    Returns:
+        EquationDecoder instance with dataset equations as candidates
+    """
+    decoder = EquationDecoder(encoder, distance_threshold)
+    
+    # Collect all unique target equations from dataset
+    candidates = set()
+    for i in range(len(dataset)):
+        if hasattr(dataset, 'get_equation_pair'):
+            input_eq, target_eq = dataset.get_equation_pair(i)
+        elif hasattr(dataset, 'equation_pairs'):
+            input_eq, target_eq = dataset.equation_pairs[i]
+        else:
+            # Fallback: try to access as tuple
+            input_eq, target_eq = dataset[i] if isinstance(dataset[i], tuple) else (None, None)
+            if not isinstance(input_eq, str):
+                raise ValueError("Dataset does not provide equation strings")
+        
+        candidates.add(target_eq)
+        if include_inputs:
+            candidates.add(input_eq)
+    
+    # Build candidate set
+    candidates_list = sorted(list(candidates))  # Sort for reproducibility
+    decoder.build_candidate_set(candidates_list)
+    
+    return decoder
+
+
 def test_encoder_decoder_roundtrip(encoder, decoder, test_equations: List[str]) -> Dict[str, Any]:
     """
     Test encoder-decoder roundtrip accuracy on a set of equations.
