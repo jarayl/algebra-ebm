@@ -192,7 +192,7 @@ def parse_args():
     parser.add_argument(
         '--train_steps',
         type=int,
-        default=1000000,
+        default=5000,
         help='Total number of training steps (1M recommended for sharp energy landscapes, 5K for quick testing, 1.3M for full IRED baseline)'
     )
     

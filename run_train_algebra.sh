@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -J train_algebra                      # Job name
-#SBATCH -p gpu                               # Use GPU partition (not gpu_test for real training)
+#SBATCH -p gpu_test                               # Use GPU partition (not gpu_test for real training)
 #SBATCH --account=ydu_lab                     # Your lab account
 #SBATCH --gres=gpu:1                          # 1 GPU
 #SBATCH -c 16                                 # 16 CPU cores
-#SBATCH -t 03-00:00:00                        # 2 days
+#SBATCH -t 00-01:00:00                        # 2 days
 #SBATCH --mem=64G                             # 64 GB RAM
 #SBATCH -o train_algebra_%j.out               # STDOUT file
 #SBATCH -e train_algebra_%j.err               # STDERR file
@@ -171,7 +171,7 @@ BATCH_SIZE=2048        # Default from script
 # - Standard: 200000 steps (baseline, may have flat landscapes)
 # - Production: 1000000 steps (recommended for sharp energy landscapes, closer to IRED baseline)
 # - Research optimal: 1300000 steps (full IRED baseline)
-TRAIN_STEPS=1000000    # Production setting for optimal energy landscape formation
+TRAIN_STEPS=5000    # Production setting for optimal energy landscape formation
 NUM_PROBLEMS=50000     # Default from script
 TIMESTEPS=10           # Default from script
 GRADIENT_ACCUMULATE=2  # Effective batch size: 4096 for better convergence

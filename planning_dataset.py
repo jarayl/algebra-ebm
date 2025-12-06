@@ -163,7 +163,7 @@ class PlanningDatasetOnline(object):
         self.out_dim = 3
 
     def __len__(self):
-        return 1000000
+        return 5000
 
     def __getitem__(self, index):
         if self.dataset_mode == 'list-sorting-2':
