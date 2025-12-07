@@ -198,8 +198,8 @@ echo "  Performance optimizations: AMP, FP16, pinned memory, persistent workers,
 echo ""
 
 # Workaround for TorchInductor/Triton compilation bug (zuf0 not defined)
-# This disables fusion optimizations that cause Triton kernel generation errors
-export TORCHINDUCTOR_DISABLE_FUSION=1
+# Use eager backend instead of Triton/Inductor to avoid kernel generation errors
+# while still getting some compilation benefits
 
 # Train each rule sequentially
 RULES=("distribute" "combine" "isolate" "divide")
@@ -237,7 +237,8 @@ for i in "${!RULES[@]}"; do
         --fp16 True \
         --pin_memory True \
         --persistent_workers True \
-        --compile_model True
+        --compile_model True \
+        --compile_backend eager
     
     TRAIN_EXIT=$?
     end_time=$(date +%s)

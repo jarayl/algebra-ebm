@@ -390,6 +390,14 @@ def parse_args():
         help='Use torch.compile for ~20% additional speedup (PyTorch 2.0+)'
     )
     
+    parser.add_argument(
+        '--compile_backend',
+        type=str,
+        default='inductor',
+        choices=['inductor', 'eager', 'disable'],
+        help='Backend for torch.compile: inductor (default), eager (workaround for Triton bugs), disable (no compilation)'
+    )
+    
     # I/O parameters
     parser.add_argument(
         '--results_folder',
@@ -584,29 +592,40 @@ def main():
         return
     
     # Apply PyTorch compilation to diffusion model (actual hot path)
-    if args.compile_model:
+    if args.compile_model and args.compile_backend != 'disable':
         try:
             import logging
             logger = logging.getLogger(__name__)
             
             if hasattr(torch, 'compile'):
-                logger.info("Compiling diffusion model with torch.compile (mode='reduce-overhead')...")
-                diffusion = torch.compile(diffusion, mode='reduce-overhead')
-                logger.info("✓ Diffusion model compiled successfully")
-                print("✓ Diffusion model compiled successfully")
+                if args.compile_backend == 'eager':
+                    logger.info("Compiling diffusion model with torch.compile (backend='eager', workaround for Triton bugs)...")
+                    diffusion = torch.compile(diffusion, backend='eager')
+                    logger.info("✓ Diffusion model compiled with eager backend (Triton workaround)")
+                    print("✓ Diffusion model compiled with eager backend (Triton workaround)")
+                elif args.compile_backend == 'inductor':
+                    logger.info("Compiling diffusion model with torch.compile (mode='reduce-overhead', backend='inductor')...")
+                    diffusion = torch.compile(diffusion, mode='reduce-overhead')
+                    logger.info("✓ Diffusion model compiled successfully with Triton backend")
+                    print("✓ Diffusion model compiled successfully with Triton backend")
             else:
                 logger.warning("⚠ torch.compile not available, skipping compilation")
                 print("⚠ torch.compile not available, skipping compilation")
                 args.compile_model = False
         except (RuntimeError, AttributeError) as e:
-            logger.warning(f"⚠ torch.compile failed: {e}")
+            logger.warning(f"⚠ torch.compile failed with {args.compile_backend} backend: {e}")
             logger.warning("Continuing without compilation...")
-            print(f"⚠ torch.compile failed: {e}, continuing without compilation")
+            print(f"⚠ torch.compile failed with {args.compile_backend} backend: {e}, continuing without compilation")
             args.compile_model = False
         except Exception as e:
             logger.warning(f"⚠ Unexpected error during compilation: {e}")
             print(f"⚠ Model compilation failed: {e}, continuing without compilation")
             args.compile_model = False
+    elif args.compile_backend == 'disable':
+        logger = logging.getLogger(__name__)
+        logger.info("torch.compile disabled via --compile_backend=disable")
+        print("torch.compile disabled via --compile_backend=disable")
+        args.compile_model = False
     
     # Create trainer with performance optimizations
     print("Setting up Trainer1D with performance optimizations...")
