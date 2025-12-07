@@ -9,6 +9,7 @@ from collections import namedtuple
 from tabulate import tabulate
 
 import torch
+import torch._dynamo
 from accelerate import Accelerator
 from ema_pytorch import EMA
 from torch import nn
@@ -810,6 +811,15 @@ class GaussianDiffusion1D(nn.Module):
             
         return corrupted
 
+    @torch._dynamo.disable
+    def _select_strategy(self, x_start):
+        """Select corruption strategy outside of compiled region to avoid SymInt indexing issues."""
+        if self._cached_probs_tensor is not None:
+            strategy_idx = torch.multinomial(self._cached_probs_tensor.to(x_start.device), 1).item()
+        else:
+            strategy_idx = torch.randint(0, len(self._strategy_names), (1,)).item()
+        return self._strategy_names[strategy_idx]
+
     def p_losses(self, inp, x_start, mask, t, noise = None):
         b, *c = x_start.shape
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -867,14 +877,8 @@ class GaussianDiffusion1D(nn.Module):
             #noise = torch.randn_like(x_start)
 
             # Multi-strategy negative sampling for enhanced energy contrast
-            # Use pre-validated and cached strategy configuration
-            if self._cached_probs_tensor is not None:
-                strategy_idx = torch.multinomial(self._cached_probs_tensor.to(x_start.device), 1).item()
-            else:
-                strategy_idx = torch.randint(0, len(self._strategy_names), (1,)).item()
-            
-            # Apply selected corruption strategy (robust against ordering changes)
-            strategy_name = self._strategy_names[strategy_idx]
+            # Use pre-validated and cached strategy configuration (moved to separate method to fix TorchDynamo compilation)
+            strategy_name = self._select_strategy(x_start)
             if strategy_name == 'heavy_gaussian':
                 xmin_noise = self.q_sample(x_start=x_start, t=t, noise=noise * 3.0)
             elif strategy_name == 'extreme_gaussian':
