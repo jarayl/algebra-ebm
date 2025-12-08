@@ -878,19 +878,40 @@ class GaussianDiffusion1D(nn.Module):
             #noise = torch.randn_like(x_start)
 
             # Multi-strategy negative sampling for enhanced energy contrast
-            # Use pre-validated and cached strategy configuration (moved to separate method to fix TorchDynamo compilation)
+            # CRITICAL FIX: Corruption must be applied to x_start BEFORE diffusion noise
+            # Previous bug: scaling noise * 3.0 only works at high timesteps (where noise dominates)
+            # At low timesteps (where precision matters), pos and neg were nearly identical!
+            # 
+            # Correct approach: corrupt x_start → q_sample with SAME noise as positive
+            # This ensures consistent neg-pos distance at ALL timesteps
+            
             strategy_name = self._select_strategy(x_start)
             if strategy_name == 'heavy_gaussian':
-                xmin_noise = self.q_sample(x_start=x_start, t=t, noise=noise * 3.0)
+                # FIXED: Corrupt x_start, then apply diffusion with SAME noise
+                # Old (wrong): q_sample(x_start, t, noise * 3.0) - only different at high t!
+                # New (correct): q_sample(corrupted_x_start, t, noise)
+                corruption_noise = torch.randn_like(x_start) * 2.0  # Independent corruption
+                x_corrupted = x_start + corruption_noise
+                xmin_noise = self.q_sample(x_start=x_corrupted, t=t, noise=noise)
             elif strategy_name == 'extreme_gaussian':
-                xmin_noise = self.q_sample(x_start=x_start, t=t, noise=noise * 5.0)
+                # FIXED: Larger corruption for extreme strategy
+                corruption_noise = torch.randn_like(x_start) * 4.0
+                x_corrupted = x_start + corruption_noise
+                xmin_noise = self.q_sample(x_start=x_corrupted, t=t, noise=noise)
             elif strategy_name == 'pure_random':
-                xmin_noise = torch.randn_like(x_start)
+                # Pure random still works: completely random x_start, then diffuse
+                x_random = torch.randn_like(x_start)
+                xmin_noise = self.q_sample(x_start=x_random, t=t, noise=noise)
             elif strategy_name == 'semantic' and self.enable_semantic_corruption:
-                xmin_noise = self.permute_equations(x_start)
+                # FIXED: Semantic corruption now properly diffused!
+                # Old (wrong): just permute_equations without diffusion noise
+                x_corrupted = self.permute_equations(x_start)
+                xmin_noise = self.q_sample(x_start=x_corrupted, t=t, noise=noise)
             else:
-                # Fallback to original strategy for safety
-                xmin_noise = self.q_sample(x_start=x_start, t=t, noise=noise * 3.0)
+                # Fallback: use shuffled x_starts (semantically wrong answers)
+                batch_size = x_start.size(0)
+                x_shuffled = x_start[torch.randperm(batch_size, device=x_start.device)]
+                xmin_noise = self.q_sample(x_start=x_shuffled, t=t, noise=noise)
             
             # Efficient logging with minimal overhead
             selected_strategy = strategy_name 

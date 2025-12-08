@@ -14,6 +14,11 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import sys
+import os
+
+# Add project root to path (so 'src.xxx' imports work)
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+sys.path.insert(0, project_root)
 
 print("=" * 60)
 print("TESTING ALGEBRA EBM TRAINING FIXES")
@@ -22,8 +27,8 @@ print("=" * 60)
 # Test 1: NoisyWrapper
 print("\n[TEST 1] NoisyWrapper returns clean data...")
 try:
-    from dataset import NoisyWrapper
-    from algebra_dataset import AlgebraDataset
+    from src.datasets.dataset import NoisyWrapper
+    from src.algebra.algebra_dataset import AlgebraDataset
     
     # Create a small dataset
     dataset = AlgebraDataset(rule='distribute', split='train', num_problems=10, d_model=128)
@@ -52,7 +57,7 @@ except Exception as e:
 # Test 2: Encoder normalization
 print("\n[TEST 2] Encoder produces normalized embeddings...")
 try:
-    from algebra_encoder import create_character_encoder
+    from src.algebra.algebra_encoder import create_character_encoder
     
     encoder = create_character_encoder(d_model=128, normalize_embeddings=True)
     
@@ -79,7 +84,7 @@ except Exception as e:
 # Test 3: AlgebraDiffusionWrapper
 print("\n[TEST 3] AlgebraDiffusionWrapper noise prediction vs energy/gradient...")
 try:
-    from algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
+    from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
     
     # Create model
     ebm = AlgebraEBM(inp_dim=128, out_dim=128, rule_name='test')
@@ -135,7 +140,7 @@ except Exception as e:
 # Test 4: Training step
 print("\n[TEST 4] End-to-end training step...")
 try:
-    from diffusion_lib.denoising_diffusion_pytorch_1d import GaussianDiffusion1D
+    from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D
     
     # Create diffusion model with our wrapper
     diffusion = GaussianDiffusion1D(
