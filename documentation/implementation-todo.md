@@ -1,68 +1,320 @@
-# Implementation To‑Do List (Generated from `implementation-plan.md`)
+# Implementation TODO: Algebra EBM Critical Fixes & Remaining Features
 
-> **Goal**: Bring the multi‑rule evaluation pipeline to a working state, then improve model compositional generalisation.
+## =� CRITICAL BUG FIXES (Must Fix Before Any Other Work)
 
----
+Based on comprehensive bug analysis in `documentation/implementation-plan.md`, the following critical issues must be resolved immediately as they prevent proper IRED functionality:
 
-## ✅ Immediate Fix (< 1 hour)
-| # | Task | Success Criteria | Dependencies | Notes / Pitfalls |
-|---|------|-------------------|--------------|-------------------|
-| 1 | ✅ **Pass `distance_threshold` through the evaluation chain** – modify `src/algebra/algebra_evaluation.py` at line ~406 to call `solve_equation(..., distance_threshold=decoder.distance_threshold)` | Evaluation runs without `ValueError` and uses the decoder's threshold (10.0) instead of the default 6.0 | None | Ensure import of `decoder` is available; keep signature compatible with other callers. |
-| 2 | ✅ **Raise default decoder threshold for multi‑rule tests** – edit `eval_algebra.py` line 649 to `create_decoder_with_default_candidates(encoder, distance_threshold=35.0)` | Decoding of multi‑rule problems no longer fails due to a too‑low threshold (should accept distances up to ~35). | Task 1 (optional – can be done concurrently) | Do not commit a value that harms other test suites; 35.0 is a safety‑margin based on 29.6×1.2. |
+### Critical Priority - Fix Immediately (Dependencies: None)
 
-*These two changes can be made in parallel, but both must be merged before the next step.*
+#### - [ ] **BUG-1: Fix Loss Scale Imbalance** 
+**File:** `src/diffusion/denoising_diffusion_pytorch_1d.py:1041-1084`
+**Dependencies:** None
+**Parallel Status:** Can run in parallel with BUG-2, BUG-3
+**Issue:** Energy loss contributes only 0.3% vs 99.7% for MSE, preventing energy landscape formation
+**Success Criteria:** Energy contributes 40-50% of total loss, energy gaps >8 units
+**Implementation Details:**
+```python
+# Replace adaptive scaling with stronger energy supervision
+adaptive_scale = torch.clamp(adaptive_scale, min=10.0, max=500.0)  # Raised from [0.1, 10.0]
+target_energy_ratio = 0.5
+```
+**Validation:** Monitor energy gaps during training - target >8 units within current training window
 
----
+#### - [ ] **BUG-2: Fix Negative Coefficient Format Bug**
+**File:** `src/algebra/algebra_dataset.py:289, 294, 418, 423`
+**Dependencies:** None
+**Parallel Status:** Can run in parallel with BUG-1, BUG-3
+**Issue:** Negative coefficients create malformed equations like "3*x+-15=42"
+**Success Criteria:** Zero data format corruption, all equations syntactically valid
+**Implementation Details:**
+```python
+def format_term(coeff, include_plus=True):
+    if coeff >= 0:
+        return f"+{coeff}" if include_plus else f"{coeff}"
+    else:
+        return f"{coeff}"  # Negative sign already included
+```
+**Validation:** Verify no equations contain "++" or "+-" sequences
 
-## 📋 Short‑Term Fix (1‑3 days)
-| # | Task | Success Criteria | Dependencies | Notes / Pitfalls |
-|---|------|-------------------|--------------|-------------------|
-| 3 | ✅ **Add diagnostic logging for decoder rebuild** – in `src/algebra/algebra_evaluation.py` before/after `create_decoder_from_dataset` log candidate counts and a sample of equations. | Log output shows `Decoder before rebuild: X candidates` and `Decoder after rebuild: Y candidates` with Y > 49. | Tasks 1 & 2 completed and code compiled. | Use `logger.info`; avoid excessive logging in production. |
-| 4 | ✅ **Verify rebuild actually occurs** – run a quick evaluation (e.g., `python eval_algebra.py --eval_type multi_rule --num_rules 4 --max_problems 5`) and confirm logs from Task 3 appear. | Confirmation that the rebuild path is exercised for each test dataset. | Task 3 implemented. | Ensure the test run uses the same decoder instance passed to `evaluate_model_suite`. |
-| 5 | ✅ **Inspect target equations** – add a small script (or notebook) that loads `MultiRuleDataset(num_rules=4, num_problems=100)` and prints the first 10 target equations. Save output to `logs/multi_rule_targets.log`. | Developer can see concrete equation forms (e.g., `-8x+-50=-130`). | Tasks 3 & 4 completed. | No code changes required beyond a helper script; keep it out of the main package. |
+#### - [ ] **BUG-3: Fix Energy Caching Bug in Inference**
+**File:** `src/algebra/algebra_inference.py:454-530`
+**Dependencies:** None
+**Parallel Status:** Can run in parallel with BUG-1, BUG-2
+**Issue:** IRED inference recomputes energy redundantly, degrading performance 30-50%
+**Success Criteria:** Energy cached between iterations, 30-50% inference speedup
+**Implementation Details:**
+```python
+# Add caching logic to avoid redundant energy computation
+if have_cached_energy:
+    energy_before_val = cached_energy_val
+```
+**Validation:** Verify energy is not recomputed when cache is valid
 
-*Tasks 3‑5 can be performed concurrently once the immediate fixes are merged.*
+#### - [ ] **BUG-4: Integrate ContrastiveEnergyLoss**
+**File:** `src/diffusion/denoising_diffusion_pytorch_1d.py:302, 990-1013`
+**Dependencies:** BUG-1 (loss scaling) should be completed first
+**Parallel Status:** Must run after BUG-1
+**Issue:** Sophisticated ContrastiveEnergyLoss class exists but bypassed in training
+**Success Criteria:** Explicit energy targets enforced (pos=1.0, neg=15.0, margin=10.0)
+**Implementation Details:**
+```python
+self.use_contrastive_energy_loss = True  # Enable by default
+self.contrastive_loss_fn = ContrastiveEnergyLoss(margin=10.0, pos_target=1.0, neg_target=15.0)
+```
+**Validation:** Monitor contrastive metrics during training
 
----
+### High Priority - Fix Before Production (Dependencies: Critical fixes)
 
-## 📈 Medium‑Term Fix (1‑2 weeks)
-| # | Task | Success Criteria | Dependencies | Notes / Pitfalls |
-|---|------|-------------------|--------------|-------------------|
-| 6 | **Investigate compositional generalisation** – run the model on a curriculum of 2‑rule → 3‑rule → 4‑rule problems, record L2 distances and accuracy per rule depth. | A clear report (e.g., `reports/compositional_analysis.md`) showing degradation trends. | Tasks 1‑5 completed and baseline works. | Use existing `eval_algebra.py` with `--num_rules` flag; may need to adjust batch size.
-| 7 | **Implement curriculum learning** – modify training script to first train on `num_rules=2`, then fine‑tune on `3`, finally on `4`. | After training, multi‑rule‑4 accuracy improves > 10 % (or distance drops below 15). | Completion of Task 6 (analysis) to justify effort. | Ensure checkpoint saving between stages; avoid overwriting good weights.
-| 8 | **Run distance‑threshold optimiser** – use `src/algebra/distance_threshold_optimizer.py` on the new evaluation data to compute an empirically optimal threshold. | Optimiser outputs a threshold value that yields ≥ 95 % success rate on validation set. | Tasks 6‑7 (model trained) and logs available. | Keep the optimiser script configurable; do not hard‑code paths.
+#### - [ ] **BUG-5: Fix Encoder Vocabulary Limitation**
+**File:** `src/algebra/algebra_encoder.py:69`
+**Dependencies:** BUG-2 (coefficient format)
+**Parallel Status:** Must run after BUG-2
+**Issue:** Vocabulary missing characters causes crashes on malformed equations
+**Success Criteria:** No "Unknown character" crashes, robust handling of all equation formats
+**Implementation Details:**
+```python
+self.vocab = '0123456789x.+-=*/()[]<> '  # Extended vocabulary
+```
 
-*Tasks 6‑8 are sequential: analysis → curriculum → optimisation.*
+#### - [ ] **BUG-6: Fix Gradient Computation Bug**
+**File:** `src/algebra/algebra_models.py:298-305`
+**Dependencies:** None
+**Parallel Status:** Can run in parallel with any other fixes
+**Issue:** Missing requires_grad_(True) breaks gradient computation
+**Success Criteria:** All gradient computations work correctly
+**Implementation Details:**
+```python
+out = out.clone().requires_grad_(True)  # Add missing requires_grad_
+```
 
----
+#### - [ ] **BUG-7: Fix Silent Zero Coefficient Bug**
+**File:** `src/algebra/algebra_dataset.py:455-456`
+**Dependencies:** BUG-2 (coefficient format)
+**Parallel Status:** Must run after BUG-2
+**Issue:** Silent coefficient changes create incorrect training pairs
+**Success Criteria:** Proper coefficient regeneration, no silent fallbacks
+**Implementation Details:**
+```python
+# Replace silent fallback with regeneration
+max_attempts = 10
+for attempt in range(max_attempts):
+    # ... generate coefficients ...
+    if combined_coeff != 0:
+        break
+```
 
-## 🏗️ Long‑Term Fix (1 + month)
-| # | Task | Success Criteria | Dependencies | Notes / Pitfalls |
-|---|------|-------------------|--------------|-------------------|
-| 9 | **Redesign decoding strategy** – prototype a seq2seq transformer decoder (or character‑level autoregressive decoder) that generates equation strings directly. | Prototype can decode at least 80 % of multi‑rule‑4 targets on a held‑out set. | Completion of medium‑term work to confirm infrastructure is stable. | This is a research‑grade change; keep the NN‑based decoder as a fallback.
-| 10 | **Integrate end‑to‑end training** – add a decoding loss term to the EBM training loop so the model is penalised for producing embeddings far from any valid equation. | Training loss curve shows decreasing decoding loss; evaluation accuracy improves. | Task 9 prototype ready and API stable. | Requires careful weighting of loss terms to avoid destabilising energy training.
-| 11 | **Documentation & CI** – update `README.md`, add unit tests for the new decoder, and ensure CI runs the full evaluation suite with the new thresholds. | CI passes on every push; documentation reflects new workflow. | All functional changes merged. | Keep CI time reasonable; use a subset of problems for quick checks.
+## =� REMAINING IMPLEMENTATION FEATURES
 
-*Long‑term tasks can be worked on in parallel by separate contributors once the groundwork (Tasks 1‑8) is solid.*
+### Phase 6: Constraint Energies �
 
----
+#### - [ ] **Step 15: Implement Constraint Energy Functions**
+**File:** `src/algebra/algebra_constraints.py` (create new)
+**Dependencies:** All critical bugs (BUG-1 through BUG-7)
+**Parallel Status:** Cannot start until critical bugs fixed
+**Success Criteria:** Working constraint injection without retraining
+**Implementation Details:**
+- PositiveSolutionConstraint: energy += 100 if solution < 0
+- IntegerConstraint: energy += distance to nearest integer
+- RangeConstraint: energy += penalty outside [min, max]
 
-## 📌 General Success Criteria
-- **Zero runtime errors** during `python eval_algebra.py` for all `--eval_type` values.
-- **Multi‑rule‑4 accuracy > 0 %** (ideally > 10 %).
-- **Distance thresholds** are data‑driven (generated by optimiser) and documented.
-- **Logs** clearly indicate decoder candidate count before/after rebuild.
-- **All new code** passes linting (`flake8`) and has unit‑test coverage ≥ 80 % for critical paths.
+#### - [ ] **Step 16: Test Constraint Injection**
+**File:** `test_constraints.py` (create new)
+**Dependencies:** Step 15
+**Parallel Status:** Must run after Step 15
+**Success Criteria:** Constraints provably affect solution selection
 
----
+### Phase 7: Baseline Implementations �
 
-## 🔧 Things to Be Careful Of
-- Do not hard‑code absolute paths; use `os.path.join` or relative imports.
-- Preserve backward compatibility for existing single‑rule evaluations.
-- When raising thresholds, ensure they are not so high that random embeddings are accepted.
-- Logging should be configurable (e.g., respect `LOG_LEVEL` env var) to avoid noisy CI output.
-- Any new decoder model must be versioned and stored under `models/` with clear naming.
+#### - [ ] **Step 17: Implement Monolithic IRED Baseline**
+**File:** `train_monolithic.py` (create new)
+**Dependencies:** All critical bugs (BUG-1 through BUG-7)
+**Parallel Status:** Can run in parallel with Step 15-16
+**Success Criteria:** Single model trained on multi-rule problems for comparison
 
----
+#### - [ ] **Step 18: Implement NLM Baseline (Optional)**
+**File:** `baselines/nlm_baseline.py` (create new)
+**Dependencies:** None (independent implementation)
+**Parallel Status:** Can run in parallel with any other work
+**Success Criteria:** Neuro-symbolic baseline for comparison
 
-*This to‑do list is deliberately exhaustive to allow developers to pick independent work streams while respecting required dependencies.*
+### Phase 8: Ablation Studies �
+
+#### - [ ] **Step 19: Implement Encoder Ablations**
+**File:** `experiments/encoder_ablation.py` (create new)
+**Dependencies:** All critical bugs, Step 17
+**Parallel Status:** Can run in parallel with Steps 20-22
+**Success Criteria:** Character vs AST vs hybrid encoder comparison
+
+#### - [ ] **Step 20: Implement Energy Granularity Ablations**
+**File:** `experiments/granularity_ablation.py` (create new)
+**Dependencies:** All critical bugs, Step 17
+**Parallel Status:** Can run in parallel with Steps 19, 21-22
+**Success Criteria:** Rule-level vs operation-level vs monolithic comparison
+
+### Phase 9: Analysis and Visualization �
+
+#### - [ ] **Step 21: Implement Energy Landscape Visualization**
+**File:** `visualization/landscape_viz.py` (create new)
+**Dependencies:** All critical bugs
+**Parallel Status:** Can run in parallel with any other work after critical fixes
+**Success Criteria:** Interactive plots showing energy surfaces and minima
+
+#### - [ ] **Step 22: Implement Inference Trajectory Visualization**
+**File:** `visualization/trajectory_viz.py` (create new)
+**Dependencies:** All critical bugs
+**Parallel Status:** Can run in parallel with Step 21
+**Success Criteria:** Animation of optimization paths through embedding space
+
+### Phase 10: Integration and Testing �
+
+#### - [ ] **Step 23: Create End-to-End Pipeline**
+**File:** `run_full_pipeline.py` (create new)
+**Dependencies:** All previous steps
+**Parallel Status:** Must run after everything else
+**Success Criteria:** Single script for complete training � evaluation workflow
+
+#### - [ ] **Step 24: Implement Unit Tests**
+**File:** `tests/` directory (create new)
+**Dependencies:** All critical bugs
+**Parallel Status:** Can run in parallel with any implementation work
+**Success Criteria:** 80%+ code coverage, all critical functions tested
+
+#### - [ ] **Step 25: Create Results Analysis Notebook**
+**File:** `analysis/results_analysis.ipynb` (create new)
+**Dependencies:** Steps 15-24
+**Parallel Status:** Must run after data collection
+**Success Criteria:** Publication-ready figures and statistical analysis
+
+## = DEPENDENCY TREE & PARALLEL EXECUTION PLAN
+
+### Phase 1: Critical Bug Fixes (Week 1)
+**MUST BE COMPLETED FIRST - BLOCKS ALL OTHER WORK**
+
+```
+Parallel Group A (can run simultaneously):
+   BUG-1: Loss Scale Imbalance
+   BUG-2: Coefficient Format Bug  
+   BUG-3: Energy Caching Bug
+
+Sequential Group B (must run after Group A):
+   BUG-4: ContrastiveEnergyLoss (depends on BUG-1)
+   BUG-5: Encoder Vocabulary (depends on BUG-2)
+   BUG-7: Zero Coefficient Bug (depends on BUG-2)
+
+Parallel Group C (can run anytime):
+   BUG-6: Gradient Computation Bug
+```
+
+### Phase 2: Feature Implementation (Week 2-3)
+**CAN ONLY START AFTER ALL CRITICAL BUGS FIXED**
+
+```
+Parallel Group D (can run simultaneously after critical fixes):
+   Step 15: Constraint Energy Functions
+   Step 17: Monolithic IRED Baseline
+   Step 18: NLM Baseline (optional)
+   Step 21: Energy Landscape Visualization
+   Step 22: Inference Trajectory Visualization
+   Step 24: Unit Tests
+
+Sequential Group E (must run after Group D):
+   Step 16: Test Constraints (depends on Step 15)
+   Step 19: Encoder Ablations (depends on Step 17)
+   Step 20: Granularity Ablations (depends on Step 17)
+
+Final Group F (must run last):
+   Step 23: End-to-End Pipeline (depends on most other steps)
+   Step 25: Results Analysis (depends on data from all experiments)
+```
+
+## � CRITICAL SUCCESS CRITERIA
+
+### Bug Fix Validation Requirements
+
+**BUG-1 (Loss Scale):**
+- [ ] Energy contribution >40% of total loss
+- [ ] Energy gaps >8 units during training
+- [ ] Training loss convergence stable
+
+**BUG-2 (Data Format):**
+- [ ] Zero equations with "++" or "+-" sequences
+- [ ] 100% syntactically valid equations
+- [ ] SymPy parsing success rate >99%
+
+**BUG-3 (Energy Caching):**
+- [ ] 30-50% inference speedup measured
+- [ ] Numerical consistency in Metropolis decisions
+- [ ] No redundant energy computations
+
+**BUG-4 (ContrastiveEnergyLoss):**
+- [ ] Positive energies ~1.0, negative ~15.0
+- [ ] Energy gaps >10 units consistently
+- [ ] Margin loss actively enforced
+
+### Overall System Validation
+
+**Training Quality:**
+- [ ] Energy landscapes have >10 unit gaps
+- [ ] Training loss converges stably
+- [ ] No gradient explosions or NaN values
+
+**Evaluation Accuracy:**
+- [ ] Single-rule problems: >80% accuracy
+- [ ] Multi-rule problems: >50% accuracy (2-3x improvement over current)
+- [ ] Decoder distance metrics improve naturally
+
+**Performance Requirements:**
+- [ ] Training: <16GB GPU memory with batch_size=2048
+- [ ] Inference: <5 seconds per equation on single GPU
+- [ ] Evaluation: Complete test set in <30 minutes
+
+## <� WORK PRIORITIZATION STRATEGY
+
+### Week 1: Critical Infrastructure Repair
+**DO NOT START ANY NEW FEATURES UNTIL ALL CRITICAL BUGS ARE FIXED**
+
+1. **Day 1-2:** Parallel implementation of BUG-1, BUG-2, BUG-3
+2. **Day 3:** Sequential implementation of BUG-4, BUG-5, BUG-7 
+3. **Day 4:** Implementation of BUG-6 + comprehensive testing
+4. **Day 5:** Integration testing, validation, documentation
+
+### Week 2-3: Feature Implementation 
+**Only after critical fixes are validated and working**
+
+1. **Week 2:** Parallel implementation of constraints, baselines, visualizations
+2. **Week 3:** Ablation studies, pipeline integration, final testing
+
+## =� EXPECTED OUTCOMES
+
+### Quantitative Improvements from Bug Fixes
+- **Accuracy:** +50-100% relative improvement (e.g., 30% � 45-60%)
+- **Energy Gaps:** 1-2 units � 10-14 units  
+- **Training Stability:** Unstable � Stable convergence
+- **Inference Speed:** +30-50% performance improvement
+- **Data Quality:** 60-75% valid � 100% valid equations
+
+### Research Deliverables
+- Publication-quality results on compositional generalization
+- Validated IRED implementation for symbolic reasoning
+- Framework for constraint injection in energy-based models
+- Comprehensive ablation studies on energy composition approaches
+
+## =� CRITICAL NOTES
+
+1. **NO NEW FEATURES UNTIL BUGS ARE FIXED**: The current implementation has fundamental issues that prevent proper IRED functionality. Any new feature work will build on a broken foundation.
+
+2. **VALIDATION IS MANDATORY**: Each bug fix must be validated with specific success criteria before moving to the next step.
+
+3. **PARALLEL WORK OPPORTUNITIES**: Multiple bug fixes can be implemented simultaneously by different developers, but dependencies must be respected.
+
+4. **PERFORMANCE MONITORING**: Watch for energy gap formation, training stability, and evaluation accuracy throughout the process.
+
+5. **CURRENT SETTINGS MAINTAINED**: Keep distance_threshold=6.0 and current training durations while focusing on algorithmic fixes first.
+
+## =� COMPLETION TRACKING
+
+**Critical Bugs Fixed:** 0/7  
+**Features Implemented:** 0/11  
+**Overall Progress:** 0/18 (0%)
+
+**Next Action:** Start with parallel implementation of BUG-1, BUG-2, and BUG-3 immediately.

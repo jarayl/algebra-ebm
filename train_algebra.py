@@ -49,7 +49,7 @@ from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Tr
 from src.datasets.dataset import NoisyWrapper
 
 # Algebra-specific components  
-from src.algebra.algebra_dataset import AlgebraDataset
+from src.algebra.algebra_dataset import AlgebraDataset, CurriculumDataset
 from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 
 
@@ -245,6 +245,20 @@ def parse_args():
         type=int,
         default=128,
         help='Model embedding dimension'
+    )
+    
+    parser.add_argument(
+        '--use_curriculum',
+        type=str2bool,
+        default=False,
+        help='Use curriculum learning from multi-rule traces'
+    )
+    
+    parser.add_argument(
+        '--curriculum_depth',
+        type=int,
+        default=2,
+        help='Depth of multi-rule problems for curriculum (2, 3, or 4)'
     )
     
     # Variability enhancement parameters
@@ -525,7 +539,17 @@ def main():
                 'solution_range_distribution': variability_config['solution_range_distribution']
             })
         
-        dataset = AlgebraDataset(**dataset_kwargs)
+        if args.use_curriculum:
+            print(f"Initializing CurriculumDataset (depth={args.curriculum_depth}) for target rule '{args.rule}'...")
+            dataset = CurriculumDataset(
+                target_rule=args.rule,
+                num_rules=args.curriculum_depth,
+                split=args.split,
+                num_problems=args.num_problems,
+                d_model=args.d_model
+            )
+        else:
+            dataset = AlgebraDataset(**dataset_kwargs)
     except Exception as e:
         print(f"Error creating dataset: {e}")
         print("Check that algebra_dataset.py and dependencies are properly installed")

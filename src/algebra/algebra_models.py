@@ -302,7 +302,7 @@ class AlgebraDiffusionWrapper(nn.Module):
             out = out.detach().clone().requires_grad_(True)
         else:
             # If already requires grad, ensure we have a fresh computation graph
-            out = out.clone()
+            out = out.clone().requires_grad_(True)
         
         # Compute energy E(inp, out, t)
         energy = self.ebm(inp, out, t)  # (B, 1)

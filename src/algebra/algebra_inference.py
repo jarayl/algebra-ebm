@@ -285,7 +285,9 @@ class AlgebraInference:
         # Enable gradient computation
         out = out.requires_grad_(True)
         
-        # Compute composed energy
+        # Note: We cannot reuse precomputed energy tensor for gradient computation
+        # because the computational graph changes when 'out' is updated.
+        # Always compute fresh energy for gradient computation.
         total_energy = self.compose_energies(inp, out, k, rule_weights, t)
         
         # Compute gradient with numerical stability protection
@@ -298,7 +300,8 @@ class AlgebraInference:
                 grad = torch.autograd.grad(
                     outputs=total_energy.sum(),
                     inputs=out,
-                    create_graph=True
+                    create_graph=True,
+                    allow_unused=True
                 )[0]
                 
                 # Verify gradient is finite (additional safety check)
@@ -357,7 +360,8 @@ class AlgebraInference:
                 grad = torch.autograd.grad(
                     outputs=total_energy.sum(),
                     inputs=out,
-                    create_graph=True
+                    create_graph=True,
+                    allow_unused=True
                 )[0]
                 
                 # Verify gradient is finite (additional safety check)
@@ -433,6 +437,10 @@ class AlgebraInference:
             # If needed for debugging, can be added behind a config.include_debug_info flag
         }
         
+        # Initialize energy caching variables
+        have_cached_energy = False
+        cached_energy_val = None
+        
         # Iterate through K landscapes
         for k in range(config.K):
             sigma_k = torch.sqrt(1 - self.alphas_cumprod[k]).item()
@@ -446,15 +454,23 @@ class AlgebraInference:
             # Pre-allocate timestep tensor for this landscape (tensor pre-allocation optimization)
             timestep_tensor = torch.full((batch_size,), k, dtype=torch.long, device=inp_embedding.device)
             
+            # Reset energy cache when starting new landscape
+            have_cached_energy = False
+            cached_energy_val = None
+            
             # max_iterations gradient descent steps in this landscape
             for t in range(config.max_iterations):
-                # Compute energy and gradient atomically to avoid redundant energy computation
-                # CRITICAL: compute_composed_gradient internally calls compose_energies then discards the energy
-                # Using atomic method prevents redundant neural network forward passes (30-50% performance improvement)
-                energy_current, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights, timestep_tensor)
-                
-                # Use current energy from atomic computation for accuracy
-                energy_before_val = energy_current.item()
+                # Energy caching optimization: avoid redundant neural network forward passes
+                # Key insight: if we have cached energy, we can avoid one energy computation
+                # by using the cached value instead of recomputing it in compute_energy_and_gradient
+                if have_cached_energy:
+                    # We know the energy for current 'out', so just compute gradient
+                    energy_before_val = cached_energy_val  
+                    grad = self.compute_composed_gradient(inp_embedding, out, k, rule_weights, timestep_tensor)
+                else:
+                    # Need both energy and gradient - compute atomically
+                    energy_current, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights, timestep_tensor)
+                    energy_before_val = energy_current.item()
                 grad_norm = torch.norm(grad).item()
                 info['energy_history'].append(energy_before_val)
                 info['gradient_norms'].append(grad_norm)
@@ -480,6 +496,7 @@ class AlgebraInference:
                 out_new = out - current_step_size * grad
                 
                 # Metropolis acceptance criteria with temperature schedule
+                # Compute energy for the new state
                 energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights, timestep_tensor)
                 energy_after_val = energy_after.item()
                 delta_E = energy_after_val - energy_before_val
@@ -527,14 +544,22 @@ class AlgebraInference:
                 if accepted:
                     # Update with gradient tracking preserved (detach to avoid graph accumulation)
                     out = out_new.detach().requires_grad_(True)
-                    energy_before = energy_after  # Cache energy for next iteration - KEY OPTIMIZATION
+                    
+                    # Cache energy for next iteration - KEY OPTIMIZATION
+                    # Since out = out_new, the energy of 'out' in next iteration is energy_after_val
+                    have_cached_energy = True
+                    cached_energy_val = energy_after_val  # Cache the scalar value
                     info['accepted_steps'] += 1
                     
                     # Early stopping using config threshold
                     if config.should_early_stop(energy_after_val):
                         logger.debug(f"Early stopping at landscape {k}, step {t}, energy={energy_after_val:.6f}")
                         break
-                # If step rejected, energy_before remains unchanged for next iteration
+                else:
+                    # If step rejected, 'out' stays the same, but we still need to
+                    # invalidate cache because we need fresh energy computation next time
+                    have_cached_energy = False
+                    cached_energy_val = None
                 
                 info['total_steps'] += 1
             

@@ -205,6 +205,29 @@ class AlgebraDataset(data.Dataset):
         if set(self.solution_range_distribution.keys()) != set(self.target_solution_ranges.keys()):
             raise ValueError("Solution range distribution keys must match target solution range keys")
     
+    def _format_term(self, coeff: Union[int, float], include_plus: bool = True) -> str:
+        """
+        Format a coefficient term for proper equation syntax.
+        Handles negative coefficients to avoid '+-' sequences.
+        
+        Args:
+            coeff: Coefficient value to format
+            include_plus: Whether to include '+' for positive values (when False, no '+' for first term)
+            
+        Returns:
+            Formatted term string
+            
+        Examples:
+            _format_term(5, True) -> "+5"
+            _format_term(-3, True) -> "-3"
+            _format_term(5, False) -> "5"  (first term case)
+            _format_term(-3, False) -> "-3"
+        """
+        if coeff >= 0:
+            return f"+{coeff}" if include_plus else str(coeff)
+        else:
+            return str(coeff)  # Already has the minus sign
+    
     def _generate_random_coefficients(self, count: int = 1) -> Union[int, List[int]]:
         """
         Generate random integer coefficients using stratified sampling or fallback range.
@@ -285,13 +308,13 @@ class AlgebraDataset(data.Dataset):
         if op == '+':
             # a(x + b) + c = target  ->  ax + ab + c = target
             target_value = a * (solution + b) + c
-            input_eq = f"{a}*(x+{b})+{c}={target_value}"
-            target_eq = f"{a}*x+{a*b + c}={target_value}"
+            input_eq = f"{a}*(x{self._format_term(b)}){self._format_term(c)}={target_value}"
+            target_eq = f"{a}*x{self._format_term(a*b + c)}={target_value}"
         else:
             # a(x - b) + c = target  ->  ax - ab + c = target  
             target_value = a * (solution - b) + c
-            input_eq = f"{a}*(x-{b})+{c}={target_value}"
-            target_eq = f"{a}*x+{-a*b + c}={target_value}"
+            input_eq = f"{a}*(x{self._format_term(-b)}){self._format_term(c)}={target_value}"
+            target_eq = f"{a}*x{self._format_term(-a*b + c)}={target_value}"
             
         return input_eq, target_eq
     
@@ -329,12 +352,12 @@ class AlgebraDataset(data.Dataset):
         
         if op == '+':
             target_value = combined_coeff * solution + c
-            input_eq = f"{a}*x+{b}*x+{c}={target_value}"
-            target_eq = f"{combined_coeff}*x+{c}={target_value}"
+            input_eq = f"{a}*x{self._format_term(b)}*x{self._format_term(c)}={target_value}"
+            target_eq = f"{combined_coeff}*x{self._format_term(c)}={target_value}"
         else:
             target_value = combined_coeff * solution + c
-            input_eq = f"{a}*x-{b}*x+{c}={target_value}" 
-            target_eq = f"{combined_coeff}*x+{c}={target_value}"
+            input_eq = f"{a}*x{self._format_term(-b)}*x{self._format_term(c)}={target_value}" 
+            target_eq = f"{combined_coeff}*x{self._format_term(c)}={target_value}"
             
         return input_eq, target_eq
     
@@ -356,7 +379,7 @@ class AlgebraDataset(data.Dataset):
         target_value = a * solution + b
         
         # ax + b = target  ->  ax = target - b
-        input_eq = f"{a}*x+{b}={target_value}"
+        input_eq = f"{a}*x{self._format_term(b)}={target_value}"
         target_eq = f"{a}*x={target_value - b}"
             
         return input_eq, target_eq
@@ -414,13 +437,13 @@ class AlgebraDataset(data.Dataset):
             if op == '+':
                 # a(x + b) + c = target  ->  ax + ab + c = target
                 target_value = a * (x_solution + b) + c
-                input_eq = f"{a}*(x+{b})+{c}=={target_value}"
-                target_eq = f"{a}*x+{a*b + c}=={target_value}"
+                input_eq = f"{a}*(x{self._format_term(b)}){self._format_term(c)}=={target_value}"
+                target_eq = f"{a}*x{self._format_term(a*b + c)}=={target_value}"
             else:
                 # a(x - b) + c = target  ->  ax - ab + c = target
                 target_value = a * (x_solution - b) + c
-                input_eq = f"{a}*(x-{b})+{c}=={target_value}"
-                target_eq = f"{a}*x+{-a*b + c}=={target_value}"
+                input_eq = f"{a}*(x{self._format_term(-b)}){self._format_term(c)}=={target_value}"
+                target_eq = f"{a}*x{self._format_term(-a*b + c)}=={target_value}"
                 
             return input_eq, target_eq
     
@@ -455,7 +478,7 @@ class AlgebraDataset(data.Dataset):
                 if combined_coeff == 0:
                     combined_coeff = 1  # Fallback to avoid degenerate case
                 target_value = combined_coeff * x_solution + c
-                input_eq = f"{a}*x+{b}*x+{c}=={target_value}"
+                input_eq = f"{a}*x{self._format_term(b)}*x{self._format_term(c)}=={target_value}"
                 target_eq = f"{combined_coeff}*x+{c}=={target_value}"
             else:
                 # ax - bx + c = target  ->  (a-b)x + c = target
@@ -464,7 +487,7 @@ class AlgebraDataset(data.Dataset):
                 if combined_coeff == 0:
                     combined_coeff = 1  # Fallback to avoid degenerate case
                 target_value = combined_coeff * x_solution + c
-                input_eq = f"{a}*x-{b}*x+{c}=={target_value}" 
+                input_eq = f"{a}*x{self._format_term(-b)}*x{self._format_term(c)}=={target_value}" 
                 target_eq = f"{combined_coeff}*x+{c}=={target_value}"
                 
             return input_eq, target_eq
@@ -900,7 +923,6 @@ class AlgebraDataset(data.Dataset):
         
         return self.validator.generate_coverage_report(self.equation_pairs)
 
-
 class MultiRuleDataset(data.Dataset):
     """
     Dataset for compositional testing with multi-rule equation problems.
@@ -933,8 +955,8 @@ class MultiRuleDataset(data.Dataset):
         # Validate inputs
         if num_rules not in [2, 3, 4]:
             raise ValueError(f"num_rules must be 2, 3, or 4, got {num_rules}")
-        if split not in ['test', 'val']:
-            raise ValueError("MultiRuleDataset only supports 'test' or 'val' splits (not for training)")
+        if split not in ['test', 'val', 'train']:
+            raise ValueError("MultiRuleDataset split must be 'train', 'test', or 'val'")
         if len(coeff_range) != 2 or coeff_range[0] >= coeff_range[1]:
             raise ValueError("coeff_range must be [min, max] with min < max")
             
@@ -1004,8 +1026,11 @@ class MultiRuleDataset(data.Dataset):
         
         current_eq = target_eq
         applied_rules = []
+        trace = []  # Store (input, target, rule) triples for curriculum learning
         
         for rule in rule_sequence:
+            prev_eq = current_eq
+            
             if rule == 'divide':
                 # Create ax = b from x = solution
                 a = self._generate_random_coefficients(1)
@@ -1015,6 +1040,7 @@ class MultiRuleDataset(data.Dataset):
                 new_rhs = str(a * x_solution)
                 current_eq = f"{new_lhs}={new_rhs}"
                 applied_rules.append('divide')
+                trace.append((current_eq, prev_eq, 'divide'))
                 
             elif rule == 'isolate':
                 # Create ax + b = c from ax = d
@@ -1025,6 +1051,7 @@ class MultiRuleDataset(data.Dataset):
                     new_lhs = f"{lhs}+{b}" if b >= 0 else f"{lhs}{b}"
                     current_eq = f"{new_lhs}={new_rhs}"
                     applied_rules.append('isolate')
+                    trace.append((current_eq, prev_eq, 'isolate'))
                     
             elif rule == 'combine':
                 # Create ax + bx = c from (a+b)x = c  
@@ -1051,6 +1078,7 @@ class MultiRuleDataset(data.Dataset):
                     new_lhs = f"{a}*x+{b}*x" if b >= 0 else f"{a}*x{b}*x"
                     current_eq = f"{new_lhs}={rhs}"
                     applied_rules.append('combine')
+                    trace.append((current_eq, prev_eq, 'combine'))
                     
             elif rule == 'distribute':
                 # Create a(x + b) + c = d from ax + ab + c = d
@@ -1069,8 +1097,9 @@ class MultiRuleDataset(data.Dataset):
                     new_rhs_val = a * (x_solution + b) + c
                     current_eq = f"{new_lhs}={new_rhs_val}"
                     applied_rules.append('distribute')
+                    trace.append((current_eq, prev_eq, 'distribute'))
         
-        return current_eq, target_eq, applied_rules
+        return current_eq, target_eq, applied_rules, trace
     
     def _generate_rule_sequence(self) -> List[str]:
         """Generate a random sequence of rules to apply."""
@@ -1119,11 +1148,11 @@ class MultiRuleDataset(data.Dataset):
             self._generation_stats['attempts'] += 1
             
             try:
-                input_eq, target_eq, rules = self._generate_single_multirule_problem()
+                input_eq, target_eq, rules, trace = self._generate_single_multirule_problem()
                 
                 # Validate the equation pair
                 if self._validate_multirule_pair(input_eq, target_eq):
-                    equations.append((input_eq, target_eq, rules))
+                    equations.append((input_eq, target_eq, rules, trace))
                     self._generation_stats['successes'] += 1
                     
             except (ValueError, TypeError, sp.SympifyError) as e:
@@ -2567,3 +2596,77 @@ class ContinuousQualityMonitor:
         count = len(self.alert_history)
         self.alert_history.clear()
         return count
+
+
+class CurriculumDataset(MultiRuleDataset):
+    """
+    Dataset for curriculum learning that extracts single-step transitions
+    from multi-rule problem traces.
+    
+    Allows training rule-specific models on intermediate steps encountered
+    during multi-rule problem solving, improving compositional generalization.
+    
+    Args:
+        target_rule: Rule to extract samples for ('distribute', 'combine', etc.)
+        num_rules: Number of rules in the source multi-rule problems
+        split: Dataset split
+        num_problems: Number of multi-rule problems to generate (yields ~num_problems samples)
+        coeff_range: Coefficient range
+        d_model: Embedding dimension
+        seed: Random seed
+    """
+    
+    def __init__(
+        self,
+        target_rule: str,
+        num_rules: int,
+        split: str = 'train',
+        num_problems: int = 10000,
+        coeff_range: List[int] = [-10, 10],
+        d_model: int = 128,
+        seed: Optional[int] = None
+    ):
+        super().__init__(
+            num_rules=num_rules,
+            split=split,
+            num_problems=num_problems,
+            coeff_range=coeff_range,
+            d_model=d_model,
+            seed=seed
+        )
+        self.target_rule = target_rule
+        self.equation_pairs = self._extract_curriculum_pairs()
+        
+        self.logger.info(f"CurriculumDataset: Extracted {len(self.equation_pairs)} {target_rule} samples from {num_problems} problems (depth={num_rules})")
+        
+    def _extract_curriculum_pairs(self) -> List[Tuple[str, str]]:
+        """Extract transition pairs matching target_rule from traces."""
+        pairs = []
+        for eq_tuple in self.equation_data:
+            # eq_tuple is (input, target, rules, trace)
+            if len(eq_tuple) < 4: 
+                continue
+            trace = eq_tuple[3]
+            
+            for (new_eq, old_eq, rule) in trace:
+                if rule == self.target_rule:
+                    # Model maps new_eq (complex) -> old_eq (simple)
+                    # Convert to standard format
+                    pairs.append((new_eq, old_eq))
+        return pairs
+
+    def __len__(self) -> int:
+        return len(self.equation_pairs)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get encoded equation pair for training."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+            
+        input_eq, target_eq = self.equation_pairs[index]
+        
+        # Encode equations to embeddings
+        input_embedding = self.encoder.encode_equation_string(input_eq)
+        target_embedding = self.encoder.encode_equation_string(target_eq)
+        
+        return input_embedding, target_embedding

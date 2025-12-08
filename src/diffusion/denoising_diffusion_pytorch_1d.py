@@ -1058,20 +1058,40 @@ class GaussianDiffusion1D(nn.Module):
                 self._ema_mse_mag = ema_decay * self._ema_mse_mag + (1 - ema_decay) * mse_magnitude
                 self._ema_energy_mag = ema_decay * self._ema_energy_mag + (1 - ema_decay) * energy_magnitude
 
-            # Mathematically correct 50:50 weighting: energy_scale = mse / energy  
-            # For equal contributions: mse_contrib = energy_contrib -> mse * 1.0 = energy * scale -> scale = mse / energy
-            energy_loss_scale_factor = self._ema_mse_mag / (self._ema_energy_mag + 1e-8)
+            # IRED target energy ratio for balanced energy landscape formation
+            target_energy_ratio = 0.5  # Target 40-50% energy contribution
             
-            # Conservative bounds to prevent training instability while maintaining energy gradients
-            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=0.1, max=10.0)
+            # Calculate scale factor to achieve target energy ratio:
+            # target_ratio = energy_contrib / (mse_contrib + energy_contrib)
+            # target_ratio = (energy * scale) / (mse + energy * scale)
+            # Solving for scale: scale = (target_ratio * mse) / ((1 - target_ratio) * energy)
+            energy_loss_scale_factor = (target_energy_ratio * self._ema_mse_mag) / ((1 - target_energy_ratio) * self._ema_energy_mag + 1e-8)
+            
+            # CRITICAL FIX: Raise clamp range from [0.1, 10.0] to [10.0, 500.0] for proper energy landscape formation
+            # This prevents the 0.3% vs 99.7% imbalance that was blocking IRED energy supervision
+            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=10.0, max=500.0)
             
             self._adaptive_loss_step_counter += 1
             
-            # Log adaptive scaling progress every 1000 steps for monitoring
-            if self._adaptive_loss_step_counter % 1000 == 0:
-                print(f"[AdaptiveScale] Step {self._adaptive_loss_step_counter}: "
-                      f"EMA_MSE={self._ema_mse_mag:.3f}, EMA_Energy={self._ema_energy_mag:.6f}, "
-                      f"EnergyWeight={energy_loss_scale_factor:.3f} (target: ~0.5 for balance)")
+            # Log loss balance monitoring every 100 steps as required for validation
+            if self._adaptive_loss_step_counter % 100 == 0:
+                # Calculate actual loss contributions for monitoring
+                scaled_energy_loss = energy_loss_scale_factor * self._ema_energy_mag
+                total_loss = self._ema_mse_mag + scaled_energy_loss
+                energy_contribution_pct = (scaled_energy_loss / total_loss * 100) if total_loss > 0 else 0
+                mse_contribution_pct = (self._ema_mse_mag / total_loss * 100) if total_loss > 0 else 0
+                
+                print(f"[LossBalance] Step {self._adaptive_loss_step_counter}: "
+                      f"MSE={mse_contribution_pct:.1f}%, Energy={energy_contribution_pct:.1f}%, "
+                      f"EnergyScale={energy_loss_scale_factor:.1f}, EnergyGap={energy_gap:.2f}")
+                
+                # Validate energy contribution meets requirement (>40%)
+                if energy_contribution_pct < 40.0:
+                    print(f"[WARNING] Energy contribution {energy_contribution_pct:.1f}% < 40% target. Scale may need adjustment.")
+                
+                # Validate energy gap meets requirement (>8 units)
+                if abs(energy_gap.item()) < 8.0:
+                    print(f"[WARNING] Energy gap {energy_gap:.2f} < 8.0 units target. Energy landscape may be too flat.")
             
             # Monitor loss balance for potential training issues
             if self.loss_balance_monitor is not None:

@@ -65,8 +65,8 @@ def generate_report(results_by_rules: dict) -> str:
     lines.append("")
     lines.append("This report summarises the evaluation of multi‑rule datasets with varying numbers of rules.")
     lines.append("")
-    lines.append("| Rules | Accuracy | Invalid Rate | Mean L2 Distance | Total Samples |
-|---|---|---|---|---|")
+    lines.append("| Rules | Accuracy | Invalid Rate | Mean L2 Distance | Total Samples |")
+    lines.append("|---|---|---|---|---|")
     for rules, result in sorted(results_by_rules.items()):
         summary = result.get("summary", {})
         accuracy = summary.get("accuracy", 0.0)
