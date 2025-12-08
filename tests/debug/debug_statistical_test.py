@@ -9,9 +9,15 @@ statistical testing framework.
 Dependencies: T2 (conditioning test framework available)
 
 Usage:
-    python debug_statistical_test.py
-    python debug_statistical_test.py --n-tests 50 --detailed-analysis
+    python tests/debug/debug_statistical_test.py
+    python tests/debug/debug_statistical_test.py --n-tests 50 --detailed-analysis
 """
+
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import numpy as np
 import argparse
@@ -22,14 +28,14 @@ import logging
 try:
     from statistical_testing_framework import StatisticalTestFramework, create_statistical_testing_framework
     from t2_integration_interface import create_t2_integration_interface
-    from debug_conditioning_test import load_rule_models_wrapper, compute_energy_and_gradient
+    from tests.debug.debug_conditioning_test import load_rule_models_wrapper, compute_energy_and_gradient
     framework_available = True
 except ImportError as e:
     print(f"Warning: Framework import failed: {e}")
     framework_available = False
 
 # Fallback imports for basic functionality
-from algebra_dataset import AlgebraDataset
+from src.algebra.algebra_dataset import AlgebraDataset
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

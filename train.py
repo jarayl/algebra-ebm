@@ -6,18 +6,17 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
 
-from diffusion_lib.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Trainer1D
-from models import EBM, DiffusionWrapper
-from models import SudokuEBM, SudokuTransformerEBM, SudokuDenoise, SudokuLatentEBM, AutoencodeModel
-from models import GraphEBM, GraphReverse, GNNConvEBM, GNNDiffusionWrapper, GNNConvDiffusionWrapper, GNNConv1DEBMV2, GNNConv1DV2DiffusionWrapper, GNNConv1DReverse
-from dataset import Addition, LowRankDataset, Inverse
-from reasoning_dataset import FamilyTreeDataset, GraphConnectivityDataset, FamilyDatasetWrapper, GraphDatasetWrapper
-from planning_dataset import PlanningDataset, PlanningDatasetOnline
-from sat_dataset import SATNetDataset, SudokuDataset, SudokuRRNDataset, SudokuRRNLatentDataset
+from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Trainer1D
+from src.models import EBM, DiffusionWrapper
+from src.models import SudokuEBM, SudokuTransformerEBM, SudokuDenoise, SudokuLatentEBM, AutoencodeModel
+from src.models import GraphEBM, GraphReverse, GNNConvEBM, GNNDiffusionWrapper, GNNConvDiffusionWrapper, GNNConv1DEBMV2, GNNConv1DV2DiffusionWrapper, GNNConv1DReverse
+from src.datasets.dataset import Addition, LowRankDataset, Inverse
+from src.datasets.reasoning_dataset import FamilyTreeDataset, GraphConnectivityDataset, FamilyDatasetWrapper, GraphDatasetWrapper
+from src.datasets.planning_dataset import PlanningDataset, PlanningDatasetOnline
+from src.datasets.sat_dataset import SATNetDataset, SudokuDataset, SudokuRRNDataset, SudokuRRNLatentDataset
 import torch
 
 import argparse
-
 try:
     import mkl
     mkl.set_num_threads(1)

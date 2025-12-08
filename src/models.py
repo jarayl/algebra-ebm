@@ -1,5 +1,5 @@
-from diffusion_lib.nlm import LogicMachine
-from diffusion_lib.transformer import GPT
+from src.diffusion.nlm import LogicMachine
+from src.diffusion.transformer import GPT
 import einops
 import torch.nn as nn
 from torch import einsum

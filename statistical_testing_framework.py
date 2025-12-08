@@ -28,8 +28,8 @@ import logging
 from collections import defaultdict, Counter
 from dataclasses import dataclass
 import sympy as sp
-from algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
-from algebra_encoder import create_character_encoder, validate_equation_syntax, check_equation_equivalence
+from src.algebra.algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
+from src.algebra.algebra_encoder import create_character_encoder, validate_equation_syntax, check_equation_equivalence
 
 
 @dataclass

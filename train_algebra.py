@@ -45,12 +45,12 @@ except ImportError:
     print('Warning: MKL not initialized.')
 
 # IRED Infrastructure
-from diffusion_lib.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Trainer1D
-from dataset import NoisyWrapper
+from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Trainer1D
+from src.datasets.dataset import NoisyWrapper
 
 # Algebra-specific components  
-from algebra_dataset import AlgebraDataset
-from algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
+from src.algebra.algebra_dataset import AlgebraDataset
+from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 
 
 def str2bool(x):

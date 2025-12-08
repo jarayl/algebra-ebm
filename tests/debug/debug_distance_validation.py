@@ -12,12 +12,18 @@ Success Criteria:
 - Distance function returns finite positive values
 """
 
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import torch
 import numpy as np
 import logging
 from typing import Dict, List, Tuple, Optional
-from algebra_encoder import create_character_encoder, create_decoder_with_default_candidates, EquationDecoder
-from algebra_evaluation import compute_embedding_distances
+from src.algebra.algebra_encoder import create_character_encoder, create_decoder_with_default_candidates, EquationDecoder
+from src.algebra.algebra_evaluation import compute_embedding_distances
 import traceback
 
 # Set up logging

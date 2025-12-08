@@ -11,7 +11,9 @@ Dependencies: T1 (checkpoint loading), T2 (energy computation), T4 (statistical 
 
 import sys
 import os
-sys.path.append('.')
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import torch
 import numpy as np
@@ -20,8 +22,8 @@ from typing import Dict, List, Tuple, Optional, Any
 from pathlib import Path
 
 # Import existing components
-from algebra_inference import load_rule_models, AlgebraInference
-from algebra_encoder import CharacterLevelEncoder, create_character_encoder
+from src.algebra.algebra_inference import load_rule_models, AlgebraInference
+from src.algebra.algebra_encoder import CharacterLevelEncoder, create_character_encoder
 from template_analysis_framework import (
     TemplateAnalysisFramework, 
     TemplatePattern, 

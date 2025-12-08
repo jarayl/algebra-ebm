@@ -1,8 +1,14 @@
 
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import torch
 import numpy as np
-from algebra_encoder import create_character_encoder
-from algebra_models import AlgebraEBM
+from src.algebra.algebra_encoder import create_character_encoder
+from src.algebra.algebra_models import AlgebraEBM
 
 def check_encoder_diversity():
     print("Checking Encoder Diversity...")

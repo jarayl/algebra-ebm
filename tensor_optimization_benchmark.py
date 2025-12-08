@@ -15,9 +15,9 @@ from typing import Dict, List, Tuple
 from pathlib import Path
 
 # Import existing components
-from algebra_encoder import CharacterLevelEncoder, ASTEncoder, EquationDecoder
-from algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
-from algebra_inference import AlgebraInference, InferenceConfig
+from src.algebra.algebra_encoder import CharacterLevelEncoder, ASTEncoder, EquationDecoder
+from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
+from src.algebra.algebra_inference import AlgebraInference, InferenceConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -6,7 +6,7 @@ import gzip
 import pickle
 from tqdm.auto import tqdm
 from tabulate import tabulate
-from reasoning_dataset import random_generate_graph, random_generate_graph_dnc, random_generate_special_graph
+from src.datasets.reasoning_dataset import random_generate_graph, random_generate_graph_dnc, random_generate_special_graph
 from torch.utils.data.dataset import Dataset
 
 

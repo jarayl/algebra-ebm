@@ -2,7 +2,7 @@ import os
 import gzip
 import argparse
 import pickle
-from planning_dataset import ListSortingEnv, GraphPathEnv
+from src.datasets.planning_dataset import ListSortingEnv, GraphPathEnv
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dataset', type=str, choices=['sort', 'sort-15', 'shortest-path', 'shortest-path-25', 'shortest-path-10', 'shortest-path-15'])

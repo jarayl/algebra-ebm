@@ -37,13 +37,13 @@ import time
 from collections import defaultdict
 
 # Import algebra components
-from algebra_inference import AlgebraInference, load_rule_models, InferenceConfig
-from algebra_encoder import (
+from src.algebra.algebra_inference import AlgebraInference, load_rule_models, InferenceConfig
+from src.algebra.algebra_encoder import (
     CharacterLevelEncoder, ASTEncoder, EquationDecoder,
     check_equation_equivalence, validate_equation_syntax,
     create_decoder_from_dataset
 )
-from algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
+from src.algebra.algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

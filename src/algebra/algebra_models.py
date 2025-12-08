@@ -18,7 +18,7 @@ from collections import deque
 import logging
 
 # Import utilities from existing models
-from models import SinusoidalPosEmb, swish
+from src.models import SinusoidalPosEmb, swish
 
 
 class AlgebraEBM(nn.Module):
@@ -77,6 +77,55 @@ class AlgebraEBM(nn.Module):
         # FiLM conditioning layers for timestep injection
         self.t_map_fc2 = nn.Linear(time_dim, 2 * hidden_dim)  # scale + bias for FC2
         self.t_map_fc3 = nn.Linear(time_dim, 2 * hidden_dim)  # scale + bias for FC3
+        
+        # Learnable energy scaling to match contrastive loss targets
+        # This allows the model to output energies in the target range (pos~1, neg~10)
+        # With xavier init and normalized inputs, raw energies will be ~0.5-2.0
+        # We start with small scale and let learning adjust
+        self.energy_scale = nn.Parameter(torch.tensor(1.0))   # Start at 1.0, learn the scale
+        self.energy_bias = nn.Parameter(torch.tensor(0.0))    # Start at 0, learn the bias
+        
+        # Apply proper weight initialization to prevent flat energy landscapes
+        self._init_weights()
+    
+    def _init_weights(self):
+        """Initialize weights for good energy landscape formation.
+        
+        Key insights:
+        1. With normalized inputs (||x||=1), we need controlled scaling
+        2. FiLM layers must start near-identity to not overwhelm input signal
+        3. fc4 uses smaller init so raw energy starts in reasonable range
+        
+        Critical Fix: FiLM bias initialization was dominating input signal.
+        When FiLM bias std (0.24) >> hidden state std (0.04), the time
+        conditioning overwhelms the actual input-dependent information.
+        """
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                if name == 'fc4':
+                    # Smaller init for output layer to keep raw energies bounded
+                    # Want ||fc4(h)||^2 ~ 1-5 initially, so ||fc4(h)|| ~ 1-2
+                    nn.init.xavier_uniform_(module.weight, gain=0.5)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
+                elif name in ['fc1', 'fc2', 'fc3']:
+                    # Standard xavier for hidden layers
+                    nn.init.xavier_uniform_(module.weight, gain=1.0)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
+                elif name in ['t_map_fc2', 't_map_fc3']:
+                    # CRITICAL: Initialize FiLM layers to near-identity
+                    # Output is [gain, bias] where applied as: h * (gain + 1) + bias
+                    # We want gain ≈ 0 and bias ≈ 0 initially so FiLM is near-identity
+                    # Use very small init so FiLM doesn't dominate input signal
+                    nn.init.normal_(module.weight, std=0.01)  # Very small weights
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)  # Zero bias means gain≈0, shift≈0
+                else:
+                    # Default init for time MLP layers
+                    nn.init.xavier_uniform_(module.weight, gain=1.0)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
         
     def forward(self, inp: torch.Tensor, out: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -142,8 +191,13 @@ class AlgebraEBM(nn.Module):
                 )
                 output = output * scale_factor
         
-        # Energy = ||output_vector||^2 (L2 norm squared for non-negative energy)
-        energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
+        # Energy = scale * ||output_vector||^2 + bias (learnable to match contrastive targets)
+        # Base energy from L2 norm squared
+        raw_energy = output.pow(2).sum(dim=-1, keepdim=True)  # (B, 1)
+        
+        # Apply learnable scaling to match contrastive loss target range (~1 to ~15)
+        # This is critical: without scaling, energies are stuck at ~0.2 with normalized inputs
+        energy = self.energy_scale * raw_energy + self.energy_bias
         
         # Energy statistics monitoring for debugging and analysis
         logger = logging.getLogger(__name__)
@@ -241,8 +295,14 @@ class AlgebraDiffusionWrapper(nn.Module):
         assert out.shape[-1] == self.out_dim, f"Expected out_dim={self.out_dim}, got {out.shape[-1]}"
         assert inp.shape[0] == out.shape[0] == t.shape[0], "Batch sizes must match"
         
-        # Enable gradient computation for output
-        out = out.requires_grad_(True)
+        # CRITICAL FIX: Properly enable gradient computation for output
+        # The input tensor from dataloader is detached, so we must clone it first
+        # before requiring gradients. Otherwise autograd.grad() fails silently.
+        if not out.requires_grad:
+            out = out.detach().clone().requires_grad_(True)
+        else:
+            # If already requires grad, ensure we have a fresh computation graph
+            out = out.clone()
         
         # Compute energy E(inp, out, t)
         energy = self.ebm(inp, out, t)  # (B, 1)
@@ -299,7 +359,11 @@ class ContrastiveEnergyLoss:
         neg_target: Target energy for negative samples (default: 15.0)
     """
     
-    def __init__(self, margin: float = 10.0, pos_target: float = 1.0, neg_target: float = 15.0):
+    def __init__(self, margin: float = 5.0, pos_target: float = 1.0, neg_target: float = 10.0):
+        # Adjusted defaults for better convergence:
+        # - pos_target=1.0: Valid transformations should have low energy
+        # - neg_target=10.0: Invalid transformations should have higher energy (reduced from 15)
+        # - margin=5.0: Required gap between neg and pos (reduced from 10 for faster learning)
         self.margin = margin
         self.pos_target = pos_target
         self.neg_target = neg_target

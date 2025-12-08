@@ -37,9 +37,9 @@ import time
 import re
 
 # Import existing components
-from algebra_inference import AlgebraInference, load_rule_models, InferenceConfig
-from algebra_encoder import EquationDecoder, CharacterLevelEncoder
-from algebra_evaluation import compute_embedding_distances
+from src.algebra.algebra_inference import AlgebraInference, load_rule_models, InferenceConfig
+from src.algebra.algebra_encoder import EquationDecoder, CharacterLevelEncoder
+from src.algebra.algebra_evaluation import compute_embedding_distances
 
 logger = logging.getLogger(__name__)
 

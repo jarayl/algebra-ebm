@@ -33,8 +33,8 @@ from dataclasses import dataclass
 from collections import deque
 
 # Import existing components
-from algebra_encoder import CharacterLevelEncoder, ASTEncoder, EquationDecoder
-from algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
+from src.algebra.algebra_encoder import CharacterLevelEncoder, ASTEncoder, EquationDecoder
+from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

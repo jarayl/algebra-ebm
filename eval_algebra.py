@@ -40,12 +40,12 @@ import torch
 import numpy as np
 
 # Import algebra components
-from algebra_evaluation import (
+from src.algebra.algebra_evaluation import (
     evaluate_model_suite, save_evaluation_results, print_evaluation_summary
 )
-from algebra_inference import load_rule_models
-from algebra_encoder import create_character_encoder, create_decoder_with_default_candidates
-from algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
+from src.algebra.algebra_inference import load_rule_models
+from src.algebra.algebra_encoder import create_character_encoder, create_decoder_with_default_candidates
+from src.algebra.algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
 
 # Set up logging
 logging.basicConfig(

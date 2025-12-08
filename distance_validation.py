@@ -661,7 +661,7 @@ def validate_distance_function_with_encoder(
     Returns:
         ValidationSummary
     """
-    from algebra_encoder import create_character_encoder, create_ast_encoder, create_decoder_with_default_candidates
+    from src.algebra.algebra_encoder import create_character_encoder, create_ast_encoder, create_decoder_with_default_candidates
     
     # Create encoder
     if encoder_type == "character":

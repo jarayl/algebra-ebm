@@ -21,7 +21,7 @@ from typing import List, Tuple, Dict, Optional, Union
 import time
 import math
 import hashlib
-from algebra_encoder import create_character_encoder, validate_equation_syntax, check_equation_equivalence, solve_equation
+from src.algebra.algebra_encoder import create_character_encoder, validate_equation_syntax, check_equation_equivalence, solve_equation
 
 
 class AlgebraDataset(data.Dataset):

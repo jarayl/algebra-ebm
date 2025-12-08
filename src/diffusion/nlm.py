@@ -2,7 +2,7 @@ import warnings
 import torch
 import torch.nn as nn
 
-from diffusion_lib.nlm_utils import Expander, Reducer, Permutation, LogicInference
+from src.diffusion.nlm_utils import Expander, Reducer, Permutation, LogicInference
 
 __all__ = ['LogicLayer', 'LogicMachine']
 

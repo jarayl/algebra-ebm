@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Quick performance test for the optimized dataset generation."""
 
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import time
-from algebra_dataset import AlgebraDataset
+from src.algebra.algebra_dataset import AlgebraDataset
 
 print("Testing performance after optimization...")
 

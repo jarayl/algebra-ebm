@@ -26,7 +26,7 @@ import time
 
 # Import ContrastiveEnergyLoss for enhanced energy supervision
 try:
-    from algebra_models import ContrastiveEnergyLoss
+    from src.algebra.algebra_models import ContrastiveEnergyLoss
     CONTRASTIVE_LOSS_AVAILABLE = True
 except ImportError:
     CONTRASTIVE_LOSS_AVAILABLE = False
@@ -327,12 +327,13 @@ class GaussianDiffusion1D(nn.Module):
         self.contrastive_loss_fn = None
         if self.use_contrastive_energy_loss:
             if CONTRASTIVE_LOSS_AVAILABLE:
+                # Use adjusted targets that work better with learnable energy scaling
                 self.contrastive_loss_fn = ContrastiveEnergyLoss(
-                    margin=10.0,      # Target energy gap (same as research report)
+                    margin=5.0,       # Reduced margin for faster convergence
                     pos_target=1.0,   # Correct solutions should have low energy
-                    neg_target=15.0   # Incorrect solutions should have high energy
+                    neg_target=10.0   # Incorrect solutions should have high energy (reduced from 15)
                 )
-                print("[ContrastiveLoss] Initialized with margin=10.0, pos_target=1.0, neg_target=15.0")
+                print("[ContrastiveLoss] Initialized with margin=5.0, pos_target=1.0, neg_target=10.0")
             else:
                 print("Warning: ContrastiveEnergyLoss requested but not available, falling back to cross-entropy")
                 self.use_contrastive_energy_loss = False

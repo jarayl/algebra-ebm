@@ -185,7 +185,7 @@ class NumericalStabilityAnalyzer:
             StabilityTestResult with detailed stability metrics
         """
         # Create inference config with the test step size
-        from algebra_inference import InferenceConfig
+        from src.algebra.algebra_inference import InferenceConfig
         
         config = InferenceConfig(
             num_samples=max_iterations,
