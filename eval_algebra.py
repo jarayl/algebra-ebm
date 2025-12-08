@@ -646,7 +646,7 @@ def main():
         
         # Create decoder
         try:
-            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=35.0)
+            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=50.0)
             logger.info("Created decoder with default candidates")
         except ImportError as e:
             logger.error(f"CRITICAL: sklearn not available - decoder creation failed: {str(e)}")

@@ -171,7 +171,7 @@ BATCH_SIZE=2048        # Default from script
 # - Standard: 200000 steps (baseline, may have flat landscapes)
 # - Production: 1000000 steps (recommended for sharp energy landscapes, closer to IRED baseline)
 # - Research optimal: 1300000 steps (full IRED baseline)
-TRAIN_STEPS=15000    # Production setting for optimal energy landscape formation
+TRAIN_STEPS=5000    # Production setting for optimal energy landscape formation
 NUM_PROBLEMS=50000     # Default from script
 TIMESTEPS=10           # Default from script
 GRADIENT_ACCUMULATE=2  # Effective batch size: 4096 for better convergence

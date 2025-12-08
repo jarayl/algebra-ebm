@@ -299,7 +299,7 @@ class GaussianDiffusion1D(nn.Module):
         auto_normalize = True,
         supervise_energy_landscape = True,
         use_innerloop_opt = True,
-        use_contrastive_energy_loss = False,
+        use_contrastive_energy_loss = True,
         enable_loss_balance_monitoring = True,
         step_size_multiplier = 0.1,
         show_inference_tqdm = True,
@@ -327,13 +327,13 @@ class GaussianDiffusion1D(nn.Module):
         self.contrastive_loss_fn = None
         if self.use_contrastive_energy_loss:
             if CONTRASTIVE_LOSS_AVAILABLE:
-                # Use adjusted targets that work better with learnable energy scaling
+                # Use explicit energy targets for IRED energy supervision as specified in BUG-4
                 self.contrastive_loss_fn = ContrastiveEnergyLoss(
-                    margin=5.0,       # Reduced margin for faster convergence
-                    pos_target=1.0,   # Correct solutions should have low energy
-                    neg_target=10.0   # Incorrect solutions should have high energy (reduced from 15)
+                    margin=10.0,      # Required margin for proper energy gap enforcement
+                    pos_target=1.0,   # Positive energies should target 1.0
+                    neg_target=15.0   # Negative energies should target 15.0
                 )
-                print("[ContrastiveLoss] Initialized with margin=5.0, pos_target=1.0, neg_target=10.0")
+                print("[ContrastiveLoss] Initialized with margin=10.0, pos_target=1.0, neg_target=15.0 (BUG-4 fix)")
             else:
                 print("Warning: ContrastiveEnergyLoss requested but not available, falling back to cross-entropy")
                 self.use_contrastive_energy_loss = False
@@ -1059,7 +1059,7 @@ class GaussianDiffusion1D(nn.Module):
                 self._ema_energy_mag = ema_decay * self._ema_energy_mag + (1 - ema_decay) * energy_magnitude
 
             # IRED target energy ratio for balanced energy landscape formation
-            target_energy_ratio = 0.5  # Target 40-50% energy contribution
+            target_energy_ratio = 0.5  # Target 50% energy contribution for optimal balance
             
             # Calculate scale factor to achieve target energy ratio:
             # target_ratio = energy_contrib / (mse_contrib + energy_contrib)
@@ -1067,9 +1067,10 @@ class GaussianDiffusion1D(nn.Module):
             # Solving for scale: scale = (target_ratio * mse) / ((1 - target_ratio) * energy)
             energy_loss_scale_factor = (target_energy_ratio * self._ema_mse_mag) / ((1 - target_energy_ratio) * self._ema_energy_mag + 1e-8)
             
-            # CRITICAL FIX: Raise clamp range from [0.1, 10.0] to [10.0, 500.0] for proper energy landscape formation
-            # This prevents the 0.3% vs 99.7% imbalance that was blocking IRED energy supervision
-            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=10.0, max=500.0)
+            # CRITICAL FIX: Adjust clamp range to allow proper 40-60% energy contribution
+            # Previous range [10.0, 500.0] caused 100% energy dominance, violating the balance requirement
+            # New range allows very fine-grained adaptive scaling to achieve target balance
+            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=0.001, max=1000.0)
             
             self._adaptive_loss_step_counter += 1
             

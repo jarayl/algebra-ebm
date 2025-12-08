@@ -462,35 +462,43 @@ class AlgebraDataset(data.Dataset):
             return input_eq.replace('=', '=='), target_eq.replace('=', '==')
         else:
             # Original generation method for backward compatibility
-            # Generate random coefficients
-            a, b, c = self._generate_random_coefficients(3)
+            # Use retry logic to avoid silent fallbacks when coefficients sum to zero
+            max_attempts = 100  # Reasonable limit for coefficient regeneration
+            attempts = 0
             
-            # Choose operation (+ or -)
-            op = random.choice(['+', '-'])
-            
-            # Generate a proper solution first, then build equation
-            x_solution = self._generate_random_coefficients(1)
-            
-            if op == '+':
-                # ax + bx + c = target  ->  (a+b)x + c = target
-                combined_coeff = a + b
-                # Ensure non-zero combined coefficient
-                if combined_coeff == 0:
-                    combined_coeff = 1  # Fallback to avoid degenerate case
-                target_value = combined_coeff * x_solution + c
-                input_eq = f"{a}*x{self._format_term(b)}*x{self._format_term(c)}=={target_value}"
-                target_eq = f"{combined_coeff}*x+{c}=={target_value}"
-            else:
-                # ax - bx + c = target  ->  (a-b)x + c = target
-                combined_coeff = a - b
-                # Ensure non-zero combined coefficient
-                if combined_coeff == 0:
-                    combined_coeff = 1  # Fallback to avoid degenerate case
-                target_value = combined_coeff * x_solution + c
-                input_eq = f"{a}*x{self._format_term(-b)}*x{self._format_term(c)}=={target_value}" 
-                target_eq = f"{combined_coeff}*x+{c}=={target_value}"
+            while attempts < max_attempts:
+                # Generate random coefficients
+                a, b, c = self._generate_random_coefficients(3)
                 
-            return input_eq, target_eq
+                # Choose operation (+ or -)
+                op = random.choice(['+', '-'])
+                
+                # Calculate combined coefficient
+                combined_coeff = a + b if op == '+' else a - b
+                
+                # Check if we have a valid non-zero combined coefficient
+                if combined_coeff != 0:
+                    # Generate a proper solution first, then build equation
+                    x_solution = self._generate_random_coefficients(1)
+                    
+                    if op == '+':
+                        # ax + bx + c = target  ->  (a+b)x + c = target
+                        target_value = combined_coeff * x_solution + c
+                        input_eq = f"{a}*x{self._format_term(b)}*x{self._format_term(c)}=={target_value}"
+                        target_eq = f"{combined_coeff}*x{self._format_term(c)}=={target_value}"
+                    else:
+                        # ax - bx + c = target  ->  (a-b)x + c = target
+                        target_value = combined_coeff * x_solution + c
+                        input_eq = f"{a}*x{self._format_term(-b)}*x{self._format_term(c)}=={target_value}" 
+                        target_eq = f"{combined_coeff}*x{self._format_term(c)}=={target_value}"
+                        
+                    return input_eq, target_eq
+                
+                attempts += 1
+            
+            # If we've exhausted attempts, raise an error instead of silent fallback
+            raise RuntimeError(f"Failed to generate valid combine equation after {max_attempts} attempts. "
+                             f"Consider adjusting coefficient range to reduce zero-sum probability.")
     
     def _generate_isolate_equation(self) -> Tuple[str, str]:
         """
@@ -515,7 +523,7 @@ class AlgebraDataset(data.Dataset):
             target_value = a * x_solution + b
             
             # ax + b = target  ->  ax = target - b
-            input_eq = f"{a}*x+{b}=={target_value}"
+            input_eq = f"{a}*x{self._format_term(b)}=={target_value}"
             target_eq = f"{a}*x=={target_value - b}"
                 
             return input_eq, target_eq

@@ -1,0 +1,10 @@
+{
+  "status": "below_target",
+  "speedup_percentage": -6.931465011603743,
+  "speedup_factor": 0.9306853498839626,
+  "target_speedup": 30,
+  "cache_hit_rate": 0.0,
+  "call_reduction_percentage": 0,
+  "original_time": 0.07624546660226769,
+  "optimized_time": 0.08192399999825284
+}

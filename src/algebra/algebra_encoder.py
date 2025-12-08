@@ -65,8 +65,10 @@ class CharacterLevelEncoder(nn.Module):
     def __init__(self, d_model: int = 128, max_len: int = 64, normalize_embeddings: bool = True):
         super().__init__()
         
-        # Vocabulary as specified in proposal
-        self.vocab = '0123456789x+-=*/() '
+        # Extended vocabulary to handle all equation generation formats
+        # Includes decimal points, brackets, and extended characters that 
+        # equation generation can produce (fixes BUG-5)
+        self.vocab = '0123456789x.+-=*/()[]<> '
         self.char_to_idx = {c: i for i, c in enumerate(self.vocab)}
         self.idx_to_char = {i: c for i, c in enumerate(self.vocab)}
         

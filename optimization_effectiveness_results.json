@@ -1,0 +1,78 @@
+{
+  "status": "below_target",
+  "average_speedup_percentage": -31.131286877291416,
+  "speedup_range": [
+    -33.68846284830121,
+    -26.955405117546192
+  ],
+  "average_cache_hit_rate": 0.8333333333333334,
+  "target_speedup": 30,
+  "target_met": "False",
+  "detailed_results": [
+    {
+      "equation": "x+1=2",
+      "baseline_avg_time": 0.05331577767113534,
+      "optimized_avg_time": 0.07299072266323492,
+      "speedup_factor": 0.7304459488245381,
+      "speedup_percentage": -26.955405117546192,
+      "cache_hit_rate": 0.8333333333333334,
+      "total_cache_hits": 45,
+      "total_cache_misses": 9,
+      "baseline_times": [
+        0.08801354101160541,
+        0.036133125016931444,
+        0.03580066698486917
+      ],
+      "optimized_times": [
+        0.0607177090132609,
+        0.05514479198609479,
+        0.10310966699034907
+      ]
+    },
+    {
+      "equation": "2*x+3=7",
+      "baseline_avg_time": 0.03832238866016269,
+      "optimized_avg_time": 0.056984958335912474,
+      "speedup_factor": 0.6725000733397316,
+      "speedup_percentage": -32.74999266602684,
+      "cache_hit_rate": 0.8333333333333334,
+      "total_cache_hits": 45,
+      "total_cache_misses": 9,
+      "baseline_times": [
+        0.03713766598957591,
+        0.0405174579937011,
+        0.037312041997211054
+      ],
+      "optimized_times": [
+        0.05717620797804557,
+        0.05566941702272743,
+        0.05810925000696443
+      ]
+    },
+    {
+      "equation": "x*x=4",
+      "baseline_avg_time": 0.03799163866400098,
+      "optimized_avg_time": 0.05729265267533871,
+      "speedup_factor": 0.663115371516988,
+      "speedup_percentage": -33.68846284830121,
+      "cache_hit_rate": 0.8333333333333334,
+      "total_cache_hits": 45,
+      "total_cache_misses": 9,
+      "baseline_times": [
+        0.037029540981166065,
+        0.039599333016667515,
+        0.037346041994169354
+      ],
+      "optimized_times": [
+        0.05769891699310392,
+        0.05760270802420564,
+        0.05657633300870657
+      ]
+    }
+  ],
+  "summary": {
+    "equations_tested": 3,
+    "iterations_per_test": 3,
+    "total_tests": 18
+  }
+}

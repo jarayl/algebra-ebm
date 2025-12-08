@@ -1,0 +1,46 @@
+{
+  "status": "partial",
+  "average_speedup_percentage": 16.851032458250906,
+  "speedup_range": [
+    -3.9410003316563524,
+    37.643065248158166
+  ],
+  "target_speedup": 30,
+  "target_met": "False",
+  "detailed_results": [
+    {
+      "equation": "x+1=2",
+      "original_avg_time": 0.04520031900028698,
+      "optimized_avg_time": 0.03283879134687595,
+      "speedup_factor": 1.3764306524815817,
+      "speedup_percentage": 37.643065248158166,
+      "original_times": [
+        0.07508408301509917,
+        0.0302847079874482,
+        0.030232165998313576
+      ],
+      "optimized_times": [
+        0.035800208017462865,
+        0.031954333011526614,
+        0.030761833011638373
+      ]
+    },
+    {
+      "equation": "2*x=4",
+      "original_avg_time": 0.030321930670955528,
+      "optimized_avg_time": 0.031565944654479004,
+      "speedup_factor": 0.9605899966834365,
+      "speedup_percentage": -3.9410003316563524,
+      "original_times": [
+        0.02994679199764505,
+        0.030444333009654656,
+        0.03057466700556688
+      ],
+      "optimized_times": [
+        0.031449000001885,
+        0.03146583397756331,
+        0.0317829999839887
+      ]
+    }
+  ]
+}
