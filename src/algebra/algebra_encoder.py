@@ -815,6 +815,10 @@ def create_decoder_from_dataset(encoder: Union[CharacterLevelEncoder, ASTEncoder
     for i in range(len(dataset)):
         if hasattr(dataset, 'get_equation_pair'):
             input_eq, target_eq = dataset.get_equation_pair(i)
+        elif hasattr(dataset, 'get_problem_info'):
+            problem_info = dataset.get_problem_info(i)
+            input_eq = problem_info['input_equation']
+            target_eq = problem_info['target_equation']
         elif hasattr(dataset, 'equation_pairs'):
             input_eq, target_eq = dataset.equation_pairs[i]
         else:
