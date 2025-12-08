@@ -882,8 +882,28 @@ def load_rule_models(
                 full_state = checkpoint['model']
                 logger.info(f"Model state has {len(full_state)} parameters")
 
-                # Case 1: diffusion-style keys, e.g. 'betas', 'alphas_cumprod', 'model.ebm.fc1.weight', ...
-                if any(k.startswith('model.ebm.') for k in full_state.keys()):
+                # Detect EBM key patterns and check for mixed formats
+                has_orig_mod_keys = any(k.startswith('_orig_mod.model.ebm.') for k in full_state.keys())
+                has_regular_keys = any(k.startswith('model.ebm.') for k in full_state.keys())
+                
+                # Warn about mixed formats which could indicate checkpoint corruption
+                if has_orig_mod_keys and has_regular_keys:
+                    logger.warning(f"Mixed key formats detected in {rule_name} checkpoint: both '_orig_mod.model.ebm.' and 'model.ebm.' prefixes found. This may indicate checkpoint corruption.")
+                
+                # Case 1: diffusion-style keys with _orig_mod prefix, e.g. '_orig_mod.model.ebm.fc1.weight'
+                ebm_state = None
+                if has_orig_mod_keys:
+                    logger.info("Detected diffusion-style state dict with '_orig_mod.model.ebm.' keys; extracting EBM params")
+
+                    # Keep only the EBM parameters and strip the leading '_orig_mod.model.' prefix
+                    ebm_state = {
+                        k.replace('_orig_mod.model.', '', 1): v
+                        for k, v in full_state.items()
+                        if k.startswith('_orig_mod.model.ebm.')
+                    }
+
+                # Case 2: diffusion-style keys without _orig_mod prefix, e.g. 'model.ebm.fc1.weight'
+                elif has_regular_keys:
                     logger.info("Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params")
 
                     # Keep only the EBM parameters and strip the leading 'model.' prefix
@@ -893,6 +913,8 @@ def load_rule_models(
                         if k.startswith('model.ebm.')
                     }
 
+                # If we have an ebm_state from either case above, load it
+                if ebm_state is not None:
                     # Optional debug: see how this lines up with the wrapper's expected keys
                     expected_keys = set(wrapper.state_dict().keys())
                     got_keys = set(ebm_state.keys())
@@ -901,21 +923,109 @@ def load_rule_models(
                     logger.info(f"EBM state has {len(ebm_state)} parameters "
                                 f"(missing: {len(missing)}, extra: {len(extra)})")
 
-                    # Now this should match AlgebraDiffusionWrapper's expected keys: 'ebm.*'
-                    wrapper.load_state_dict(ebm_state, strict=True)
+                    # Load state dict with strict=False to handle missing parameters
+                    missing_keys = wrapper.load_state_dict(ebm_state, strict=False)
+                    
+                    # Initialize missing energy_scale and energy_bias parameters if they weren't in the checkpoint
+                    if missing_keys.missing_keys:
+                        logger.info(f"Missing parameters in {rule_name} checkpoint: {missing_keys.missing_keys}")
+                        
+                        # Initialize energy_scale and energy_bias with their default values if missing
+                        if 'ebm.energy_scale' in missing_keys.missing_keys:
+                            wrapper.ebm.energy_scale.data.fill_(1.0)  # Default value from AlgebraEBM.__init__
+                            logger.info(f"Initialized missing ebm.energy_scale to 1.0 for {rule_name}")
+                        
+                        if 'ebm.energy_bias' in missing_keys.missing_keys:
+                            wrapper.ebm.energy_bias.data.fill_(0.0)   # Default value from AlgebraEBM.__init__
+                            logger.info(f"Initialized missing ebm.energy_bias to 0.0 for {rule_name}")
+                        
+                        # Check if there are any other missing keys we don't know how to handle
+                        unhandled_missing = [k for k in missing_keys.missing_keys 
+                                           if k not in ['ebm.energy_scale', 'ebm.energy_bias']]
+                        if unhandled_missing:
+                            logger.warning(f"Unhandled missing parameters in {rule_name}: {unhandled_missing}")
+                    
+                    if missing_keys.unexpected_keys:
+                        logger.info(f"Unexpected parameters in {rule_name} checkpoint (will be ignored): {missing_keys.unexpected_keys}")
 
-                # Case 2: older / simpler checkpoint where 'model' is already just the wrapper state dict
+                # Case 3: older / simpler checkpoint where 'model' is already just the wrapper state dict
                 else:
                     logger.info("No 'model.ebm.' keys detected; treating checkpoint['model'] as direct wrapper state_dict")
-                    wrapper.load_state_dict(full_state)
+                    missing_keys = wrapper.load_state_dict(full_state, strict=False)
+                    
+                    # Initialize missing energy_scale and energy_bias parameters if they weren't in the checkpoint
+                    if missing_keys.missing_keys:
+                        logger.info(f"Missing parameters in {rule_name} checkpoint: {missing_keys.missing_keys}")
+                        
+                        # Initialize energy_scale and energy_bias with their default values if missing
+                        if 'ebm.energy_scale' in missing_keys.missing_keys:
+                            wrapper.ebm.energy_scale.data.fill_(1.0)  # Default value from AlgebraEBM.__init__
+                            logger.info(f"Initialized missing ebm.energy_scale to 1.0 for {rule_name}")
+                        
+                        if 'ebm.energy_bias' in missing_keys.missing_keys:
+                            wrapper.ebm.energy_bias.data.fill_(0.0)   # Default value from AlgebraEBM.__init__
+                            logger.info(f"Initialized missing ebm.energy_bias to 0.0 for {rule_name}")
+                        
+                        # Check if there are any other missing keys we don't know how to handle
+                        unhandled_missing = [k for k in missing_keys.missing_keys 
+                                           if k not in ['ebm.energy_scale', 'ebm.energy_bias']]
+                        if unhandled_missing:
+                            logger.warning(f"Unhandled missing parameters in {rule_name}: {unhandled_missing}")
+                    
+                    if missing_keys.unexpected_keys:
+                        logger.info(f"Unexpected parameters in {rule_name} checkpoint (will be ignored): {missing_keys.unexpected_keys}")
             elif isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                 # Standard PyTorch format
                 logger.info(f"Loading from standard PyTorch checkpoint format for {rule_name}")
-                wrapper.load_state_dict(checkpoint['model_state_dict'])
+                missing_keys = wrapper.load_state_dict(checkpoint['model_state_dict'], strict=False)
+                
+                # Initialize missing energy_scale and energy_bias parameters if they weren't in the checkpoint
+                if missing_keys.missing_keys:
+                    logger.info(f"Missing parameters in {rule_name} checkpoint: {missing_keys.missing_keys}")
+                    
+                    # Initialize energy_scale and energy_bias with their default values if missing
+                    if 'ebm.energy_scale' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_scale.data.fill_(1.0)  # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_scale to 1.0 for {rule_name}")
+                    
+                    if 'ebm.energy_bias' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_bias.data.fill_(0.0)   # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_bias to 0.0 for {rule_name}")
+                    
+                    # Check if there are any other missing keys we don't know how to handle
+                    unhandled_missing = [k for k in missing_keys.missing_keys 
+                                       if k not in ['ebm.energy_scale', 'ebm.energy_bias']]
+                    if unhandled_missing:
+                        logger.warning(f"Unhandled missing parameters in {rule_name}: {unhandled_missing}")
+                
+                if missing_keys.unexpected_keys:
+                    logger.info(f"Unexpected parameters in {rule_name} checkpoint (will be ignored): {missing_keys.unexpected_keys}")
             elif isinstance(checkpoint, dict) and any(key.startswith('ebm.') for key in checkpoint.keys()):
                 # Direct state dict format - check for EBM-specific keys
                 logger.info(f"Loading from direct state dict format for {rule_name}")
-                wrapper.load_state_dict(checkpoint)
+                missing_keys = wrapper.load_state_dict(checkpoint, strict=False)
+                
+                # Initialize missing energy_scale and energy_bias parameters if they weren't in the checkpoint
+                if missing_keys.missing_keys:
+                    logger.info(f"Missing parameters in {rule_name} checkpoint: {missing_keys.missing_keys}")
+                    
+                    # Initialize energy_scale and energy_bias with their default values if missing
+                    if 'ebm.energy_scale' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_scale.data.fill_(1.0)  # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_scale to 1.0 for {rule_name}")
+                    
+                    if 'ebm.energy_bias' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_bias.data.fill_(0.0)   # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_bias to 0.0 for {rule_name}")
+                    
+                    # Check if there are any other missing keys we don't know how to handle
+                    unhandled_missing = [k for k in missing_keys.missing_keys 
+                                       if k not in ['ebm.energy_scale', 'ebm.energy_bias']]
+                    if unhandled_missing:
+                        logger.warning(f"Unhandled missing parameters in {rule_name}: {unhandled_missing}")
+                
+                if missing_keys.unexpected_keys:
+                    logger.info(f"Unexpected parameters in {rule_name} checkpoint (will be ignored): {missing_keys.unexpected_keys}")
             else:
                 # Last resort - try loading as direct state dict with detailed error info
                 logger.warning(f"Unknown checkpoint format for {rule_name}")
@@ -929,7 +1039,29 @@ def load_rule_models(
                         if 'model' in checkpoint:
                             logger.error(f"checkpoint['model'] = {checkpoint['model']}")
                 logger.warning("Attempting direct load anyway...")
-                wrapper.load_state_dict(checkpoint)
+                missing_keys = wrapper.load_state_dict(checkpoint, strict=False)
+                
+                # Initialize missing energy_scale and energy_bias parameters if they weren't in the checkpoint
+                if missing_keys.missing_keys:
+                    logger.info(f"Missing parameters in {rule_name} checkpoint: {missing_keys.missing_keys}")
+                    
+                    # Initialize energy_scale and energy_bias with their default values if missing
+                    if 'ebm.energy_scale' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_scale.data.fill_(1.0)  # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_scale to 1.0 for {rule_name}")
+                    
+                    if 'ebm.energy_bias' in missing_keys.missing_keys:
+                        wrapper.ebm.energy_bias.data.fill_(0.0)   # Default value from AlgebraEBM.__init__
+                        logger.info(f"Initialized missing ebm.energy_bias to 0.0 for {rule_name}")
+                    
+                    # Check if there are any other missing keys we don't know how to handle
+                    unhandled_missing = [k for k in missing_keys.missing_keys 
+                                       if k not in ['ebm.energy_scale', 'ebm.energy_bias']]
+                    if unhandled_missing:
+                        logger.warning(f"Unhandled missing parameters in {rule_name}: {unhandled_missing}")
+                
+                if missing_keys.unexpected_keys:
+                    logger.info(f"Unexpected parameters in {rule_name} checkpoint (will be ignored): {missing_keys.unexpected_keys}")
             
             wrapper.to(device)
             wrapper.eval()

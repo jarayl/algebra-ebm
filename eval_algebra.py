@@ -231,7 +231,7 @@ def run_single_rule_evaluation(
     if not single_rule_models:
         raise ValueError(f"Model for rule {rule} not found in loaded models")
     
-    from algebra_evaluation import evaluate_model
+    from src.algebra.algebra_evaluation import evaluate_model
     
     result = evaluate_model(
         rule_models=single_rule_models,
@@ -328,7 +328,7 @@ def run_full_evaluation_suite(
     logger.info(f"Running evaluation on {len(all_datasets)} test sets")
     
     # Run evaluation suite
-    from algebra_evaluation import evaluate_model_suite
+    from src.algebra.algebra_evaluation import evaluate_model_suite
     
     results = evaluate_model_suite(
         rule_models=rule_models,
@@ -636,10 +636,10 @@ def main():
         
         # Create encoder and decoder
         if args.encoder_type == 'character':
-            from algebra_encoder import create_character_encoder
+            from src.algebra.algebra_encoder import create_character_encoder
             encoder = create_character_encoder(d_model=128)
         else:
-            from algebra_encoder import create_ast_encoder
+            from src.algebra.algebra_encoder import create_ast_encoder
             encoder = create_ast_encoder(d_model=128)
         
         logger.info(f"Created {args.encoder_type} encoder")
@@ -690,7 +690,7 @@ def main():
                 num_problems=args.multi_rule_problems
             )
             
-            from algebra_evaluation import evaluate_model_suite
+            from src.algebra.algebra_evaluation import evaluate_model_suite
             results = evaluate_model_suite(
                 rule_models=rule_models,
                 test_datasets=datasets,
@@ -705,7 +705,7 @@ def main():
                 num_problems=args.constrained_problems
             )
             
-            from algebra_evaluation import evaluate_model_suite
+            from src.algebra.algebra_evaluation import evaluate_model_suite
             results = evaluate_model_suite(
                 rule_models=rule_models,
                 test_datasets=datasets,
