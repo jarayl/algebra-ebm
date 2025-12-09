@@ -92,7 +92,7 @@ def parse_distribution(dist_str):
 def build_variability_config(args):
     """Build variability configuration from command line arguments."""
     config = {
-        'enable_stratified_sampling': args.enable_stratified_sampling,
+        'enable_stratified_sampling': False,
         'enable_solution_first': args.enable_solution_first
     }
     
