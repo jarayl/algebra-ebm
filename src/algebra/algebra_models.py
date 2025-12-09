@@ -199,9 +199,9 @@ class AlgebraEBM(nn.Module):
         # This is critical: without scaling, energies are stuck at ~0.2 with normalized inputs
         energy = self.energy_scale * raw_energy + self.energy_bias
         
-        # Energy statistics monitoring for debugging and analysis
+        # Energy statistics monitoring for debugging and analysis (only in DEBUG mode)
         logger = logging.getLogger(__name__)
-        if logger.isEnabledFor(logging.DEBUG) or True:  # TEMPORARY: Always log for debugging flat landscapes
+        if logger.isEnabledFor(logging.DEBUG):
             energy_stats = {
                 'min': energy.min().item(),
                 'max': energy.max().item(),
@@ -212,12 +212,13 @@ class AlgebraEBM(nn.Module):
                         f"max={energy_stats['max']:.6e}, mean={energy_stats['mean']:.6e}, "
                         f"std={energy_stats['std']:.6e}, clipping={'enabled' if self.enable_magnitude_clipping else 'disabled'}")
             
-            # CRITICAL: Detect flat energy landscape that breaks inference
-            if energy_stats['std'] < 1e-6 or energy_stats['min'] == energy_stats['max']:
-                logger.error(f"FLAT ENERGY LANDSCAPE DETECTED in {self.rule_name or 'unnamed'} model!")
-                logger.error(f"All energies are identical: {energy_stats['mean']:.6f}. This breaks inference completely.")
-                logger.error(f"Model parameters: energy_scale={self.energy_scale.item():.6f}, energy_bias={self.energy_bias.item():.6f}")
-                logger.error("Possible causes: 1) Model undertrained 2) FiLM layers dominating input 3) Incorrect loss function")
+            # Detect flat energy landscape - but only warn if batch has varied outputs
+            # (identical inputs in a batch legitimately produce identical energies)
+            if energy.shape[0] > 1 and energy_stats['std'] < 1e-6:
+                # Check if outputs are also identical (expected) vs model ignoring output (bug)
+                output_std = output.std().item()
+                if output_std > 1e-4:  # Outputs vary but energies don't - this is the real bug
+                    logger.warning(f"FLAT ENERGY LANDSCAPE: outputs vary (std={output_std:.6f}) but energies identical")
         
         # Numerical stability monitoring - detect Inf/NaN values in energy
         if not torch.isfinite(energy).all():

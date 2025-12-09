@@ -7,3 +7,4 @@ __pycache__/
 .idea/
 .vscode/
 __pycache__/
+/test_results/

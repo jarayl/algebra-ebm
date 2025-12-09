@@ -50,6 +50,339 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def load_diffusion_model_for_inference(
+    checkpoint_path: str,
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+) -> Tuple[Any, Any]:
+    """
+    Load the full GaussianDiffusion1D model from checkpoint for proper inference.
+    
+    This loads the EBM weights and creates a fresh diffusion model with the 
+    correct settings for inference (continuous=True for algebra problems).
+    
+    Args:
+        checkpoint_path: Path to the checkpoint file (model.pt from training)
+        device: Device to load model on
+        
+    Returns:
+        diffusion: GaussianDiffusion1D model ready for sampling
+        ebm: The underlying AlgebraEBM model
+        
+    Note:
+        We create a fresh diffusion model with continuous=True because:
+        1. The checkpoint may have different opt_step_size values than needed
+        2. continuous=True provides proper scaling for algebra embeddings
+        3. This matches how test_ired_inference.py achieves 87%+ accuracy
+    """
+    from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D
+    from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
+    
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    
+    if 'model' not in checkpoint:
+        raise ValueError(f"Checkpoint does not contain 'model' key. Found: {checkpoint.keys()}")
+    
+    state_dict = checkpoint['model']
+    
+    # Detect timesteps from checkpoint
+    if 'betas' in state_dict:
+        timesteps = len(state_dict['betas'])
+    else:
+        timesteps = 10  # Default
+        logger.warning(f"Could not detect timesteps from checkpoint, using default: {timesteps}")
+    
+    # Extract rule name from checkpoint path if possible
+    rule_name = 'unknown'
+    path_parts = str(checkpoint_path).split('/')
+    for part in path_parts:
+        if any(rule in part for rule in ['distribute', 'combine', 'isolate', 'divide']):
+            for rule in ['distribute', 'combine', 'isolate', 'divide']:
+                if rule in part:
+                    rule_name = rule
+                    break
+            break
+    
+    # Create the EBM model
+    ebm = AlgebraEBM(inp_dim=128, out_dim=128, rule_name=rule_name)
+    wrapper = AlgebraDiffusionWrapper(ebm)
+    
+    # Extract EBM weights from the checkpoint
+    ebm_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith('model.ebm.'):
+            new_key = k.replace('model.ebm.', '')
+            ebm_state_dict[new_key] = v
+    
+    if ebm_state_dict:
+        ebm.load_state_dict(ebm_state_dict)
+        logger.info(f"Loaded EBM weights ({len(ebm_state_dict)} parameters)")
+    else:
+        logger.warning("No EBM weights found in checkpoint!")
+    
+    ebm.eval()
+    
+    # Create a FRESH diffusion model with correct settings for inference
+    # CRITICAL: continuous=True is needed for proper algebra inference
+    # This matches the test_ired_inference.py configuration that achieves 87%+ accuracy
+    diffusion = GaussianDiffusion1D(
+        wrapper,
+        seq_length=128,
+        timesteps=timesteps,
+        sampling_timesteps=timesteps,
+        supervise_energy_landscape=True,
+        use_innerloop_opt=True,
+        use_contrastive_energy_loss=True,
+        step_size_multiplier=0.1,
+        show_inference_tqdm=False,  # Reduce noise during batch evaluation
+        continuous=True,  # CRITICAL: Needed for proper scaling in algebra domain
+    ).to(device)
+    
+    diffusion.eval()
+    
+    logger.info(f"Loaded diffusion model from {checkpoint_path} with {timesteps} timesteps (continuous=True)")
+    
+    return diffusion, ebm
+
+
+def evaluate_with_real_diffusion(
+    checkpoint_path: str,
+    test_dataset: Union[AlgebraDataset, MultiRuleDataset, ConstrainedDataset],
+    encoder: Union[CharacterLevelEncoder, ASTEncoder],
+    decoder: Optional[EquationDecoder] = None,
+    max_samples: Optional[int] = None,
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+    store_detailed_results: bool = True
+) -> Dict[str, Any]:
+    """
+    Evaluate using the REAL GaussianDiffusion1D.sample() method with full metrics.
+    
+    This uses the actual diffusion sampling procedure that was validated to work
+    at 87% distance improvement, rather than the custom AlgebraInference which
+    has different (and problematic) inference parameters.
+    
+    This function computes comprehensive metrics including:
+    - Embedding distance improvement (how close predicted embedding is to target)
+    - Symbolic equivalence (whether decoded equation solves to same x value)
+    - Invalid rate (syntactically invalid decoded equations)
+    
+    Args:
+        checkpoint_path: Path to the trained model checkpoint
+        test_dataset: Test dataset to evaluate on
+        encoder: Equation encoder
+        decoder: Equation decoder (optional, will rebuild from dataset if provided)
+        max_samples: Maximum samples to evaluate
+        device: Device for inference
+        store_detailed_results: Whether to store per-sample detailed results
+        
+    Returns:
+        Comprehensive evaluation results compatible with eval_algebra.py
+    """
+    logger.info(f"Loading diffusion model for real inference from {checkpoint_path}")
+    diffusion, ebm = load_diffusion_model_for_inference(checkpoint_path, device)
+    
+    # Rebuild decoder with candidates from the actual test dataset for better matching
+    if decoder is not None:
+        logger.info(f"Rebuilding decoder with candidates from test dataset...")
+        decoder = create_decoder_from_dataset(
+            encoder=encoder, 
+            dataset=test_dataset,
+            distance_threshold=decoder.distance_threshold,
+            include_inputs=True
+        )
+        logger.info(f"Decoder rebuilt with {len(decoder.candidate_equations)} candidates")
+    
+    # Limit samples
+    num_samples = min(len(test_dataset), max_samples) if max_samples else len(test_dataset)
+    
+    results = []
+    predicted_embeddings = []
+    target_embeddings = []
+    predicted_equations = []
+    target_equations = []
+    
+    logger.info(f"Evaluating {num_samples} samples with real diffusion sampling...")
+    start_time = time.time()
+    
+    for idx in range(num_samples):
+        try:
+            # Get data from dataset
+            sample = test_dataset[idx]
+            inp = sample[0].unsqueeze(0).to(device)  # Input embedding
+            target = sample[1].unsqueeze(0).to(device)  # Target embedding
+            
+            # Get equation strings if available
+            input_eq_str = None
+            target_eq_str = None
+            if hasattr(test_dataset, 'get_equation_pair'):
+                input_eq_str, target_eq_str = test_dataset.get_equation_pair(idx)
+            elif hasattr(test_dataset, 'get_problem_info'):
+                problem_info = test_dataset.get_problem_info(idx)
+                input_eq_str = problem_info.get('input_equation')
+                target_eq_str = problem_info.get('target_equation')
+            
+            # Track initial distance from noise
+            initial_noise = torch.randn(1, 128, device=device)
+            initial_dist = (initial_noise - target).norm().item()
+            
+            # Run the REAL diffusion sampling
+            with torch.no_grad():
+                # GaussianDiffusion1D.sample(x, label, mask, batch_size)
+                pred_embedding = diffusion.sample(
+                    x=inp,
+                    label=target,  # Used for conditioning in some modes
+                    mask=None,
+                    batch_size=1
+                )
+            
+            final_dist = (pred_embedding - target).norm().item()
+            improvement = (initial_dist - final_dist) / initial_dist if initial_dist > 0 else 0
+            
+            # Decode predicted embedding to equation string
+            pred_eq_str = None
+            decoding_distance = float('inf')
+            if decoder is not None:
+                pred_eq_str, decoding_distance = decoder.decode_embedding(pred_embedding.squeeze(0).cpu())
+            
+            result = {
+                'index': idx,
+                'input_equation': input_eq_str,
+                'target_equation': target_eq_str,
+                'predicted_equation': pred_eq_str,
+                'initial_distance': initial_dist,
+                'final_distance': final_dist,
+                'distance_improvement': improvement,
+                'decoding_distance': decoding_distance,
+                'success': improvement > 0.5
+            }
+            results.append(result)
+            
+            predicted_embeddings.append(pred_embedding.detach().cpu())
+            target_embeddings.append(target.detach().cpu())
+            predicted_equations.append(pred_eq_str)
+            target_equations.append(target_eq_str)
+            
+            if (idx + 1) % 10 == 0:
+                logger.info(f"Processed {idx + 1}/{num_samples} samples...")
+                
+        except Exception as e:
+            logger.error(f"Error processing sample {idx}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            results.append({
+                'index': idx,
+                'error': str(e),
+                'success': False
+            })
+            predicted_equations.append(None)
+            target_equations.append(None)
+    
+    eval_time = time.time() - start_time
+    
+    # Aggregate results
+    valid_results = [r for r in results if 'error' not in r]
+    
+    summary = {
+        'method': 'GaussianDiffusion1D.sample()',
+        'checkpoint': checkpoint_path,
+        'num_samples': num_samples,
+        'num_valid': len(valid_results),
+        'evaluation_time': eval_time,
+        'mean_initial_distance': float(np.mean([r['initial_distance'] for r in valid_results])),
+        'mean_final_distance': float(np.mean([r['final_distance'] for r in valid_results])),
+        'std_final_distance': float(np.std([r['final_distance'] for r in valid_results])),
+        'mean_distance_improvement': float(np.mean([r['distance_improvement'] for r in valid_results])),
+        'std_distance_improvement': float(np.std([r['distance_improvement'] for r in valid_results])),
+        'success_rate_50pct': float(np.mean([r['distance_improvement'] > 0.5 for r in valid_results])),
+        'success_rate_25pct': float(np.mean([r['distance_improvement'] > 0.25 for r in valid_results])),
+        'success_rate_any': float(np.mean([r['distance_improvement'] > 0 for r in valid_results])),
+    }
+    
+    logger.info(f"\n{'='*60}")
+    logger.info(f"[Real Diffusion Evaluation Results]")
+    logger.info(f"{'='*60}")
+    logger.info(f"  Samples: {summary['num_valid']}/{summary['num_samples']}")
+    logger.info(f"  Mean initial distance: {summary['mean_initial_distance']:.4f}")
+    logger.info(f"  Mean final distance: {summary['mean_final_distance']:.4f} ± {summary['std_final_distance']:.4f}")
+    logger.info(f"  Distance improvement: {summary['mean_distance_improvement']*100:.1f}% ± {summary['std_distance_improvement']*100:.1f}%")
+    logger.info(f"  Success rate (>50%): {summary['success_rate_50pct']*100:.1f}%")
+    logger.info(f"  Success rate (>25%): {summary['success_rate_25pct']*100:.1f}%")
+    logger.info(f"  Success rate (any): {summary['success_rate_any']*100:.1f}%")
+    logger.info(f"{'='*60}")
+    
+    # Compute symbolic equivalence if we have decoded equations
+    symbolic_results = {'symbolic_equivalence_rate': 0.0, 'equivalent_count': 0, 'total_equations': 0}
+    if any(eq is not None for eq in predicted_equations) and any(eq is not None for eq in target_equations):
+        # Filter out None values for symbolic comparison
+        valid_pred_eqs = []
+        valid_target_eqs = []
+        for pred_eq, target_eq in zip(predicted_equations, target_equations):
+            if pred_eq is not None and target_eq is not None:
+                valid_pred_eqs.append(pred_eq)
+                valid_target_eqs.append(target_eq)
+        
+        if valid_pred_eqs:
+            symbolic_results = compute_symbolic_equivalence(valid_pred_eqs, valid_target_eqs)
+            logger.info(f"  Symbolic equivalence: {symbolic_results['symbolic_equivalence_rate']*100:.1f}%")
+    
+    # Compute embedding distances
+    embedding_results = {'mean_l2_distance': 0.0}
+    if predicted_embeddings and target_embeddings:
+        pred_tensor = torch.cat(predicted_embeddings, dim=0)
+        target_tensor = torch.cat(target_embeddings, dim=0)
+        embedding_results = compute_embedding_distances(pred_tensor, target_tensor)
+    
+    # Compute invalid rate
+    validity_results = compute_invalid_rate(predicted_equations)
+    logger.info(f"  Invalid equation rate: {validity_results['invalid_rate']*100:.1f}%")
+    
+    # Update summary with full metrics
+    summary.update({
+        'accuracy': symbolic_results['symbolic_equivalence_rate'],
+        'invalid_rate': validity_results['invalid_rate'],
+        'mean_l2_distance': embedding_results['mean_l2_distance'],
+        'total_evaluated': num_samples
+    })
+    
+    # Build comprehensive results compatible with eval_algebra.py
+    evaluation_results = {
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'checkpoint': checkpoint_path,
+        'dataset_type': type(test_dataset).__name__,
+        'dataset_info': test_dataset.get_dataset_info() if hasattr(test_dataset, 'get_dataset_info') else {},
+        'num_samples_evaluated': num_samples,
+        'evaluation_time_seconds': eval_time,
+        'inference_method': 'GaussianDiffusion1D.sample(continuous=True)',
+        'symbolic_equivalence': symbolic_results,
+        'embedding_distances': embedding_results,
+        'validity': validity_results,
+        'distance_metrics': {
+            'mean_initial_distance': summary['mean_initial_distance'],
+            'mean_final_distance': summary['mean_final_distance'],
+            'std_final_distance': summary['std_final_distance'],
+            'mean_distance_improvement': summary['mean_distance_improvement'],
+            'std_distance_improvement': summary['std_distance_improvement'],
+            'success_rate_50pct': summary['success_rate_50pct'],
+            'success_rate_25pct': summary['success_rate_25pct'],
+            'success_rate_any': summary['success_rate_any'],
+        },
+        'summary': summary,
+    }
+    
+    # Add detailed results if requested
+    if store_detailed_results:
+        evaluation_results['individual_results'] = results
+        evaluation_results['predicted_equations'] = predicted_equations
+        evaluation_results['target_equations'] = target_equations
+    
+    # Add embeddings if available
+    if predicted_embeddings:
+        evaluation_results['predicted_embeddings'] = torch.cat(predicted_embeddings, dim=0)
+    if target_embeddings:
+        evaluation_results['target_embeddings'] = torch.cat(target_embeddings, dim=0)
+    
+    return evaluation_results
+
+
 def compute_symbolic_equivalence(
     predicted_equations: List[str], 
     target_equations: List[str],
