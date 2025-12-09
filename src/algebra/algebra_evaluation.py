@@ -1590,8 +1590,11 @@ def evaluate_with_composition(
     rule_models_dict: Dict[str, Any],
     test_dataset: Union[MultiRuleDataset, ConstrainedDataset],
     diffusion_template: Any,
+    encoder: Union[CharacterLevelEncoder, ASTEncoder],
+    decoder: Optional[EquationDecoder] = None,
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
-    max_samples: Optional[int] = None
+    max_samples: Optional[int] = None,
+    store_detailed_results: bool = True
 ) -> Dict[str, Any]:
     """
     Evaluate multi-rule datasets using compositional sampling.
@@ -1603,8 +1606,11 @@ def evaluate_with_composition(
         rule_models_dict: Dictionary mapping rule names to trained EBM models
         test_dataset: Multi-rule test dataset to evaluate on
         diffusion_template: Diffusion model template with compositional sampling capability
+        encoder: Equation encoder for converting strings to embeddings
+        decoder: Equation decoder for converting embeddings to strings (optional, will rebuild from dataset if None)
         device: Device for computation
         max_samples: Maximum number of samples to evaluate
+        store_detailed_results: Whether to store detailed per-sample results
         
     Returns:
         Comprehensive evaluation results in same format as existing evaluations
@@ -1615,6 +1621,17 @@ def evaluate_with_composition(
     # Limit samples if requested
     num_samples = min(len(test_dataset), max_samples) if max_samples else len(test_dataset)
     logger.info(f"Evaluating {num_samples} samples with compositional sampling")
+    
+    # Rebuild decoder with candidates from the actual test dataset for better matching
+    if decoder is not None:
+        logger.info(f"Rebuilding decoder with candidates from test dataset...")
+        decoder = create_decoder_from_dataset(
+            encoder=encoder, 
+            dataset=test_dataset,
+            distance_threshold=decoder.distance_threshold,
+            include_inputs=True
+        )
+        logger.info(f"Decoder rebuilt with {len(decoder.candidate_equations)} candidates")
     
     # Storage for results
     predicted_embeddings = []
@@ -1683,14 +1700,22 @@ def evaluate_with_composition(
             improvement = (initial_dist - final_dist) / initial_dist if initial_dist > 0 else 0
             
             # Store results
+            # Decode predicted embedding to equation string
+            pred_eq_str = None
+            decoding_distance = float('inf')
+            if decoder is not None:
+                pred_eq_str, decoding_distance = decoder.decode_embedding(pred_embedding.squeeze(0).cpu())
+            
             result = {
                 'index': idx,
                 'input_equation': input_eq_str,
                 'target_equation': target_eq_str,
+                'predicted_equation': pred_eq_str,
                 'rules_applied': rules_applied,
                 'initial_distance': initial_dist,
                 'final_distance': final_dist,
                 'distance_improvement': improvement,
+                'decoding_distance': decoding_distance,
                 'success': improvement > 0.5
             }
             individual_results.append(result)
@@ -1698,7 +1723,7 @@ def evaluate_with_composition(
             # Store embeddings and equations for metric computation
             predicted_embeddings.append(pred_embedding.detach().cpu())
             target_embeddings.append(target.detach().cpu())
-            predicted_equations.append(None)  # Will be filled by decoder if available
+            predicted_equations.append(pred_eq_str)
             target_equations.append(target_eq_str)
             
             if (idx + 1) % 10 == 0:

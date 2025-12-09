@@ -851,9 +851,9 @@ def main():
         
         logger.info(f"Created {args.encoder_type} encoder")
         
-        # Create decoder - let evaluate_model rebuild it from test dataset
-        decoder = None
-        logger.info("Decoder set to None - will be rebuilt from test dataset in evaluate_model")
+        # Create decoder with default candidates - evaluate_model will rebuild it from test dataset
+        decoder = create_decoder_with_default_candidates(encoder, distance_threshold=2.0)
+        logger.info(f"Created decoder with {len(decoder.candidate_equations)} default candidates - will be rebuilt from test dataset in evaluate_model")
         
         # Load rule models only if NOT using real diffusion AND NOT doing monolithic evaluation
         rule_models = None
@@ -1044,8 +1044,11 @@ def main():
                         rule_models_dict=rule_models,
                         test_dataset=test_dataset,
                         diffusion_template=diffusion_template,
+                        encoder=encoder,
+                        decoder=decoder,
                         device=device,
-                        max_samples=args.max_samples
+                        max_samples=args.max_samples,
+                        store_detailed_results=args.save_detailed
                     )
                     
                     comp_results[f'multi_rule_{num_rules}'] = result
