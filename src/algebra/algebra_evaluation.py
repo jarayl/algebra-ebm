@@ -27,6 +27,7 @@ Example Usage:
 """
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 import logging
 import traceback
@@ -331,8 +332,10 @@ def evaluate_with_real_diffusion(
                 input_eq_str = problem_info.get('input_equation')
                 target_eq_str = problem_info.get('target_equation')
             
-            # Track initial distance from noise
+            # Track initial distance from noise  
+            # Normalize random noise to match target scale for fair comparison
             initial_noise = torch.randn(1, 128, device=device)
+            initial_noise = F.normalize(initial_noise, p=2, dim=-1)
             initial_dist = (initial_noise - target).norm().item()
             
             # Run the REAL diffusion sampling
@@ -344,6 +347,12 @@ def evaluate_with_real_diffusion(
                     mask=None,
                     batch_size=1
                 )
+                
+                # CRITICAL FIX: Normalize predicted embeddings to match target scale
+                # Target embeddings are normalized to unit L2 norm during encoding,
+                # but diffusion outputs are clamped to [-2.0, 2.0] range.
+                # This normalization fixes the scale mismatch that causes negative distance improvement.
+                pred_embedding = F.normalize(pred_embedding, p=2, dim=-1)
             
             final_dist = (pred_embedding - target).norm().item()
             improvement = (initial_dist - final_dist) / initial_dist if initial_dist > 0 else 0
@@ -1660,9 +1669,15 @@ def evaluate_with_composition(
                         mask=None,
                         batch_size=1
                     )
+                
+                # CRITICAL FIX: Normalize predicted embeddings to match target scale
+                # Same normalization fix as in evaluate_with_real_diffusion
+                pred_embedding = F.normalize(pred_embedding, p=2, dim=-1)
             
             # Compute distance metrics
+            # Normalize random noise to match target scale for fair comparison
             initial_noise = torch.randn_like(target, device=device)
+            initial_noise = F.normalize(initial_noise, p=2, dim=-1)
             initial_dist = (initial_noise - target).norm().item()
             final_dist = (pred_embedding - target).norm().item()
             improvement = (initial_dist - final_dist) / initial_dist if initial_dist > 0 else 0
