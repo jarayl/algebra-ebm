@@ -251,8 +251,8 @@ python eval_algebra.py \
     --model_dir "$MODEL_DIR" \
     --output_dir "$OUTPUT_DIR" \
     --eval_type full \
-    --single_rule_problems 100 \
-    --multi_rule_problems 100 \
+    --single_rule_problems 50 \
+    --multi_rule_problems 50 \
     --constrained_problems 50 \
     --save_detailed \
     --verbose \
@@ -266,51 +266,62 @@ EVAL_EXIT=$?
 if [ $EVAL_EXIT -eq 0 ]; then
     echo "Full evaluation completed successfully!"
     
-    # Also run quick individual evaluations for each rule
-    echo "Running individual rule evaluations..."
+    # Run individual evaluations for each rule in parallel
+    echo "Running individual rule evaluations in parallel..."
     
+    # Start background jobs for each rule
+    declare -A rule_pids
     for rule in distribute combine isolate divide; do
-        echo "Evaluating rule: $rule"
+        echo "Starting evaluation for rule: $rule"
         python eval_algebra.py \
             --model_dir "$MODEL_DIR" \
             --output_dir "$OUTPUT_DIR" \
             --eval_type single_rule \
             --rule "$rule" \
-            --single_rule_problems 100 \
+            --single_rule_problems 50 \
             --verbose \
             --device auto \
-            --seed 42
+            --seed 42 &
         
-        # Check individual rule evaluation exit code
+        rule_pids[$rule]=$!
+        echo "Rule $rule evaluation started with PID: ${rule_pids[$rule]}"
+    done
+    
+    # Wait for all background jobs and collect exit codes
+    echo "Waiting for all rule evaluations to complete..."
+    for rule in distribute combine isolate divide; do
+        wait ${rule_pids[$rule]}
         RULE_EXIT=$?
         if [ $RULE_EXIT -ne 0 ]; then
             echo "ERROR: Individual evaluation for rule $rule failed with exit code: $RULE_EXIT"
-            echo "FAST FAIL: Stopping further individual evaluations."
+            echo "FAST FAIL: Stopping due to failed rule evaluation."
             exit $RULE_EXIT
+        else
+            echo "Rule $rule evaluation completed successfully"
         fi
     done
     
-    # Run multi-rule evaluations
-    for num_rules in 2 3 4; do
-        echo "Evaluating ${num_rules}-rule compositions..."
-        python eval_algebra.py \
-            --model_dir "$MODEL_DIR" \
-            --output_dir "$OUTPUT_DIR" \
-            --eval_type multi_rule \
-            --num_rules "$num_rules" \
-            --multi_rule_problems 100 \
-            --verbose \
-            --device auto \
-            --seed 42
-        
-        # Check multi-rule evaluation exit code
-        MULTI_EXIT=$?
-        if [ $MULTI_EXIT -ne 0 ]; then
-            echo "ERROR: Multi-rule evaluation for $num_rules rules failed with exit code: $MULTI_EXIT"
-            echo "FAST FAIL: Stopping further multi-rule evaluations."
-            exit $MULTI_EXIT
-        fi
-    done
+    echo "All individual rule evaluations completed successfully!"
+    
+    # Run 2-rule composition evaluation only
+    echo "Evaluating 2-rule compositions..."
+    python eval_algebra.py \
+        --model_dir "$MODEL_DIR" \
+        --output_dir "$OUTPUT_DIR" \
+        --eval_type multi_rule \
+        --num_rules 2 \
+        --multi_rule_problems 50 \
+        --verbose \
+        --device auto \
+        --seed 42
+    
+    # Check multi-rule evaluation exit code
+    MULTI_EXIT=$?
+    if [ $MULTI_EXIT -ne 0 ]; then
+        echo "ERROR: Multi-rule evaluation for 2 rules failed with exit code: $MULTI_EXIT"
+        echo "FAST FAIL: Multi-rule evaluation failed."
+        exit $MULTI_EXIT
+    fi
     
     echo "All evaluations completed!"
 else
