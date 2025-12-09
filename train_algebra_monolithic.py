@@ -48,7 +48,7 @@ from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Tr
 from src.datasets.dataset import NoisyWrapper
 
 # Algebra-specific components  
-from src.algebra.algebra_dataset import AlgebraDataset, CurriculumDataset, CombinedAlgebraDataset
+from src.algebra.algebra_dataset import AlgebraDataset, CombinedAlgebraDataset
 from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 
 
