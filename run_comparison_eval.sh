@@ -164,24 +164,24 @@ echo ""
 
 start_time=$(date +%s)
 
-# Option 1: Use wrapper script (recommended)
-python compare_monolithic_vs_compositional.py \
+# Option 2: Direct call (recommended for cluster)
+python eval_algebra.py \
+    --eval_type comparison \
+    --use_real_diffusion \
+    --checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
     --monolithic_checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
-    --compositional_dir "$JOB_SCRATCH/results" \
-    --num_samples $EVAL_SAMPLES \
+    --model_dir "$JOB_SCRATCH/results" \
+    --max_samples $EVAL_SAMPLES \
     --output_dir "$OUTPUT_DIR" \
     --verbose
 
 EVAL_EXIT=$?
 
-# Option 2: Direct call (alternative)
-# python eval_algebra.py \
-#     --eval_type comparison \
-#     --use_real_diffusion \
-#     --checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
+# Option 1: Use wrapper script (alternative - has path issues on cluster)
+# python compare_monolithic_vs_compositional.py \
 #     --monolithic_checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
-#     --model_dir "$JOB_SCRATCH/results" \
-#     --max_samples $EVAL_SAMPLES \
+#     --compositional_dir "$JOB_SCRATCH/results" \
+#     --num_samples $EVAL_SAMPLES \
 #     --output_dir "$OUTPUT_DIR" \
 #     --verbose
 

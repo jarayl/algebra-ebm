@@ -49,7 +49,7 @@ from src.diffusion.denoising_diffusion_pytorch_1d import GaussianDiffusion1D, Tr
 from src.datasets.dataset import NoisyWrapper
 
 # Algebra-specific components  
-from src.algebra.algebra_dataset import AlgebraDataset, CurriculumDataset
+from src.algebra.algebra_dataset import AlgebraDataset
 from src.algebra.algebra_models import AlgebraEBM, AlgebraDiffusionWrapper
 
 
@@ -540,16 +540,10 @@ def main():
             })
         
         if args.use_curriculum:
-            print(f"Initializing CurriculumDataset (depth={args.curriculum_depth}) for target rule '{args.rule}'...")
-            dataset = CurriculumDataset(
-                target_rule=args.rule,
-                num_rules=args.curriculum_depth,
-                split=args.split,
-                num_problems=args.num_problems,
-                d_model=args.d_model
-            )
-        else:
-            dataset = AlgebraDataset(**dataset_kwargs)
+            print("Warning: Curriculum learning not supported yet")
+            print("Falling back to standard AlgebraDataset...")
+        
+        dataset = AlgebraDataset(**dataset_kwargs)
     except Exception as e:
         print(f"Error creating dataset: {e}")
         print("Check that algebra_dataset.py and dependencies are properly installed")

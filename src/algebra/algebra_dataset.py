@@ -373,6 +373,21 @@ class AlgebraDataset(data.Dataset):
             }
         }
     
+    def get_problem_info(self, index: int) -> Dict:
+        """Get problem information for evaluation."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        
+        input_eq, target_eq = self.equation_pairs[index]
+        
+        return {
+            'input_equation': input_eq,
+            'target_equation': target_eq,
+            'rules_applied': [self.rule],  # Single rule for this dataset
+            'num_rules': 1,
+            'rule': self.rule
+        }
+    
     def __len__(self) -> int:
         return len(self.equation_pairs)
     
@@ -476,6 +491,22 @@ class MultiRuleDataset(data.Dataset):
             target_eq = f"{var} = 1"
             
         return input_eq, target_eq
+    
+    def get_problem_info(self, index: int) -> Dict:
+        """Get problem information for evaluation."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        
+        input_eq, target_eq = self.equation_pairs[index]
+        rules_applied = self.rule_sequences_used[index]
+        
+        return {
+            'input_equation': input_eq,
+            'target_equation': target_eq,
+            'rules_applied': rules_applied,
+            'num_rules': len(rules_applied),
+            'rule_sequence': rules_applied
+        }
     
     def __len__(self) -> int:
         return len(self.equation_pairs)
@@ -586,6 +617,22 @@ class ConstrainedDataset(data.Dataset):
             target_eq = f"{var} = {solution} (range: {self.solution_range[0]}-{self.solution_range[1]})"
             
         return input_eq, target_eq
+    
+    def get_problem_info(self, index: int) -> Dict:
+        """Get problem information for evaluation."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        
+        input_eq, target_eq = self.equation_pairs[index]
+        
+        return {
+            'input_equation': input_eq,
+            'target_equation': target_eq,
+            'rules_applied': [self.constraint_type],  # Constraint type as the rule
+            'num_rules': 1,
+            'constraint_type': self.constraint_type,
+            'solution_range': self.solution_range
+        }
     
     def __len__(self) -> int:
         return len(self.equation_pairs)
@@ -915,6 +962,23 @@ class CombinedAlgebraDataset(data.Dataset):
                 'Perfect rule distribution' if distribution_correct and total_correct
                 else f'Distribution issues: {rule_counts}'
             )
+        }
+    
+    def get_problem_info(self, index: int) -> Dict:
+        """Get problem information for evaluation."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        
+        input_eq, target_eq = self.equation_pairs[index]
+        rule_applied = self.rule_labels[index]
+        
+        return {
+            'input_equation': input_eq,
+            'target_equation': target_eq,
+            'rules_applied': [rule_applied],  # Single rule for each problem
+            'num_rules': 1,
+            'rule': rule_applied,
+            'monolithic': True  # This is from the monolithic dataset
         }
     
     def __len__(self) -> int:

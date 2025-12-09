@@ -127,7 +127,14 @@ class AlgebraEBM(nn.Module):
                     if module.bias is not None:
                         nn.init.zeros_(module.bias)
         
-    def forward(self, inp: torch.Tensor, out: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, 
+        inp: torch.Tensor, 
+        out: torch.Tensor, 
+        t: torch.Tensor,
+        return_energy: bool = False,
+        return_both: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, None]]:
         """
         Forward pass computing energy for (inp, out) pair at timestep t.
         
@@ -135,9 +142,12 @@ class AlgebraEBM(nn.Module):
             inp: Input equation embedding (B, inp_dim)
             out: Output equation embedding (B, out_dim)  
             t: Diffusion timestep (B,) in range [0, 9]
+            return_energy: If True, return energy (default: True for compatibility)
+            return_both: If True, return (energy, None) for interface compatibility
             
         Returns:
-            energy: Non-negative energy scalar (B, 1)
+            energy: Non-negative energy scalar (B, 1) [default and return_energy=True]
+            (energy, None): Tuple for interface compatibility [if return_both=True]
         """
         # Input validation
         assert inp.shape[-1] == self.inp_dim, f"Expected inp_dim={self.inp_dim}, got {inp.shape[-1]}"
@@ -251,7 +261,14 @@ class AlgebraEBM(nn.Module):
             logger = logging.getLogger(__name__)
             logger.warning(f"AlgebraEBM: Unexpected large energy after conditioning: {energy_max:.2e}")
         
-        return energy
+        # Handle return format based on arguments
+        if return_both:
+            # Return (energy, None) for interface compatibility with wrapper
+            return energy, None
+        else:
+            # Default behavior: always return energy for AlgebraEBM
+            # (return_energy parameter is ignored since this is an energy model)
+            return energy
 
 
 class AlgebraDiffusionWrapper(nn.Module):
