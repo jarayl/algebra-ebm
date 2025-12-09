@@ -192,11 +192,11 @@ def parse_args():
     parser.add_argument(
         '--train_steps',
         type=int,
-        default=200000,
-        help='Total training steps for fair comparison with compositional approach. '
+        default=2000,
+        help='Total training steps. Default 2000 for quick testing. '
+             'Use 200000 for full training (fair comparison with compositional approach). '
              'Note: 200K monolithic steps process 4x data per step vs compositional (50K steps × 4 rules), '
-             'providing step-count fairness but different computational requirements. '
-             'Monolithic approach trades wall-clock time for unified representation learning.'
+             'providing step-count fairness but different computational requirements.'
     )
     
     parser.add_argument(
@@ -231,8 +231,9 @@ def parse_args():
     parser.add_argument(
         '--problems_per_rule',
         type=int,
-        default=50000,
-        help='Number of problems to generate per rule (for monolithic training)'
+        default=2000,
+        help='Number of problems to generate per rule. Default 2000 for quick testing. '
+             'Use 50000 for full training (for monolithic training)'
     )
     
     parser.add_argument(
