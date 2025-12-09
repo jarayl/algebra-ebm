@@ -320,12 +320,6 @@ This document tracks our progress through implementing the full Algebra EBM syst
 - [ ] Combined dataset: all 4 rules together (200k problems)
 - [ ] Expected: ~90% single-rule, ~20-30% multi-rule
 
-### ✅ **Step 18: Implement NLM Baseline (Optional)**
-- [ ] File: `train_algebra_nlm.py`
-- [ ] Use existing NLM modules from IRED codebase
-- [ ] Learn discrete transformation operators
-- [ ] Expected: ~70%+ multi-rule accuracy
-
 ---
 
 ## Phase 8: Ablation Studies ⏳

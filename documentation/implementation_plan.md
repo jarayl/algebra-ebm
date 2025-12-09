@@ -523,22 +523,6 @@ total_energy = (
 
 ---
 
-### Step 18: Implement NLM Baseline (Optional)
-**File to Create:** `train_algebra_nlm.py`
-**Reference Files:** `diffusion_lib/nlm.py`, `diffusion_lib/nlm_utils.py`
-
-**Description:** Adapt Neural Logic Machines architecture as comparative baseline. This represents the neuro-symbolic alternative.
-
-**Key Components:**
-- Use existing NLM modules from IRED codebase
-- Learn discrete transformation operators for each rule
-- Execute symbolic transformations directly
-- Expected to achieve ~70%+ on multi-rule problems
-
-**Note:** This is lower priority - focus on demonstrating modular EBM improvement over monolithic first.
-
----
-
 ## Phase 8: Ablation Studies
 
 ### Step 19: Implement Encoder Ablations
