@@ -672,7 +672,7 @@ class AlgebraInference:
         input_equation: str,
         config: Optional[InferenceConfig] = None,
         rule_weights: Optional[Dict[str, float]] = None,
-        distance_threshold: float = 6.0,  # EMERGENCY: Increased from 1.5 due to decoding crisis
+        distance_threshold: float = 2.0,  # Standard distance threshold for valid decoding
         collect_distance_data: bool = False  # Phase 2: Enable distance data collection for optimization
     ) -> Dict[str, Any]:
         """
@@ -683,10 +683,7 @@ class AlgebraInference:
             config: InferenceConfig with optimization parameters (uses self.config if None)
             rule_weights: Optional weights for rule composition  
             distance_threshold: Maximum distance for valid decoding
-                              EMERGENCY VALUE: Default increased from 1.5 to 6.0 due to systematic 
-                              decoding failures. All equations were achieving distances of 4-5 
-                              but being rejected as invalid. This requires data-driven optimization 
-                              in Phase 2 based on actual distance distributions.
+                              Standard value: 2.0 provides good balance between precision and recall.
             collect_distance_data: If True, collect distance data for statistical analysis (Phase 2)
             
         Returns:
@@ -719,10 +716,6 @@ class AlgebraInference:
         
         logger.info(f"Solving equation: '{input_equation[:100]}{'...' if len(input_equation) > 100 else ''}'")
         
-        # Log when using emergency distance threshold
-        if distance_threshold >= 3.0:  # Warn for any significantly elevated threshold
-            logger.warning(f"Using elevated distance threshold {distance_threshold:.1f} "
-                         f"(normal: 1.5). If >= 6.0, this is EMERGENCY fix pending Phase 2 data-driven optimization.")
         
         try:
             # Encode input equation

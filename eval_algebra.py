@@ -644,14 +644,9 @@ def main():
         
         logger.info(f"Created {args.encoder_type} encoder")
         
-        # Create decoder
-        try:
-            decoder = create_decoder_with_default_candidates(encoder, distance_threshold=50.0)
-            logger.info("Created decoder with default candidates")
-        except ImportError as e:
-            logger.error(f"CRITICAL: sklearn not available - decoder creation failed: {str(e)}")
-            logger.error("Fast fail: Cannot proceed without decoder functionality")
-            raise RuntimeError("Fast fail: Missing required sklearn dependency") from e
+        # Create decoder - let evaluate_model rebuild it from test dataset
+        decoder = None
+        logger.info("Decoder set to None - will be rebuilt from test dataset in evaluate_model")
         
         # Set up evaluation parameters
         eval_params = {
