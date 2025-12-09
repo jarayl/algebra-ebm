@@ -96,8 +96,8 @@ def build_variability_config(args):
         'enable_solution_first': args.enable_solution_first
     }
     
-    # Parse stratified sampling configuration
-    if args.enable_stratified_sampling:
+    # Parse stratified sampling configuration (disabled)
+    if False:  # args.enable_stratified_sampling disabled
         try:
             basic_range = parse_range(args.stratified_basic_range)
             extended_range = parse_range(args.stratified_extended_range)
@@ -507,10 +507,8 @@ def main():
     
     # Create algebra dataset for specified rule
     print(f"Creating dataset for rule '{args.rule}' with {args.num_problems} problems...")
-    if variability_config['enable_stratified_sampling'] or variability_config['enable_solution_first']:
+    if variability_config['enable_solution_first']:
         print("Enhanced variability features enabled:")
-        if variability_config['enable_stratified_sampling']:
-            print(f"  - Stratified coefficient sampling: {variability_config['stratified_distribution']}")
         if variability_config['enable_solution_first']:
             print(f"  - Solution-first generation: {variability_config['solution_range_distribution']}")
     
@@ -521,12 +519,11 @@ def main():
             'split': args.split,
             'num_problems': args.num_problems,
             'd_model': args.d_model,
-            'enable_stratified_sampling': variability_config['enable_stratified_sampling'],
             'enable_solution_first': variability_config['enable_solution_first']
         }
         
-        # Add stratified sampling parameters if enabled
-        if variability_config['enable_stratified_sampling']:
+        # Add stratified sampling parameters if enabled (disabled)
+        if False:  # variability_config['enable_stratified_sampling'] disabled
             dataset_kwargs.update({
                 'stratified_ranges': variability_config['stratified_ranges'],
                 'stratified_distribution': variability_config['stratified_distribution']
@@ -799,7 +796,7 @@ def main():
         print(f"📁 Model saved to: {args.results_folder}")
         
         # Report dataset variability results if adaptive generation was used
-        if variability_config['enable_stratified_sampling'] or variability_config['enable_solution_first']:
+        if variability_config['enable_solution_first']:
             print("\n" + "=" * 60)
             print("Dataset Variability Report")
             print("=" * 60)
