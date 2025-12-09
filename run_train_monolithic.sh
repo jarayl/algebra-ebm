@@ -4,7 +4,7 @@
 #SBATCH --account=ydu_lab                     # Your lab account
 #SBATCH --gres=gpu:1                          # 1 GPU
 #SBATCH -c 16                                 # 16 CPU cores
-#SBATCH -t 00-02:00:00                        # 2 hours (adjust for longer training)
+#SBATCH -t 00-10:00:00                        # 2 hours (adjust for longer training)
 #SBATCH --mem=64G                             # 64 GB RAM
 #SBATCH -o train_monolithic_%j.out            # STDOUT file
 #SBATCH -e train_monolithic_%j.err            # STDERR file
@@ -115,8 +115,8 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 # ------------------------------------------------------------------------------
 
 # Training parameters for quick testing (adjust for full training)
-TRAIN_STEPS=2000          # Quick test (change to 200000 for full training)
-PROBLEMS_PER_RULE=2000    # Quick test (change to 50000 for full training)
+TRAIN_STEPS=50000         # 50k steps as requested
+PROBLEMS_PER_RULE=50000   # Full dataset as requested
 BATCH_SIZE=1024           # Conservative for memory
 TIMESTEPS=10
 GRADIENT_ACCUMULATE=2
