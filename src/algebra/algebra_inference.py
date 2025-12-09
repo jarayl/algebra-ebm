@@ -672,7 +672,7 @@ class AlgebraInference:
         input_equation: str,
         config: Optional[InferenceConfig] = None,
         rule_weights: Optional[Dict[str, float]] = None,
-        distance_threshold: float = 2.0,  # Standard distance threshold for valid decoding
+        distance_threshold: float = 6.0,  # Standard distance threshold for valid decoding
         collect_distance_data: bool = False  # Phase 2: Enable distance data collection for optimization
     ) -> Dict[str, Any]:
         """
