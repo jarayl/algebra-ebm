@@ -276,6 +276,8 @@ if [ $EVAL_EXIT -eq 0 ]; then
     # Also run quick individual evaluations for each rule with real diffusion
     echo "Running individual rule evaluations with real diffusion..."
     
+    # Start background jobs for each rule
+    declare -A rule_pids
     for rule in distribute combine isolate divide; do
         echo "Evaluating rule: $rule"
         
@@ -300,14 +302,23 @@ if [ $EVAL_EXIT -eq 0 ]; then
             --single_rule_problems 100 \
             --verbose \
             --device auto \
-            --seed 42
+            --seed 42 &
         
-        # Check individual rule evaluation exit code
+        rule_pids[$rule]=$!
+        echo "Rule $rule evaluation started with PID: ${rule_pids[$rule]}"
+    done
+    
+    # Wait for all background jobs and collect exit codes
+    echo "Waiting for all rule evaluations to complete..."
+    for rule in distribute combine isolate divide; do
+        wait ${rule_pids[$rule]}
         RULE_EXIT=$?
         if [ $RULE_EXIT -ne 0 ]; then
             echo "ERROR: Individual evaluation for rule $rule failed with exit code: $RULE_EXIT"
-            echo "FAST FAIL: Stopping further individual evaluations."
+            echo "FAST FAIL: Stopping due to failed rule evaluation."
             exit $RULE_EXIT
+        else
+            echo "Rule $rule evaluation completed successfully"
         fi
     done
     

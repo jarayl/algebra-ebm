@@ -1238,7 +1238,7 @@ class MultiRuleDataset(data.Dataset):
     def get_dataset_info(self) -> Dict:
         """Get information about the multi-rule dataset."""
         rule_counts = {}
-        for _, _, rules in self.equation_data:
+        for _, _, rules, _ in self.equation_data:
             for rule in rules:
                 rule_counts[rule] = rule_counts.get(rule, 0) + 1
                 
