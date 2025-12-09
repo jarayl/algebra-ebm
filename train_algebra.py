@@ -93,7 +93,7 @@ def build_variability_config(args):
     """Build variability configuration from command line arguments."""
     config = {
         'enable_stratified_sampling': False,
-        'enable_solution_first': args.enable_solution_first
+        'enable_solution_first': False
     }
     
     # Parse stratified sampling configuration (disabled)
@@ -123,7 +123,7 @@ def build_variability_config(args):
             return None
     
     # Parse solution-first configuration
-    if args.enable_solution_first:
+    if False:  # args.enable_solution_first disabled
         try:
             small_range = parse_range(args.solution_small_range)
             medium_range = parse_range(args.solution_medium_range)
@@ -507,9 +507,9 @@ def main():
     
     # Create algebra dataset for specified rule
     print(f"Creating dataset for rule '{args.rule}' with {args.num_problems} problems...")
-    if variability_config['enable_solution_first']:
+    if False:  # variability_config['enable_solution_first'] disabled
         print("Enhanced variability features enabled:")
-        if variability_config['enable_solution_first']:
+        if False:  # variability_config['enable_solution_first'] disabled
             print(f"  - Solution-first generation: {variability_config['solution_range_distribution']}")
     
     try:
@@ -519,7 +519,6 @@ def main():
             'split': args.split,
             'num_problems': args.num_problems,
             'd_model': args.d_model,
-            'enable_solution_first': variability_config['enable_solution_first']
         }
         
         # Add stratified sampling parameters if enabled (disabled)
@@ -529,8 +528,8 @@ def main():
                 'stratified_distribution': variability_config['stratified_distribution']
             })
         
-        # Add solution-first parameters if enabled
-        if variability_config['enable_solution_first']:
+        # Add solution-first parameters if enabled (disabled)
+        if False:  # variability_config['enable_solution_first'] disabled
             dataset_kwargs.update({
                 'target_solution_ranges': variability_config['target_solution_ranges'],
                 'solution_range_distribution': variability_config['solution_range_distribution']
@@ -795,8 +794,8 @@ def main():
             
         print(f"📁 Model saved to: {args.results_folder}")
         
-        # Report dataset variability results if adaptive generation was used
-        if variability_config['enable_solution_first']:
+        # Report dataset variability results if adaptive generation was used (disabled)
+        if False:  # variability_config['enable_solution_first'] disabled
             print("\n" + "=" * 60)
             print("Dataset Variability Report")
             print("=" * 60)
