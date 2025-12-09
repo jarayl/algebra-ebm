@@ -1,0 +1,620 @@
+{
+  "metadata": {
+    "num_rules": 3,
+    "num_problems": 50,
+    "split": "test",
+    "coeff_range": [
+      -10,
+      10
+    ],
+    "d_model": 128,
+    "valid_rules": [
+      "distribute",
+      "combine",
+      "isolate",
+      "divide"
+    ]
+  },
+  "problems": [
+    {
+      "id": 0,
+      "input_equation": "4*x=-36",
+      "target_equation": "x=-9",
+      "rules_applied": [
+        "combine",
+        "divide",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 1,
+      "input_equation": "2*x-1*x=147",
+      "target_equation": "x=9",
+      "rules_applied": [
+        "combine",
+        "distribute",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 2,
+      "input_equation": "2*(x+9)+6=14",
+      "target_equation": "x=-5",
+      "rules_applied": [
+        "distribute",
+        "distribute",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 3,
+      "input_equation": "-9*(x-5)-1=62",
+      "target_equation": "x=-2",
+      "rules_applied": [
+        "isolate",
+        "combine",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 4,
+      "input_equation": "10*(x-9)-7=-117",
+      "target_equation": "x=-2",
+      "rules_applied": [
+        "divide",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 5,
+      "input_equation": "6*x-5*x+4-5=8",
+      "target_equation": "x=9",
+      "rules_applied": [
+        "combine",
+        "isolate",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 6,
+      "input_equation": "1*(x-5)+9=-2",
+      "target_equation": "x=-6",
+      "rules_applied": [
+        "divide",
+        "divide",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 7,
+      "input_equation": "3*(x-9)+5=-46",
+      "target_equation": "x=-8",
+      "rules_applied": [
+        "divide",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 8,
+      "input_equation": "-7*(x+7)+3=-67",
+      "target_equation": "x=3",
+      "rules_applied": [
+        "isolate",
+        "distribute",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 9,
+      "input_equation": "7*(x+5)-2=61",
+      "target_equation": "x=4",
+      "rules_applied": [
+        "isolate",
+        "distribute",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 10,
+      "input_equation": "-4*x-4*x=-32",
+      "target_equation": "x=4",
+      "rules_applied": [
+        "divide",
+        "divide",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 11,
+      "input_equation": "1*x+1*x=4",
+      "target_equation": "x=2",
+      "rules_applied": [
+        "distribute",
+        "divide",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 12,
+      "input_equation": "-4*x=36",
+      "target_equation": "x=-9",
+      "rules_applied": [
+        "distribute",
+        "distribute",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 13,
+      "input_equation": "-7*(x-10)-10=46",
+      "target_equation": "x=2",
+      "rules_applied": [
+        "divide",
+        "combine",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 14,
+      "input_equation": "-7*x=-49",
+      "target_equation": "x=7",
+      "rules_applied": [
+        "divide",
+        "divide",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 15,
+      "input_equation": "-7*x+8*x=-40",
+      "target_equation": "x=8",
+      "rules_applied": [
+        "combine",
+        "distribute",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 16,
+      "input_equation": "2*(x-7)-2=-22",
+      "target_equation": "x=-3",
+      "rules_applied": [
+        "distribute",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 17,
+      "input_equation": "-4*(x-3)-9-8-2=-35",
+      "target_equation": "x=7",
+      "rules_applied": [
+        "distribute",
+        "isolate",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 18,
+      "input_equation": "5*x-4*x-6=-9",
+      "target_equation": "x=5",
+      "rules_applied": [
+        "isolate",
+        "combine",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 19,
+      "input_equation": "4*x=-12",
+      "target_equation": "x=-3",
+      "rules_applied": [
+        "distribute",
+        "distribute",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 20,
+      "input_equation": "9*x+3=-6",
+      "target_equation": "x=-1",
+      "rules_applied": [
+        "divide",
+        "divide",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 21,
+      "input_equation": "9*(x-10)+10=-53",
+      "target_equation": "x=3",
+      "rules_applied": [
+        "isolate",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 22,
+      "input_equation": "-4*(x-4)+9=53",
+      "target_equation": "x=-7",
+      "rules_applied": [
+        "divide",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 23,
+      "input_equation": "5*x=30",
+      "target_equation": "x=6",
+      "rules_applied": [
+        "distribute",
+        "distribute",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 24,
+      "input_equation": "-4*x+3*x=32",
+      "target_equation": "x=-6",
+      "rules_applied": [
+        "distribute",
+        "combine",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 25,
+      "input_equation": "6*x-5*x=-16",
+      "target_equation": "x=-3",
+      "rules_applied": [
+        "divide",
+        "distribute",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 26,
+      "input_equation": "6*x=60",
+      "target_equation": "x=10",
+      "rules_applied": [
+        "distribute",
+        "distribute",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 27,
+      "input_equation": "-7*x=28",
+      "target_equation": "x=-4",
+      "rules_applied": [
+        "combine",
+        "combine",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 28,
+      "input_equation": "8*x-7*x=-4",
+      "target_equation": "x=6",
+      "rules_applied": [
+        "combine",
+        "distribute",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 29,
+      "input_equation": "5*x+2*x=6",
+      "target_equation": "x=6",
+      "rules_applied": [
+        "combine",
+        "combine",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 30,
+      "input_equation": "5*(x-8)-1-7=-13",
+      "target_equation": "x=7",
+      "rules_applied": [
+        "isolate",
+        "distribute",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 31,
+      "input_equation": "5*(x-6)-5+1=-54",
+      "target_equation": "x=-4",
+      "rules_applied": [
+        "combine",
+        "distribute",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 32,
+      "input_equation": "1*(x-4)-7=-21",
+      "target_equation": "x=-10",
+      "rules_applied": [
+        "distribute",
+        "combine",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 33,
+      "input_equation": "-7*(x-4)+9-4=12",
+      "target_equation": "x=3",
+      "rules_applied": [
+        "combine",
+        "distribute",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 34,
+      "input_equation": "9*x=-27",
+      "target_equation": "x=-3",
+      "rules_applied": [
+        "distribute",
+        "combine",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 35,
+      "input_equation": "-2*x-2=-14",
+      "target_equation": "x=6",
+      "rules_applied": [
+        "isolate",
+        "divide",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 36,
+      "input_equation": "8*x+3=19",
+      "target_equation": "x=2",
+      "rules_applied": [
+        "isolate",
+        "divide",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 37,
+      "input_equation": "-4*x+12*x=11",
+      "target_equation": "x=10",
+      "rules_applied": [
+        "isolate",
+        "combine",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 38,
+      "input_equation": "-6*x+12*x=24",
+      "target_equation": "x=4",
+      "rules_applied": [
+        "combine",
+        "divide",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 39,
+      "input_equation": "4*x=16",
+      "target_equation": "x=4",
+      "rules_applied": [
+        "distribute",
+        "isolate",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 40,
+      "input_equation": "-3*x+4*x=-2",
+      "target_equation": "x=-7",
+      "rules_applied": [
+        "distribute",
+        "isolate",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 41,
+      "input_equation": "-10*x+11*x=-12",
+      "target_equation": "x=5",
+      "rules_applied": [
+        "divide",
+        "distribute",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 42,
+      "input_equation": "-4*x=-24",
+      "target_equation": "x=6",
+      "rules_applied": [
+        "isolate",
+        "isolate",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 43,
+      "input_equation": "2*x=-14",
+      "target_equation": "x=-7",
+      "rules_applied": [
+        "isolate",
+        "divide",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 44,
+      "input_equation": "9*x-8*x-10=-17",
+      "target_equation": "x=3",
+      "rules_applied": [
+        "isolate",
+        "combine",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 45,
+      "input_equation": "4*x=-36",
+      "target_equation": "x=-9",
+      "rules_applied": [
+        "distribute",
+        "combine",
+        "divide"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 46,
+      "input_equation": "-4*x-5*x=9",
+      "target_equation": "x=-1",
+      "rules_applied": [
+        "distribute",
+        "divide",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 47,
+      "input_equation": "0*x+1*x+6=11",
+      "target_equation": "x=7",
+      "rules_applied": [
+        "distribute",
+        "combine",
+        "isolate"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 48,
+      "input_equation": "9*x-12*x=25",
+      "target_equation": "x=-5",
+      "rules_applied": [
+        "divide",
+        "combine",
+        "combine"
+      ],
+      "solution": null,
+      "trace": []
+    },
+    {
+      "id": 49,
+      "input_equation": "9*(x+6)+6=42",
+      "target_equation": "x=-2",
+      "rules_applied": [
+        "combine",
+        "isolate",
+        "distribute"
+      ],
+      "solution": null,
+      "trace": []
+    }
+  ]
+}

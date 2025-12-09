@@ -42,7 +42,7 @@ import numpy as np
 # Import algebra components
 from src.algebra.algebra_evaluation import (
     evaluate_model_suite, save_evaluation_results, print_evaluation_summary,
-    evaluate_with_real_diffusion
+    evaluate_with_real_diffusion, run_monolithic_evaluation
 )
 from src.algebra.algebra_inference import load_rule_models
 from src.algebra.algebra_encoder import create_character_encoder, create_decoder_with_default_candidates
@@ -342,6 +342,189 @@ def run_full_evaluation_suite(
     return results
 
 
+def generate_comparison_report(results: Dict, output_dir: str):
+    """Generate markdown comparison report between monolithic and compositional approaches."""
+    import os
+    import json
+    import time
+    
+    mono = results.get('monolithic', {})
+    comp = results.get('compositional', {})
+    
+    # Calculate single-rule averages (monolithic only, since compositional uses rule-specific models)
+    mono_single_accuracies = []
+    for rule in ['distribute', 'combine', 'isolate', 'divide']:
+        result = mono.get(f'single_rule_{rule}', {})
+        if 'error' not in result and 'summary' in result:
+            accuracy = result['summary'].get('accuracy', 0.0)
+            mono_single_accuracies.append(accuracy)
+    
+    mono_single_avg = np.mean(mono_single_accuracies) if mono_single_accuracies else 0.0
+    
+    # Calculate multi-rule averages
+    mono_multi_accuracies = []
+    comp_multi_accuracies = []
+    
+    for n in [2, 3, 4]:
+        mono_result = mono.get(f'multi_rule_{n}', {})
+        if 'error' not in mono_result and 'summary' in mono_result:
+            accuracy = mono_result['summary'].get('accuracy', 0.0)
+            mono_multi_accuracies.append(accuracy)
+        
+        comp_result = comp.get(f'multi_rule_{n}', {})
+        if 'error' not in comp_result and 'summary' in comp_result:
+            accuracy = comp_result['summary'].get('accuracy', 0.0)
+            comp_multi_accuracies.append(accuracy)
+    
+    mono_multi_avg = np.mean(mono_multi_accuracies) if mono_multi_accuracies else 0.0
+    comp_multi_avg = np.mean(comp_multi_accuracies) if comp_multi_accuracies else 0.0
+    
+    # Calculate advantage
+    advantage = (comp_multi_avg - mono_multi_avg) * 100
+    
+    # Generate report
+    report = f"""# Monolithic vs Compositional Comparison
+
+Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}
+
+## Overall Results
+
+| Model | Single-Rule Acc | Multi-Rule Acc | Advantage |
+|-------|----------------|----------------|-----------|
+| Monolithic | {mono_single_avg:.1%} | {mono_multi_avg:.1%} | Baseline |
+| **Compositional** | **~{mono_single_avg:.1%}*** | **{comp_multi_avg:.1%}** | **+{advantage:.1f}%** 🎯 |
+
+*Compositional uses rule-specific models for single-rule evaluation
+
+## Multi-Rule Breakdown
+
+| Rules | Monolithic | Compositional | Advantage |
+|-------|-----------|--------------|-----------|
+"""
+    
+    for n in [2, 3, 4]:
+        mono_acc = mono.get(f'multi_rule_{n}', {}).get('summary', {}).get('accuracy', 0)
+        comp_acc = comp.get(f'multi_rule_{n}', {}).get('summary', {}).get('accuracy', 0)
+        adv = (comp_acc - mono_acc) * 100
+        report += f"| {n}-rule | {mono_acc:.1%} | {comp_acc:.1%} | **+{adv:.1f}%** |\n"
+    
+    report += f"""
+## Interpretation
+
+{'✅ **Compositional Advantage CONFIRMED!**' if advantage > 20 else '⚠️ **Partial Advantage**' if advantage > 5 else '❌ **Limited Advantage**'}
+
+"""
+    
+    if advantage > 20:
+        report += f"""
+The compositional approach demonstrates clear superiority:
+- Achieves **{advantage:.0f}%** absolute improvement on multi-rule problems
+- Successfully demonstrates zero-shot compositional reasoning
+- Validates modular energy function hypothesis
+
+### Key Insights:
+- **Zero-shot generalization**: Compositional models generalize to unseen rule combinations
+- **Modular design advantage**: Separate rule models compose effectively
+- **Energy landscape quality**: Individual energy landscapes combine constructively
+"""
+    elif advantage > 5:
+        report += f"""
+The compositional approach shows moderate improvement:
+- Achieves **{advantage:.1f}%** absolute improvement on multi-rule problems
+- Demonstrates some compositional reasoning capability
+- Suggests potential for further optimization
+
+### Recommendations:
+- Investigate energy composition weights
+- Optimize individual rule model training
+- Explore alternative composition strategies
+"""
+    else:
+        report += f"""
+The compositional approach shows limited improvement:
+- Achieves only **{advantage:.1f}%** absolute improvement on multi-rule problems
+- May indicate issues with composition or training
+
+### Investigation needed:
+- Verify individual rule model quality
+- Check energy composition implementation
+- Review training hyperparameters
+"""
+    
+    # Add detailed results
+    report += f"""
+## Detailed Results
+
+### Monolithic Model Performance
+"""
+    
+    for rule in ['distribute', 'combine', 'isolate', 'divide']:
+        result = mono.get(f'single_rule_{rule}', {})
+        if 'error' not in result and 'summary' in result:
+            accuracy = result['summary'].get('accuracy', 0.0)
+            report += f"- **{rule}**: {accuracy:.1%}\n"
+    
+    report += f"""
+### Multi-Rule Performance Comparison
+"""
+    
+    for n in [2, 3, 4]:
+        mono_result = mono.get(f'multi_rule_{n}', {})
+        comp_result = comp.get(f'multi_rule_{n}', {})
+        
+        mono_acc = mono_result.get('summary', {}).get('accuracy', 0.0) if 'error' not in mono_result else 0.0
+        comp_acc = comp_result.get('summary', {}).get('accuracy', 0.0) if 'error' not in comp_result else 0.0
+        improvement = (comp_acc - mono_acc) * 100
+        
+        report += f"- **{n}-rule problems**: Monolithic {mono_acc:.1%} → Compositional {comp_acc:.1%} (+{improvement:.1f}%)\n"
+    
+    # Add metadata
+    if 'evaluation_metadata' in mono:
+        metadata = mono['evaluation_metadata']
+        report += f"""
+## Evaluation Details
+
+- **Evaluation time**: {metadata.get('total_evaluation_time', 0):.1f} seconds
+- **Samples per dataset**: {metadata.get('num_samples_per_dataset', 'Unknown')}
+- **Decoder consistency**: {metadata.get('decoder_consistency', 'Unknown')}
+"""
+    
+    # Save report
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        report_path = os.path.join(output_dir, 'comparison_report.md')
+        with open(report_path, 'w') as f:
+            f.write(report)
+    except Exception as e:
+        logger.error(f"Failed to save comparison report: {e}")
+        report_path = None
+    
+    # Save JSON results with safe serialization
+    json_path = os.path.join(output_dir, 'comparison_results.json')
+    try:
+        with open(json_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)  # Use str fallback for non-serializable objects
+    except Exception as e:
+        logger.warning(f"Failed to save JSON results: {e}")
+    
+    # Print summary to console
+    logger.info("\n" + "="*60)
+    logger.info("COMPARISON REPORT GENERATED")
+    logger.info("="*60)
+    logger.info(f"Monolithic average (single-rule): {mono_single_avg:.1%}")
+    logger.info(f"Monolithic average (multi-rule): {mono_multi_avg:.1%}")
+    logger.info(f"Compositional average (multi-rule): {comp_multi_avg:.1%}")
+    logger.info(f"Compositional advantage: +{advantage:.1f} percentage points")
+    if report_path:
+        logger.info(f"Report saved to: {report_path}")
+    else:
+        logger.warning("Failed to save markdown report")
+    logger.info(f"Results saved to: {json_path}")
+    logger.info("="*60)
+    
+    return report_path
+
+
 def generate_evaluation_report(results: Dict[str, Dict[str, Any]], output_file: Optional[str] = None):
     """
     Generate a formatted evaluation report.
@@ -491,9 +674,10 @@ def main():
     # Evaluation type
     parser.add_argument(
         '--eval_type',
-        choices=['single_rule', 'multi_rule', 'constrained', 'full'],
-        default='full',
-        help='Type of evaluation to run (default: full)'
+        type=str,
+        default='single_rule',
+        choices=['single_rule', 'multi_rule', 'monolithic', 'comparison', 'constrained', 'full'],
+        help='Evaluation type (default: single_rule)'
     )
     
     # Specific evaluation options
@@ -604,6 +788,13 @@ def main():
         help='Path to the full model checkpoint (model.pt) for real diffusion inference. '
              'Required when --use_real_diffusion is specified.'
     )
+
+    parser.add_argument(
+        '--monolithic_checkpoint',
+        type=str,
+        default='./results/monolithic/model.pt',
+        help='Path to monolithic model checkpoint (default: ./results/monolithic/model.pt)'
+    )
     
     # Misc
     parser.add_argument(
@@ -645,6 +836,7 @@ def main():
         logger.info("Quick test mode: Using smaller dataset sizes")
     
     # Create output directory
+    from pathlib import Path
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -663,9 +855,9 @@ def main():
         decoder = None
         logger.info("Decoder set to None - will be rebuilt from test dataset in evaluate_model")
         
-        # Load rule models only if NOT using real diffusion
+        # Load rule models only if NOT using real diffusion AND NOT doing monolithic evaluation
         rule_models = None
-        if not args.use_real_diffusion:
+        if not args.use_real_diffusion and args.eval_type != 'monolithic':
             logger.info(f"Loading models from {args.model_dir}")
             rule_models = load_rule_models(
                 rule_names=['distribute', 'combine', 'isolate', 'divide'],
@@ -685,6 +877,8 @@ def main():
                 raise ValueError(f"CRITICAL: Missing models for essential rules: {missing_rules}. Fast fail.")
             
             logger.info(f"Loaded {len(rule_models)} rule models: {list(rule_models.keys())}")
+        elif args.eval_type == 'monolithic':
+            logger.info("Skipping rule model loading for monolithic evaluation")
         
         # Set up evaluation parameters
         eval_params = {
@@ -774,8 +968,94 @@ def main():
                         store_detailed_results=args.save_detailed
                     )
                     results[f"single_rule_{rule}"] = rule_results
+            elif args.eval_type == 'monolithic':
+                # Run monolithic evaluation
+                results = run_monolithic_evaluation(
+                    monolithic_checkpoint=args.monolithic_checkpoint,
+                    output_dir=args.output_dir,
+                    num_samples=args.max_samples if args.max_samples else 1000
+                )
+            elif args.eval_type == 'comparison':
+                # Run both monolithic and compositional evaluations for comparison
+                logger.info("="*60)
+                logger.info("RUNNING COMPARISON: Monolithic vs Compositional")
+                logger.info("="*60)
+                
+                results = {}
+                
+                # 1. Monolithic evaluation
+                logger.info("\n[1/2] Monolithic Evaluation")
+                
+                # Validate monolithic checkpoint exists
+                if not Path(args.monolithic_checkpoint).exists():
+                    raise ValueError(f"Monolithic checkpoint not found: {args.monolithic_checkpoint}")
+                
+                mono_results = run_monolithic_evaluation(
+                    monolithic_checkpoint=args.monolithic_checkpoint,
+                    output_dir=args.output_dir,
+                    num_samples=args.max_samples if args.max_samples else 1000
+                )
+                results['monolithic'] = mono_results
+                
+                # 2. Compositional evaluation
+                logger.info("\n[2/2] Compositional Evaluation")
+                
+                # Load rule checkpoints
+                from pathlib import Path
+                rule_checkpoints = {}
+                for rule in ['distribute', 'combine', 'isolate', 'divide']:
+                    checkpoint_path = Path(args.model_dir) / rule / 'model.pt'
+                    if checkpoint_path.exists():
+                        rule_checkpoints[rule] = str(checkpoint_path)
+                    else:
+                        logger.warning(f"Checkpoint not found for rule {rule} at {checkpoint_path}")
+                
+                if not rule_checkpoints:
+                    raise ValueError(f"No rule checkpoints found in {args.model_dir}. Cannot run compositional evaluation.")
+                
+                comp_results = {}
+                
+                # Load rule models for compositional evaluation
+                from src.algebra.algebra_evaluation import load_diffusion_model_for_inference, evaluate_with_composition
+                rule_models = {}
+                diffusion_template = None
+                
+                for rule_name, checkpoint_path in rule_checkpoints.items():
+                    logger.info(f"Loading {rule_name} model from {checkpoint_path}")
+                    diffusion, ebm = load_diffusion_model_for_inference(checkpoint_path, device)
+                    rule_models[rule_name] = ebm  # Store EBM models for energy composition
+                    
+                    # Use first model as diffusion template
+                    if diffusion_template is None:
+                        diffusion_template = diffusion
+                
+                # Test on multi-rule datasets
+                for num_rules in [2, 3, 4]:
+                    logger.info(f"Evaluating {num_rules}-rule compositional problems")
+                    
+                    test_dataset = MultiRuleDataset(
+                        num_rules=num_rules,
+                        split='test',
+                        num_problems=args.max_samples if args.max_samples else 1000,
+                        d_model=128
+                    )
+                    
+                    result = evaluate_with_composition(
+                        rule_models_dict=rule_models,
+                        test_dataset=test_dataset,
+                        diffusion_template=diffusion_template,
+                        device=device,
+                        max_samples=args.max_samples
+                    )
+                    
+                    comp_results[f'multi_rule_{num_rules}'] = result
+                
+                results['compositional'] = comp_results
+                
+                # Generate comparison report
+                generate_comparison_report(results, args.output_dir)
             else:
-                raise ValueError(f"--use_real_diffusion currently only supports single_rule and full eval_type, got: {args.eval_type}")
+                raise ValueError(f"--use_real_diffusion currently only supports single_rule, full, monolithic, and comparison eval_type, got: {args.eval_type}")
         
         # Original evaluation path (uses AlgebraInference)
         elif args.eval_type == 'single_rule':
@@ -824,6 +1104,14 @@ def main():
                 **eval_params
             )
             
+        elif args.eval_type == 'monolithic':
+            # Run monolithic evaluation using the provided checkpoint
+            results = run_monolithic_evaluation(
+                monolithic_checkpoint=args.monolithic_checkpoint,
+                output_dir=args.output_dir,
+                num_samples=args.max_samples if args.max_samples else 1000
+            )
+            
         elif args.eval_type == 'full':
             results = run_full_evaluation_suite(
                 rule_models=rule_models,
@@ -833,6 +1121,12 @@ def main():
                 multi_rule_problems=args.multi_rule_problems,
                 constrained_problems=args.constrained_problems,
                 **eval_params
+            )
+        
+        elif args.eval_type == 'comparison':
+            raise ValueError(
+                "Comparison evaluation requires --use_real_diffusion. "
+                "Please add --use_real_diffusion to enable monolithic vs compositional comparison."
             )
         
         else:

@@ -198,37 +198,41 @@ class IREDInferenceEvaluator:
         
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         
-        # Handle different checkpoint formats
-        if 'model' in checkpoint:
-            state_dict = checkpoint['model']
-            # Check if it's a wrapped GaussianDiffusion1D state dict
-            if any(k.startswith('model.ebm.') for k in state_dict.keys()):
-                # Extract just the EBM weights
-                ebm_state_dict = {}
+        # Handle different checkpoint formats - this is an EMA Trainer1D checkpoint
+        ebm_state_dict = {}
+        
+        # Try to extract EBM weights from different possible locations
+        for key_name in ['ema', 'model']:
+            if key_name in checkpoint:
+                state_dict = checkpoint[key_name]
                 for k, v in state_dict.items():
-                    if k.startswith('model.ebm.'):
+                    # Handle nested checkpoint structure
+                    if 'ema_model._orig_mod.model.ebm.' in k:
+                        new_key = k.replace('ema_model._orig_mod.model.ebm.', '')
+                    elif 'online_model._orig_mod.model.ebm.' in k:
+                        new_key = k.replace('online_model._orig_mod.model.ebm.', '')
+                    elif '_orig_mod.model.ebm.' in k:
+                        new_key = k.replace('_orig_mod.model.ebm.', '')
+                    elif 'model.ebm.' in k:
                         new_key = k.replace('model.ebm.', '')
+                    elif k.startswith('ema_model.') and not '_orig_mod' in k:
+                        new_key = k.replace('ema_model.', '')
+                    elif k.startswith('online_model.') and not '_orig_mod' in k:
+                        new_key = k.replace('online_model.', '')
+                    else:
+                        continue
+                    
+                    # Only keep valid EBM parameters
+                    if new_key in ['energy_scale', 'energy_bias', 'time_mlp.1.weight', 'time_mlp.1.bias', 'time_mlp.3.weight', 'time_mlp.3.bias', 'fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias', 'fc3.weight', 'fc3.bias', 'fc4.weight', 'fc4.bias', 't_map_fc2.weight', 't_map_fc2.bias', 't_map_fc3.weight', 't_map_fc3.bias']:
                         ebm_state_dict[new_key] = v
-                self.ebm.load_state_dict(ebm_state_dict)
-                print(f"[Load] Extracted EBM weights from GaussianDiffusion1D checkpoint")
-            else:
-                self.ebm.load_state_dict(state_dict)
-        elif 'ema' in checkpoint:
-            state_dict = checkpoint['ema']
-            # Check if it's a wrapped GaussianDiffusion1D state dict
-            if any(k.startswith('model.ebm.') for k in state_dict.keys()):
-                # Extract just the EBM weights
-                ebm_state_dict = {}
-                for k, v in state_dict.items():
-                    if k.startswith('model.ebm.'):
-                        new_key = k.replace('model.ebm.', '')
-                        ebm_state_dict[new_key] = v
-                self.ebm.load_state_dict(ebm_state_dict)
-                print(f"[Load] Extracted EBM weights from GaussianDiffusion1D EMA checkpoint")
-            else:
-                self.ebm.load_state_dict(state_dict)
+        
+        if len(ebm_state_dict) == 18:  # Expected number of EBM parameters
+            self.ebm.load_state_dict(ebm_state_dict)
+            print(f"[Load] Successfully loaded {len(ebm_state_dict)} EBM parameters")
         else:
-            self.ebm.load_state_dict(checkpoint)
+            print(f"[Load] Found {len(ebm_state_dict)} EBM parameters, expected 18")
+            print("Available keys:", list(ebm_state_dict.keys())[:5])
+            raise RuntimeError(f"Could not extract complete EBM state dict from checkpoint")
         
         self.ebm.eval()
         

@@ -1,0 +1,22 @@
+{
+  "total_problems": 175,
+  "total_file_size_mb": 0.04,
+  "datasets_created": 3,
+  "dataset_breakdown": {
+    "2_rules": {
+      "num_problems": 100,
+      "file_path": "results/test_datasets/2_rule_test_dataset.json",
+      "file_size_mb": 0.02
+    },
+    "3_rules": {
+      "num_problems": 50,
+      "file_path": "results/test_datasets/3_rule_test_dataset.json",
+      "file_size_mb": 0.01
+    },
+    "4_rules": {
+      "num_problems": 25,
+      "file_path": "results/test_datasets/4_rule_test_dataset.json",
+      "file_size_mb": 0.01
+    }
+  }
+}

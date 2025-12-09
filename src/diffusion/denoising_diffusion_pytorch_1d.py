@@ -310,6 +310,8 @@ class GaussianDiffusion1D(nn.Module):
         shortest_path = False,
         enable_semantic_corruption = False,
         corruption_strategy_probs = None,
+        compositional_models = None,
+        compositional_weights = None,
     ):
         super().__init__()
         self.model = model
@@ -317,6 +319,10 @@ class GaussianDiffusion1D(nn.Module):
         self.out_dim = self.model.out_dim
         self.out_shape = (self.out_dim, )
         self.self_condition = False
+        
+        # Compositional parameters for multi-rule support
+        self.compositional_models = compositional_models
+        self.compositional_weights = compositional_weights or {}
         self.supervise_energy_landscape = supervise_energy_landscape
         self.use_innerloop_opt = use_innerloop_opt
         self.use_contrastive_energy_loss = use_contrastive_energy_loss
@@ -579,7 +585,15 @@ class GaussianDiffusion1D(nn.Module):
     def opt_step(self, inp, img, t, mask, data_cond, step=5, eval=True, sf=1.0, detach=True):
         with torch.enable_grad():
             for i in range(step):
-                energy, grad = self.model(inp, img, t, return_both=True)
+                # Compute energy and gradient (compositional or single)
+                if self.compositional_models is not None and len(self.compositional_models) > 0:
+                    # COMPOSITION PATH
+                    energy, grad = self._compute_composed_energy_grad(
+                        self.compositional_models, inp, img, t, self.compositional_weights)
+                else:
+                    # ORIGINAL PATH (unchanged for backward compatibility)
+                    energy, grad = self.model(inp, img, t, return_both=True)
+                
                 img_new = img - extract(self.opt_step_size, t, grad.shape) * grad * sf  # / (i + 1) ** 0.5
 
                 if mask is not None:
@@ -593,7 +607,15 @@ class GaussianDiffusion1D(nn.Module):
                 max_val = extract(self.sqrt_alphas_cumprod, t, img_new.shape)[0, 0] * sf
                 img_new = torch.clamp(img_new, -max_val, max_val)
 
-                energy_new = self.model(inp, img_new, t, return_energy=True)
+                # Energy-based acceptance (compositional or single)
+                if self.compositional_models is not None and len(self.compositional_models) > 0:
+                    # COMPOSITION PATH
+                    energy_new = self._compute_composed_energy(
+                        self.compositional_models, inp, img_new, t, self.compositional_weights)
+                else:
+                    # ORIGINAL PATH (unchanged for backward compatibility)
+                    energy_new = self.model(inp, img_new, t, return_energy=True)
+                
                 if len(energy_new.shape) == 2:
                     bad_step = (energy_new > energy)[:, 0]
                 elif len(energy_new.shape) == 1:
@@ -610,6 +632,105 @@ class GaussianDiffusion1D(nn.Module):
                     img = img_new
 
         return img
+
+    def _compute_composed_energy(self, rule_models, inp, img, t, rule_weights=None):
+        """
+        Compute composed energy from multiple rule models by weighted summation.
+        
+        Args:
+            rule_models: Dict or list of rule models
+            inp: Input tensor (B, ...)
+            img: Image tensor (B, ...)
+            t: Timestep tensor (B,)
+            rule_weights: Optional dict of weights for each rule (default: all 1.0)
+            
+        Returns:
+            total_energy: Composed energy value (B, 1)
+        """
+        if rule_weights is None:
+            if hasattr(rule_models, 'keys'):
+                rule_weights = {rule: 1.0 for rule in rule_models.keys()}
+            else:
+                rule_weights = [1.0] * len(rule_models)
+        
+        total_energy = 0.0
+        
+        # Handle dict or list of models
+        if hasattr(rule_models, 'items'):
+            # Dict-like interface
+            for rule_name, model in rule_models.items():
+                weight = rule_weights.get(rule_name, 1.0)
+                energy = model(inp, img, t, return_energy=True)  # (B, 1)
+                
+                # Numerical stability check for finite energy
+                if not torch.isfinite(energy).all():
+                    print(f"Warning: Non-finite energy detected from rule {rule_name}, skipping")
+                    continue
+                    
+                total_energy += weight * energy
+        else:
+            # List-like interface
+            for i, model in enumerate(rule_models):
+                weight = rule_weights[i] if isinstance(rule_weights, list) else 1.0
+                energy = model(inp, img, t, return_energy=True)  # (B, 1)
+                
+                # Numerical stability check for finite energy
+                if not torch.isfinite(energy).all():
+                    print(f"Warning: Non-finite energy detected from rule {i}, skipping")
+                    continue
+                    
+                total_energy += weight * energy
+        
+        return total_energy
+
+    def _compute_composed_energy_grad(self, rule_models, inp, img, t, rule_weights=None):
+        """
+        Compute composed energy and its gradient w.r.t. img tensor.
+        
+        Args:
+            rule_models: Dict or list of rule models
+            inp: Input tensor (B, ...)
+            img: Image tensor (B, ...) - will be set to require gradients
+            t: Timestep tensor (B,)
+            rule_weights: Optional dict of weights for each rule (default: all 1.0)
+            
+        Returns:
+            tuple: (energy, grad) where
+                energy: Composed energy (B, 1)
+                grad: Energy gradient dE/dimg (B, ...)
+        """
+        # Enable gradient computation for img
+        img = img.requires_grad_(True)
+        
+        # Compute composed energy
+        total_energy = self._compute_composed_energy(rule_models, inp, img, t, rule_weights)
+        
+        # Numerical stability protection before gradient computation
+        if not torch.isfinite(total_energy).all():
+            print("Warning: Non-finite composed energy detected, returning zero energy and gradient")
+            zero_grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
+            zero_energy = torch.zeros_like(total_energy, device=img.device, dtype=img.dtype)
+            return zero_energy, zero_grad
+        
+        try:
+            # Compute gradient with create_graph=True for higher-order derivatives
+            grad = torch.autograd.grad(
+                outputs=total_energy.sum(),
+                inputs=img,
+                create_graph=True
+            )[0]
+            
+            # Additional stability check for computed gradient
+            if not torch.isfinite(grad).all():
+                print("Warning: Non-finite gradient computed, using zero gradient")
+                grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
+                
+        except RuntimeError as e:
+            # Handle gradient computation failures gracefully
+            print(f"Warning: Composed gradient computation failed: {e}")
+            grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
+        
+        return total_energy, grad
 
     @torch.no_grad()
     def p_sample_loop(self, batch_size, shape, inp, cond, mask, return_traj=False):
@@ -726,6 +847,45 @@ class GaussianDiffusion1D(nn.Module):
         # seq_length, channels = self.seq_length, self.channels
         sample_fn = self.p_sample_loop if not self.is_ddim_sampling else self.ddim_sample
         return sample_fn(batch_size, self.out_shape, x, label, mask, return_traj=return_traj)
+    
+    @torch.no_grad()
+    def sample_compositional(self, x, label, mask, models_dict, weights_dict=None, batch_size=16, return_traj=False):
+        """
+        Sample using composed energy from multiple rule models.
+        
+        Args:
+            x: Input expression/problem
+            label: Target (for conditioning)  
+            mask: Conditioning mask
+            models_dict: Dict[str, nn.Module] of rule models (e.g., {'distribute': model1, 'combine': model2})
+            weights_dict: Optional dict of weights per rule (default: all 1.0)
+            batch_size: Batch size
+            return_traj: Whether to return trajectory
+            
+        Returns:
+            Sampled output using composed energy landscape
+        """
+        # Validate inputs
+        if not isinstance(models_dict, dict) or len(models_dict) == 0:
+            raise ValueError("models_dict must be a non-empty dictionary")
+        
+        # Temporarily set compositional models
+        original_models = self.compositional_models
+        original_weights = self.compositional_weights
+        
+        self.compositional_models = models_dict
+        self.compositional_weights = weights_dict or {k: 1.0 for k in models_dict.keys()}
+        
+        try:
+            # Use existing p_sample_loop (unchanged!)
+            sample_fn = self.p_sample_loop if not self.is_ddim_sampling else self.ddim_sample
+            result = sample_fn(batch_size, self.out_shape, x, label, mask, return_traj=return_traj)
+        finally:
+            # Restore original state
+            self.compositional_models = original_models
+            self.compositional_weights = original_weights
+        
+        return result
 
     @torch.no_grad()
     def interpolate(self, x1, x2, t = None, lam = 0.5):
