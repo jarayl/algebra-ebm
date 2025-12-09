@@ -8,3 +8,12 @@ __pycache__/
 .vscode/
 __pycache__/
 /test_results/
+
+*.aux
+*.out
+*.synctex
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+

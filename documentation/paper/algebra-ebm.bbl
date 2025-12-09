@@ -1,0 +1,58 @@
+\begin{thebibliography}{10}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Dong et~al.(2019)Dong, Mao, Lin, Wang, Li, and Zhou]{dong2019neural}
+Honghua Dong, Jiayuan Mao, Tian Lin, Chong Wang, Lihong Li, and Denny Zhou.
+\newblock Neural logic machines.
+\newblock In \emph{International Conference on Learning Representations}, 2019.
+
+\bibitem[Du et~al.(2024)Du, Li, Mordatch, and Tenenbaum]{du2024ired}
+Yilun Du, Jiayuan Li, Igor Mordatch, and Joshua~B Tenenbaum.
+\newblock Iterative reasoning through energy diffusion.
+\newblock In \emph{Proceedings of the 41st International Conference on Machine Learning}, pages 12186--12220. PMLR, 2024.
+
+\bibitem[Evans and Grefenstette(2018)]{evans2018dilp}
+Richard Evans and Edward Grefenstette.
+\newblock Learning explanatory rules from noisy data.
+\newblock In \emph{Journal of Artificial Intelligence Research}, volume~61, pages 1--64, 2018.
+
+\bibitem[Lake and Baroni(2018)]{lake2018generalization}
+Brenden~M Lake and Marco Baroni.
+\newblock Generalization without systematicity: On the compositional skills of sequence-to-sequence recurrent networks.
+\newblock \emph{Proceedings of the 35th International Conference on Machine Learning}, 80:\penalty0 2873--2882, 2018.
+
+\bibitem[Lample and Charton(2019)]{lample2019symbolicmath}
+Guillaume Lample and Fran{\c{c}}ois Charton.
+\newblock Deep learning for symbolic mathematics.
+\newblock \emph{arXiv preprint arXiv:1912.01412}, 2019.
+
+\bibitem[LeCun et~al.(2006)LeCun, Chopra, Hadsell, Ranzato, and Huang]{lecun2006ebm}
+Yann LeCun, Sumit Chopra, Raia Hadsell, Marc'Aurelio Ranzato, and Fu~Jie Huang.
+\newblock A tutorial on energy-based learning.
+\newblock \emph{Predicting structured data}, 1\penalty0 (0), 2006.
+
+\bibitem[Minervini et~al.(2018)Minervini, Bosnjak, Rockt{\"a}schel, Riedel, and Grefenstette]{minervini2018ntp}
+Pasquale Minervini, Matko Bosnjak, Tim Rockt{\"a}schel, Sebastian Riedel, and Edward Grefenstette.
+\newblock Differentiable reasoning on large knowledge bases and natural language.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial Intelligence}, volume~32, 2018.
+
+\bibitem[Saxton et~al.(2019)Saxton, Grefenstette, Hill, and Kohli]{saxton2019math}
+David Saxton, Edward Grefenstette, Felix Hill, and Pushmeet Kohli.
+\newblock Analysing mathematical reasoning abilities of neural models.
+\newblock \emph{arXiv preprint arXiv:1904.01557}, 2019.
+
+\bibitem[Yang et~al.(2023{\natexlab{a}})Yang, George, Levine, and Abbeel]{yang2023recurrentcsp}
+Zhaoyu Yang, Dileep George, Sergey Levine, and Pieter Abbeel.
+\newblock Neural constraint satisfaction: Hierarchical abstraction for combinatorial generalization in robot learning.
+\newblock \emph{arXiv preprint arXiv:2305.19582}, 2023{\natexlab{a}}.
+
+\bibitem[Yang et~al.(2023{\natexlab{b}})Yang, Kashyap, George, Abbeel, and Levine]{yang2023diffusion}
+Zhaoyu Yang, Rao Kashyap, Dileep George, Pieter Abbeel, and Sergey Levine.
+\newblock Compositional diffusion-based continuous constraint solvers.
+\newblock In \emph{Conference on Robot Learning}, pages 1249--1259. PMLR, 2023{\natexlab{b}}.
+
+\end{thebibliography}

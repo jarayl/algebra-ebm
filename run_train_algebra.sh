@@ -4,7 +4,7 @@
 #SBATCH --account=ydu_lab                     # Your lab account
 #SBATCH --gres=gpu:1                          # 1 GPU
 #SBATCH -c 16                                 # 16 CPU cores
-#SBATCH -t 00-02:00:00                        # 2 days
+#SBATCH -t 00-12:00:00                        # 2 days
 #SBATCH --mem=64G                             # 64 GB RAM
 #SBATCH -o train_algebra_%j.out               # STDOUT file
 #SBATCH -e train_algebra_%j.err               # STDERR file

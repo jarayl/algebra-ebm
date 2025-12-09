@@ -20,7 +20,7 @@ Usage:
 """
 
 import os
-import sys
+import sysw
 import argparse
 import torch
 import torch.nn as nn
