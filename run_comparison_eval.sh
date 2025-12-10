@@ -189,7 +189,7 @@ end_time=$(date +%s)
 duration=$((end_time - start_time))
 
 # ------------------------------------------------------------------------------
-# 7. Results analysis
+# 7. Results analysis and paper figure generation
 # ------------------------------------------------------------------------------
 
 echo ""
@@ -209,6 +209,47 @@ if [ $EVAL_EXIT -eq 0 ]; then
     else
         echo "⚠️  Comparison report not found"
     fi
+    
+    # Generate publication-ready figures and tables
+    echo ""
+    echo "=============================================="
+    echo "  Generating Paper Figures and Tables"
+    echo "=============================================="
+    
+    PAPER_FIGURES_DIR="$OUTPUT_DIR/paper_figures"
+    
+    echo "Installing visualization dependencies..."
+    python -m pip install --user -q matplotlib seaborn pandas plotly
+    
+    echo "Generating publication figures..."
+    python "$REPO_DIR/scripts/generate_paper_figures.py" \
+        --results_dir "$OUTPUT_DIR" \
+        --output_dir "$PAPER_FIGURES_DIR"
+    
+    FIGURES_EXIT=$?
+    
+    # Generate additional analysis plots
+    if [ $FIGURES_EXIT -eq 0 ]; then
+        echo "Generating detailed analysis plots..."
+        python "$REPO_DIR/scripts/analyze_individual_results.py" \
+            --results_dir "$JOB_SCRATCH/results" \
+            --output_dir "$PAPER_FIGURES_DIR/analysis_plots"
+    fi
+    
+    if [ $FIGURES_EXIT -eq 0 ]; then
+        echo "✓ Paper figures generated successfully"
+        echo ""
+        echo "Generated files:"
+        echo "📊 Main performance plot: $PAPER_FIGURES_DIR/figures/performance_by_rules.pdf"
+        echo "📈 Ablation studies: $PAPER_FIGURES_DIR/figures/ablation_study.pdf"
+        echo "🔍 Error analysis: $PAPER_FIGURES_DIR/figures/error_analysis.pdf"
+        echo "📋 Results tables: $PAPER_FIGURES_DIR/tables/"
+        echo ""
+        echo "See $PAPER_FIGURES_DIR/README.md for usage instructions"
+    else
+        echo "⚠️  Figure generation failed (exit $FIGURES_EXIT)"
+    fi
+    
 else
     echo "✗ Evaluation failed with exit code: $EVAL_EXIT"
 fi
@@ -245,6 +286,12 @@ if [ $EVAL_EXIT -eq 0 ]; then
     fi
     if [ -f "$FINAL_OUTPUT/comparison_results.json" ]; then
         echo "  📈 comparison_results.json (detailed data)"
+    fi
+    if [ -d "$FINAL_OUTPUT/paper_figures" ]; then
+        echo "  🎨 paper_figures/ (publication-ready visualizations)"
+        echo "      ├── figures/ (PDF plots for paper)"
+        echo "      ├── tables/ (LaTeX and CSV tables)"
+        echo "      └── README.md (usage guide)"
     fi
     
     echo ""
