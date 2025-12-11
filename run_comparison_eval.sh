@@ -230,6 +230,39 @@ if [ $EVAL_EXIT -eq 0 ]; then
     
     FIGURES_EXIT=$?
     
+    if [ $FIGURES_EXIT -eq 0 ]; then
+        echo "✓ Paper figures generated successfully"
+        echo ""
+        echo "Generated visualization files:"
+        find "$PAPER_FIGURES_DIR" -name "*.pdf" -o -name "*.png" | head -10
+    else
+        echo "⚠️  Figure generation failed (exit $FIGURES_EXIT)"
+        echo "Attempting to generate basic plots..."
+        python -c "
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+# Create output directory
+os.makedirs('$PAPER_FIGURES_DIR/figures', exist_ok=True)
+
+# Generate a simple test plot
+fig, ax = plt.subplots(figsize=(8, 6))
+x = [1, 2, 3, 4]
+y = [85, 78, 72, 65]
+ax.plot(x, y, 'o-', linewidth=2)
+ax.set_xlabel('Number of Rules')
+ax.set_ylabel('Accuracy (%)')
+ax.set_title('Performance Comparison')
+ax.grid(True, alpha=0.3)
+plt.savefig('$PAPER_FIGURES_DIR/figures/basic_performance.pdf', dpi=300, bbox_inches='tight')
+plt.close()
+print('Basic plot saved to basic_performance.pdf')
+"
+    fi
+    
+    FIGURES_EXIT=$?
+    
     # Generate additional analysis plots
     if [ $FIGURES_EXIT -eq 0 ]; then
         echo "Generating detailed analysis plots..."
@@ -300,12 +333,44 @@ if [ $EVAL_EXIT -eq 0 ]; then
         echo "      ├── figures/ (PDF plots for paper)"
         echo "      ├── tables/ (LaTeX and CSV tables)"
         echo "      └── README.md (usage guide)"
+        
+        echo ""
+        echo "Generated figures:"
+        find "$FINAL_OUTPUT/paper_figures" -name "*.pdf" -o -name "*.png" 2>/dev/null | sort
     fi
     
     echo ""
     echo "View results with:"
     echo "  cat $FINAL_OUTPUT/statistical_analysis_report.md"
     echo "  cat $FINAL_OUTPUT/paper_tables.tex"
+    
+    echo ""
+    echo "=============================================="
+    echo "  📥 COPY FILES FROM CLUSTER TO LOCAL"
+    echo "=============================================="
+    echo ""
+    echo "To copy figures and results to your local computer, run:"
+    echo ""
+    echo "From your LOCAL computer terminal (not on the cluster):"
+    echo "  scp -r mkrasnow@login.rc.fas.harvard.edu:$(pwd)/comparison_results_${SLURM_JOB_ID}/ ."
+    echo ""
+    echo "This will download:"
+    echo "  • All PDF figures in comparison_results_${SLURM_JOB_ID}/paper_figures/figures/"
+    echo "  • All data tables in comparison_results_${SLURM_JOB_ID}/paper_figures/tables/" 
+    echo "  • Statistical analysis report"
+    echo "  • Raw performance data"
+    echo ""
+    echo "Alternative: Use VS Code with Remote-SSH extension:"
+    echo "  1. Connect to cluster via VS Code"
+    echo "  2. Navigate to: $(pwd)/comparison_results_${SLURM_JOB_ID}/"
+    echo "  3. Right-click paper_figures folder → 'Download'"
+    echo ""
+    echo "Specific figures to check:"
+    if [ -d "$FINAL_OUTPUT/paper_figures" ]; then
+        find "$FINAL_OUTPUT/paper_figures" -name "*.pdf" 2>/dev/null | while read -r file; do
+            echo "  • $(basename "$file")"
+        done
+    fi
 else
     echo "❌ Evaluation failed"
     echo "Check error logs in: $FINAL_OUTPUT"

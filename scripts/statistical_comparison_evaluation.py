@@ -184,33 +184,99 @@ class StatisticalComparisonFramework:
         data = []
         
         for seed, results in all_results.items():
-            # Extract monolithic results
-            if 'monolithic_results' in results:
-                mono_results = results['monolithic_results']
+            # Extract monolithic results (key: 'monolithic', not 'monolithic_results')
+            if 'monolithic' in results:
+                mono_data = results['monolithic']
+                
+                # Extract single-rule accuracy (average across rules)
+                single_rule_accs = []
+                for rule in ['distribute', 'combine', 'isolate', 'divide']:
+                    rule_key = f'single_rule_{rule}'
+                    if rule_key in mono_data and 'summary' in mono_data[rule_key]:
+                        acc = mono_data[rule_key]['summary'].get('accuracy', 0)
+                        single_rule_accs.append(acc)
+                single_rule_acc = np.mean(single_rule_accs) if single_rule_accs else np.nan
+                
+                # Extract multi-rule accuracy (average across 2, 3, 4-rule problems)
+                multi_rule_accs = []
+                rule_2_acc = np.nan
+                rule_3_acc = np.nan 
+                rule_4_acc = np.nan
+                
+                for num_rules in [2, 3, 4]:
+                    rule_key = f'multi_rule_{num_rules}'
+                    if rule_key in mono_data and 'summary' in mono_data[rule_key]:
+                        acc = mono_data[rule_key]['summary'].get('accuracy', 0)
+                        multi_rule_accs.append(acc)
+                        if num_rules == 2:
+                            rule_2_acc = acc
+                        elif num_rules == 3:
+                            rule_3_acc = acc
+                        elif num_rules == 4:
+                            rule_4_acc = acc
+                            
+                multi_rule_acc = np.mean(multi_rule_accs) if multi_rule_accs else np.nan
+                
                 data.append({
                     'seed': seed,
                     'approach': 'monolithic',
-                    'single_rule_acc': mono_results.get('single_rule_accuracy', np.nan),
-                    'multi_rule_acc': mono_results.get('multi_rule_accuracy', np.nan),
-                    'rule_2_acc': mono_results.get('2_rule_accuracy', np.nan),
-                    'rule_3_acc': mono_results.get('3_rule_accuracy', np.nan),
-                    'rule_4_acc': mono_results.get('4_rule_accuracy', np.nan)
+                    'single_rule_acc': single_rule_acc,
+                    'multi_rule_acc': multi_rule_acc,
+                    'rule_2_acc': rule_2_acc,
+                    'rule_3_acc': rule_3_acc,
+                    'rule_4_acc': rule_4_acc
                 })
+            else:
+                logger.warning(f"No monolithic results found for seed {seed}")
             
-            # Extract compositional results
-            if 'compositional_results' in results:
-                comp_results = results['compositional_results']
+            # Extract compositional results (key: 'compositional', not 'compositional_results')
+            if 'compositional' in results:
+                comp_data = results['compositional']
+                
+                # Compositional doesn't have single-rule results, use nan
+                single_rule_acc = np.nan
+                
+                # Extract multi-rule accuracy (average across 2, 3, 4-rule problems)
+                multi_rule_accs = []
+                rule_2_acc = np.nan
+                rule_3_acc = np.nan
+                rule_4_acc = np.nan
+                
+                for num_rules in [2, 3, 4]:
+                    rule_key = f'multi_rule_{num_rules}'
+                    if rule_key in comp_data and 'summary' in comp_data[rule_key]:
+                        acc = comp_data[rule_key]['summary'].get('accuracy', 0)
+                        multi_rule_accs.append(acc)
+                        if num_rules == 2:
+                            rule_2_acc = acc
+                        elif num_rules == 3:
+                            rule_3_acc = acc
+                        elif num_rules == 4:
+                            rule_4_acc = acc
+                            
+                multi_rule_acc = np.mean(multi_rule_accs) if multi_rule_accs else np.nan
+                
                 data.append({
                     'seed': seed,
                     'approach': 'compositional',
-                    'single_rule_acc': comp_results.get('single_rule_accuracy', np.nan),
-                    'multi_rule_acc': comp_results.get('multi_rule_accuracy', np.nan),
-                    'rule_2_acc': comp_results.get('2_rule_accuracy', np.nan),
-                    'rule_3_acc': comp_results.get('3_rule_accuracy', np.nan),
-                    'rule_4_acc': comp_results.get('4_rule_accuracy', np.nan)
+                    'single_rule_acc': single_rule_acc,
+                    'multi_rule_acc': multi_rule_acc,
+                    'rule_2_acc': rule_2_acc,
+                    'rule_3_acc': rule_3_acc,
+                    'rule_4_acc': rule_4_acc
                 })
+            else:
+                logger.warning(f"No compositional results found for seed {seed}")
         
         df = pd.DataFrame(data)
+        
+        # Debug: Print DataFrame info for troubleshooting
+        logger.info(f"Extracted data for {len(data)} result entries")
+        if len(df) > 0:
+            logger.info(f"DataFrame columns: {list(df.columns)}")
+            logger.info(f"Approaches found: {df['approach'].unique() if 'approach' in df.columns else 'None'}")
+        else:
+            logger.warning("No data was extracted - DataFrame is empty!")
         
         # Save DataFrame
         df_file = self.output_dir / "performance_metrics.csv"
