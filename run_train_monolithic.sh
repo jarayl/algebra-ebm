@@ -115,8 +115,8 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 # ------------------------------------------------------------------------------
 
 # Training parameters for quick testing (adjust for full training)
-TRAIN_STEPS=20000         # 50k steps as requested
-PROBLEMS_PER_RULE=2000   # Full dataset as requested
+TRAIN_STEPS=50000         # 50k steps as requested
+PROBLEMS_PER_RULE=200000   # Full dataset as requested
 BATCH_SIZE=2048           # Conservative for memory
 TIMESTEPS=10
 GRADIENT_ACCUMULATE=2
