@@ -4,7 +4,7 @@
 #SBATCH --account=ydu_lab                     # Your lab account
 #SBATCH --gres=gpu:1                          # 1 GPU
 #SBATCH -c 16                                 # 16 CPU cores
-#SBATCH -t 00-01:00:00                        # 1 hour (adjust as needed)
+#SBATCH -t 00-12:00:00                        # 1 hour (adjust as needed)
 #SBATCH --mem=64G                             # 64 GB RAM
 #SBATCH -o comparison_eval_%j.out             # STDOUT file
 #SBATCH -e comparison_eval_%j.err             # STDERR file

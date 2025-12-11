@@ -79,17 +79,73 @@ Method & 1-Rule & 2-Rule & 3-Rule & 4-Rule \\\\
     
     return latex_table
 
-def create_ablation_table(output_dir: Path):
-    """Create ablation study table."""
+def create_ablation_table(results: Dict, output_dir: Path):
+    """Create ablation study table using real ablation experiment results."""
     
-    # Simulated ablation data
-    ablation_data = [
-        {'Component': 'Full Compositional Model', '2-Rule': '88.7', '3-Rule': '85.2', '4-Rule': '78.9'},
-        {'Component': 'w/o Energy Composition', '2-Rule': '76.3', '3-Rule': '68.4', '4-Rule': '52.1'},
-        {'Component': 'w/o Rule-Specific Training', '2-Rule': '72.1', '3-Rule': '62.7', '4-Rule': '48.2'},
-        {'Component': 'w/o Annealing Schedule', '2-Rule': '84.2', '3-Rule': '79.8', '4-Rule': '71.3'},
-        {'Component': 'Single Energy Function', '2-Rule': '78.9', '3-Rule': '62.7', '4-Rule': '48.2'},
-    ]
+    # Look for ablation experiment results in the data
+    ablation_data = []
+    
+    # Check if we have ablation experiment results
+    ablation_keys = [k for k in results.keys() if 'ablation' in k.lower() or 'without' in k.lower() or 'w_o' in k.lower()]
+    
+    if not ablation_keys:
+        print("No ablation study data found. Skipping ablation table.")
+        print("To generate ablation table, run experiments with different configurations:")
+        print("  - Without energy composition")
+        print("  - Without rule-specific training")
+        print("  - Without annealing schedule")
+        print("  - Single energy function")
+        
+        # Create a placeholder note
+        note_content = """
+% Ablation study table requires running experiments with different configurations
+% Run the following experiments and update this table:
+% 1. Full compositional model (baseline)
+% 2. Without energy composition
+% 3. Without rule-specific training  
+% 4. Without annealing schedule
+% 5. Single energy function instead of composition
+
+% Placeholder ablation table
+\\begin{table}[t]
+\\centering
+\\caption{Ablation study - requires running experiments with different model configurations.}
+\\label{tab:ablation}
+\\begin{tabular}{lccc}
+\\toprule
+Component & 2-Rule & 3-Rule & 4-Rule \\\\
+\\midrule
+Full Compositional Model & \\multicolumn{3}{c}{Run ablation experiments} \\\\
+w/o Energy Composition & \\multicolumn{3}{c}{to populate this table} \\\\
+w/o Rule-Specific Training & \\multicolumn{3}{c}{} \\\\
+\\bottomrule
+\\end{tabular}
+\\end{table}
+"""
+        
+        with open(output_dir / 'ablation_table.tex', 'w') as f:
+            f.write(note_content)
+        
+        return note_content
+    
+    # Extract real ablation data
+    for key, data in results.items():
+        if 'ablation' in key.lower() and isinstance(data, dict):
+            component_name = key.replace('ablation_', '').replace('_', ' ').title()
+            
+            row = {'Component': component_name}
+            for rule_count in [2, 3, 4]:
+                rule_key = f'{rule_count}_rule'
+                if rule_key in data:
+                    acc = data[rule_key].get('accuracy', 0.0) * 100
+                    row[f'{rule_count}-Rule'] = f'{acc:.1f}'
+                else:
+                    row[f'{rule_count}-Rule'] = 'N/A'
+            
+            ablation_data.append(row)
+    
+    if not ablation_data:
+        return create_ablation_table({}, output_dir)  # Return placeholder
     
     df = pd.DataFrame(ablation_data)
     
@@ -105,7 +161,7 @@ Component & 2-Rule & 3-Rule & 4-Rule \\\\
 """
     
     for _, row in df.iterrows():
-        if 'Full Compositional' in row['Component']:
+        if 'Full' in row['Component'] or 'Baseline' in row['Component']:
             latex_table += f"\\textbf{{{row['Component']}}} & \\textbf{{{row['2-Rule']}}} & \\textbf{{{row['3-Rule']}}} & \\textbf{{{row['4-Rule']}}} \\\\\n"
         else:
             latex_table += f"{row['Component']} & {row['2-Rule']} & {row['3-Rule']} & {row['4-Rule']} \\\\\n"
@@ -185,17 +241,78 @@ Rules & Method & Accuracy (\\%) & L2 Distance & Valid Syntax (\\%) & Solve Time 
     
     return latex_table
 
-def create_rule_combinations_table(output_dir: Path):
-    """Create table showing performance on specific 2-rule combinations."""
+def create_rule_combinations_table(results: Dict, output_dir: Path):
+    """Create table showing performance on specific 2-rule combinations using real data."""
     
-    combinations = [
-        {'Combination': 'Distribution + Combining', 'Compositional': '92.1', 'Monolithic': '78.3'},
-        {'Combination': 'Distribution + Isolation', 'Compositional': '89.7', 'Monolithic': '71.2'},
-        {'Combination': 'Distribution + Division', 'Compositional': '95.3', 'Monolithic': '82.1'},
-        {'Combination': 'Combining + Isolation', 'Compositional': '85.2', 'Monolithic': '68.9'},
-        {'Combination': 'Combining + Division', 'Compositional': '91.8', 'Monolithic': '75.4'},
-        {'Combination': 'Isolation + Division', 'Compositional': '88.9', 'Monolithic': '70.6'},
-    ]
+    combinations = []
+    
+    # Look for rule combination results in the data
+    combination_keys = [k for k in results.keys() if 'combination' in k.lower() or '2_rule' in k]
+    
+    if not combination_keys:
+        print("No rule combination data found. Skipping combinations table.")
+        print("To generate rule combinations table, run evaluations on specific 2-rule combinations.")
+        
+        # Create placeholder
+        note_content = """
+% Rule combinations table requires evaluation on specific 2-rule combinations
+% Run evaluations on: distribute+combine, distribute+isolate, etc.
+
+\\begin{table}[t]
+\\centering
+\\caption{Performance breakdown on specific 2-rule combinations - requires detailed evaluation.}
+\\label{tab:rule_combinations}
+\\begin{tabular}{lcc}
+\\toprule
+Rule Combination & Compositional & Monolithic \\\\
+\\midrule
+\\multicolumn{3}{c}{Run combination-specific evaluations} \\\\
+\\multicolumn{3}{c}{to populate this table} \\\\
+\\bottomrule
+\\end{tabular}
+\\end{table}
+"""
+        
+        with open(output_dir / 'rule_combinations_table.tex', 'w') as f:
+            f.write(note_content)
+        
+        return note_content
+    
+    # Extract combination data from results
+    combination_data = {}
+    
+    for key, data in results.items():
+        if isinstance(data, dict) and ('combination' in key.lower() or '2_rule' in key):
+            # Parse combination name and method
+            if 'compositional' in key:
+                method = 'Compositional'
+            elif 'monolithic' in key:
+                method = 'Monolithic'
+            else:
+                continue
+            
+            # Extract combination name
+            combo_name = key.replace('compositional_', '').replace('monolithic_', '')
+            combo_name = combo_name.replace('combination_', '').replace('2_rule_', '')
+            combo_name = combo_name.replace('_', ' + ').title()
+            
+            if combo_name not in combination_data:
+                combination_data[combo_name] = {}
+            
+            accuracy = data.get('accuracy', 0.0) * 100
+            combination_data[combo_name][method] = f'{accuracy:.1f}'
+    
+    # Convert to list format for table
+    for combo_name, methods in combination_data.items():
+        if 'Compositional' in methods and 'Monolithic' in methods:
+            combinations.append({
+                'Combination': combo_name,
+                'Compositional': methods['Compositional'],
+                'Monolithic': methods['Monolithic']
+            })
+    
+    if not combinations:
+        return create_rule_combinations_table({}, output_dir)  # Return placeholder
     
     df = pd.DataFrame(combinations)
     
@@ -211,7 +328,14 @@ Rule Combination & Compositional & Monolithic \\\\
 """
     
     for _, row in df.iterrows():
-        latex_table += f"{row['Combination']} & \\textbf{{{row['Compositional']}}} & {row['Monolithic']} \\\\\n"
+        comp_acc = float(row['Compositional'])
+        mono_acc = float(row['Monolithic'])
+        
+        # Bold compositional if it's better
+        if comp_acc > mono_acc:
+            latex_table += f"{row['Combination']} & \\textbf{{{row['Compositional']}}} & {row['Monolithic']} \\\\\n"
+        else:
+            latex_table += f"{row['Combination']} & {row['Compositional']} & \\textbf{{{row['Monolithic']}}} \\\\\n"
     
     latex_table += """\\bottomrule
 \\end{tabular}
@@ -295,11 +419,19 @@ def main():
     
     print("Creating publication tables...")
     
-    # Generate all tables
-    main_table = create_main_results_table(results, output_dir)
-    ablation_table = create_ablation_table(output_dir)
+    # Load statistical results if available
+    stats_results = {}
+    if args.results_file:
+        stats_file = Path(args.results_file).parent / 'statistical_tests.json'
+        if stats_file.exists():
+            with open(stats_file) as f:
+                stats_results = json.load(f)
+    
+    # Generate all tables with real data
+    main_table = create_main_results_table(results, output_dir, stats_results)
+    ablation_table = create_ablation_table(results, output_dir)
     detailed_table = create_detailed_metrics_table(results, output_dir)
-    combinations_table = create_rule_combinations_table(output_dir)
+    combinations_table = create_rule_combinations_table(results, output_dir)
     hyperparams_table = create_hyperparameter_table(output_dir)
     
     # Create a combined file with all tables

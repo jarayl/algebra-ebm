@@ -56,6 +56,42 @@ class PaperFigureGenerator:
                 return json.load(f)
         return {}
     
+    def load_statistical_results(self) -> Dict:
+        """Load statistical test results."""
+        stats_file = self.results_dir / 'statistical_tests.json'
+        if stats_file.exists():
+            with open(stats_file) as f:
+                return json.load(f)
+        return {}
+    
+    def load_performance_metrics(self) -> pd.DataFrame:
+        """Load performance metrics dataframe."""
+        metrics_file = self.results_dir / 'performance_metrics.csv'
+        if metrics_file.exists():
+            return pd.read_csv(metrics_file)
+        return pd.DataFrame()
+    
+    def load_training_logs(self) -> Dict:
+        """Load training logs from individual model directories."""
+        training_logs = {}
+        
+        # Look for training logs in the results directory
+        if (self.results_dir.parent / 'results').exists():
+            results_base = self.results_dir.parent / 'results'
+        else:
+            results_base = self.results_dir
+            
+        for rule in ['distribute', 'combine', 'isolate', 'divide', 'monolithic']:
+            log_file = results_base / rule / 'training_log.json'
+            if log_file.exists():
+                try:
+                    with open(log_file) as f:
+                        training_logs[rule] = json.load(f)
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse training log for {rule}")
+                    
+        return training_logs
+    
     def generate_main_results_table(self, results: Dict) -> pd.DataFrame:
         """Generate the main results comparison table (Table 1)."""
         
@@ -132,181 +168,358 @@ class PaperFigureGenerator:
         plt.savefig(self.output_dir / 'figures' / 'performance_by_rules.png')
         plt.close()
     
-    def plot_ablation_study(self, results: Dict):
-        """Generate ablation study visualization (Figure 2)."""
+    def plot_ablation_study(self, results: Dict, stats_results: Dict):
+        """Generate ablation study visualization (Figure 2) using real data."""
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        # Only create ablation plots if we have actual ablation data
+        # This would require running experiments with different configurations
         
-        # Composition weight ablation
-        weight_strategies = ['uniform', 'learned', 'heuristic', 'random']
-        accuracies_3_rule = [85.2, 84.8, 83.1, 42.3]  # Example values
-        accuracies_4_rule = [78.9, 77.2, 75.8, 35.7]
+        print("Skipping ablation study plot - requires running experiments with different hyperparameters")
+        print("To generate ablation studies, run evaluations with:")
+        print("  - Different energy composition strategies")
+        print("  - Different training set sizes")
+        print("  - Different model architectures")
         
-        x = np.arange(len(weight_strategies))
-        width = 0.35
-        
-        ax1.bar(x - width/2, accuracies_3_rule, width, label='3-Rule Problems', alpha=0.8)
-        ax1.bar(x + width/2, accuracies_4_rule, width, label='4-Rule Problems', alpha=0.8)
-        
-        ax1.set_xlabel('Composition Strategy')
-        ax1.set_ylabel('Accuracy (%)')
-        ax1.set_title('Effect of Energy Composition Weights')
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(weight_strategies)
-        ax1.legend()
-        ax1.grid(True, alpha=0.3, axis='y')
-        
-        # Training set size ablation
-        training_sizes = [250, 500, 750, 1000, 1500]
-        compositional_acc = [72.3, 81.5, 84.2, 85.2, 85.8]
-        monolithic_acc = [45.2, 52.1, 58.3, 62.7, 64.1]
-        
-        ax2.plot(training_sizes, compositional_acc, 'o-', label='Compositional', linewidth=2.5)
-        ax2.plot(training_sizes, monolithic_acc, 's-', label='Monolithic', linewidth=2.5)
-        
-        ax2.set_xlabel('Training Set Size per Rule')
-        ax2.set_ylabel('3-Rule Problem Accuracy (%)')
-        ax2.set_title('Effect of Training Data Size')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'ablation_study.png')
-        plt.close()
+        # Instead, create a comparison plot using available statistical data
+        if 'multi_rule_acc' in stats_results:
+            fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+            
+            # Plot confidence intervals for multi-rule performance
+            methods = ['Monolithic', 'Compositional']
+            means = [
+                stats_results['multi_rule_acc']['monolithic_mean'],
+                stats_results['multi_rule_acc']['compositional_mean']
+            ]
+            stds = [
+                stats_results['multi_rule_acc']['monolithic_std'],
+                stats_results['multi_rule_acc']['compositional_std']
+            ]
+            
+            colors = ['#CD853F', '#2E8B57']
+            x_pos = np.arange(len(methods))
+            
+            bars = ax.bar(x_pos, means, color=colors, alpha=0.7, capsize=5)
+            ax.errorbar(x_pos, means, yerr=stds, fmt='none', color='black', capsize=5)
+            
+            ax.set_xlabel('Method')
+            ax.set_ylabel('Multi-Rule Accuracy (%)')
+            ax.set_title('Multi-Rule Performance Comparison with Error Bars')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(methods)
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            # Add significance annotation if available
+            if stats_results['multi_rule_acc']['p_value'] < 0.05:
+                y_max = max(means) + max(stds) + 2
+                ax.annotate('*', xy=(0.5, y_max), ha='center', fontsize=16, color='red')
+                ax.text(0.5, y_max + 1, f"p = {stats_results['multi_rule_acc']['p_value']:.4f}", 
+                       ha='center', fontsize=10)
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / 'figures' / 'performance_comparison.png')
+            plt.close()
+        else:
+            print("Warning: No statistical results available for comparison plot")
     
-    def plot_error_analysis(self, results: Dict):
-        """Generate error analysis plots (Figure 3)."""
+    def plot_error_analysis(self, results: Dict, df: pd.DataFrame):
+        """Generate error analysis plots using real evaluation data."""
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        # Check if we have detailed error analysis data
+        has_error_data = any('error_types' in v for v in results.values() if isinstance(v, dict))
+        has_distance_data = any('l2_distances' in v for v in results.values() if isinstance(v, dict))
         
-        # Error types breakdown
-        error_types = ['Syntax Error', 'Wrong Rule Order', 'Partial Solution', 'Arithmetic Error']
-        compositional_errors = [8, 12, 45, 35]  # Percentages
-        monolithic_errors = [15, 35, 32, 18]
+        if not (has_error_data or has_distance_data):
+            print("Skipping error analysis - requires detailed error categorization in evaluation")
+            print("To generate error analysis, modify evaluation to track:")
+            print("  - Error type classification (syntax, logic, arithmetic)")
+            print("  - L2 distances from correct solutions")
+            return
         
-        x = np.arange(len(error_types))
-        width = 0.35
+        fig_count = int(has_error_data) + int(has_distance_data)
+        if fig_count == 0:
+            return
+            
+        fig, axes = plt.subplots(1, fig_count, figsize=(7 * fig_count, 6))
+        if fig_count == 1:
+            axes = [axes]
         
-        ax1.bar(x - width/2, compositional_errors, width, label='Compositional', alpha=0.8)
-        ax1.bar(x + width/2, monolithic_errors, width, label='Monolithic', alpha=0.8)
+        ax_idx = 0
         
-        ax1.set_xlabel('Error Type')
-        ax1.set_ylabel('Percentage of Errors (%)')
-        ax1.set_title('Error Type Distribution')
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(error_types, rotation=45, ha='right')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3, axis='y')
+        # Error types breakdown (if available)
+        if has_error_data:
+            # Extract real error type data from results
+            comp_errors = {}
+            mono_errors = {}
+            
+            for method_key, method_data in results.items():
+                if isinstance(method_data, dict) and 'error_types' in method_data:
+                    if 'compositional' in method_key:
+                        comp_errors = method_data['error_types']
+                    elif 'monolithic' in method_key:
+                        mono_errors = method_data['error_types']
+            
+            if comp_errors and mono_errors:
+                error_types = list(comp_errors.keys())
+                comp_percentages = list(comp_errors.values())
+                mono_percentages = list(mono_errors.values())
+                
+                x = np.arange(len(error_types))
+                width = 0.35
+                
+                axes[ax_idx].bar(x - width/2, comp_percentages, width, label='Compositional', alpha=0.8)
+                axes[ax_idx].bar(x + width/2, mono_percentages, width, label='Monolithic', alpha=0.8)
+                
+                axes[ax_idx].set_xlabel('Error Type')
+                axes[ax_idx].set_ylabel('Percentage of Errors (%)')
+                axes[ax_idx].set_title('Error Type Distribution')
+                axes[ax_idx].set_xticks(x)
+                axes[ax_idx].set_xticklabels(error_types, rotation=45, ha='right')
+                axes[ax_idx].legend()
+                axes[ax_idx].grid(True, alpha=0.3, axis='y')
+                ax_idx += 1
         
-        # Solution distance for wrong answers
-        distances_comp = np.random.lognormal(0, 0.8, 100)  # Example distribution
-        distances_mono = np.random.lognormal(1.2, 1.0, 100)
-        
-        ax2.hist(distances_comp, bins=20, alpha=0.7, label='Compositional', density=True)
-        ax2.hist(distances_mono, bins=20, alpha=0.7, label='Monolithic', density=True)
-        
-        ax2.set_xlabel('L2 Distance from Correct Solution')
-        ax2.set_ylabel('Density')
-        ax2.set_title('Distribution of Solution Errors')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        # Solution distance analysis (if available)
+        if has_distance_data:
+            comp_distances = []
+            mono_distances = []
+            
+            for method_key, method_data in results.items():
+                if isinstance(method_data, dict) and 'l2_distances' in method_data:
+                    if 'compositional' in method_key:
+                        comp_distances = method_data['l2_distances']
+                    elif 'monolithic' in method_key:
+                        mono_distances = method_data['l2_distances']
+            
+            if comp_distances and mono_distances:
+                axes[ax_idx].hist(comp_distances, bins=20, alpha=0.7, label='Compositional', density=True)
+                axes[ax_idx].hist(mono_distances, bins=20, alpha=0.7, label='Monolithic', density=True)
+                
+                axes[ax_idx].set_xlabel('L2 Distance from Correct Solution')
+                axes[ax_idx].set_ylabel('Density')
+                axes[ax_idx].set_title('Distribution of Solution Errors')
+                axes[ax_idx].legend()
+                axes[ax_idx].grid(True, alpha=0.3)
         
         plt.tight_layout()
         plt.savefig(self.output_dir / 'figures' / 'error_analysis.png')
         plt.close()
     
-    def plot_training_curves(self):
-        """Generate training convergence plots (Figure 4)."""
+    def plot_training_curves(self, training_logs: Dict):
+        """Generate training convergence plots using real training logs."""
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        if not training_logs:
+            print("Skipping training curves - no training logs found")
+            print("Training logs should be saved as 'training_log.json' in each model directory")
+            return
         
-        # Training loss curves
-        epochs = np.arange(1, 101)
+        available_models = list(training_logs.keys())
+        if len(available_models) < 2:
+            print(f"Insufficient training logs found. Available: {available_models}")
+            return
         
-        # Simulated training curves
-        rules = ['Distribution', 'Combining', 'Isolation', 'Division']
-        colors = ['#FF6B35', '#F7931E', '#FFD23F', '#06FFA5']
+        # Determine subplot layout based on available data
+        has_loss_data = any('train_losses' in log for log in training_logs.values())
+        has_val_data = any('val_accuracies' in log for log in training_logs.values())
         
-        for i, rule in enumerate(rules):
-            # Exponential decay with noise
-            loss = 2.0 * np.exp(-epochs/20) + 0.1 * np.random.random(100)
-            ax1.plot(epochs, loss, label=rule, color=colors[i], linewidth=2)
+        subplot_count = int(has_loss_data) + int(has_val_data)
+        if subplot_count == 0:
+            print("No training curve data found in logs")
+            return
+            
+        fig, axes = plt.subplots(1, subplot_count, figsize=(7 * subplot_count, 6))
+        if subplot_count == 1:
+            axes = [axes]
         
-        ax1.set_xlabel('Training Epoch')
-        ax1.set_ylabel('Training Loss')
-        ax1.set_title('Individual Rule Training Convergence')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        ax1.set_yscale('log')
+        ax_idx = 0
         
-        # Validation accuracy progression
-        val_epochs = np.arange(10, 101, 10)
-        comp_val_acc = [45, 62, 73, 79, 82, 84, 85, 85, 85, 85]
-        mono_val_acc = [35, 48, 56, 60, 62, 63, 64, 64, 64, 64]
+        # Plot training loss curves
+        if has_loss_data:
+            colors = plt.cm.Set3(np.linspace(0, 1, len(available_models)))
+            
+            for i, (model_name, log_data) in enumerate(training_logs.items()):
+                if 'train_losses' in log_data:
+                    losses = log_data['train_losses']
+                    epochs = list(range(1, len(losses) + 1))
+                    
+                    axes[ax_idx].plot(epochs, losses, label=model_name.capitalize(), 
+                                    color=colors[i], linewidth=2)
+            
+            axes[ax_idx].set_xlabel('Training Epoch')
+            axes[ax_idx].set_ylabel('Training Loss')
+            axes[ax_idx].set_title('Training Loss Convergence')
+            axes[ax_idx].legend()
+            axes[ax_idx].grid(True, alpha=0.3)
+            axes[ax_idx].set_yscale('log')
+            ax_idx += 1
         
-        ax2.plot(val_epochs, comp_val_acc, 'o-', label='Compositional (3-Rule)', linewidth=2.5)
-        ax2.plot(val_epochs, mono_val_acc, 's-', label='Monolithic (3-Rule)', linewidth=2.5)
-        
-        ax2.set_xlabel('Training Epoch')
-        ax2.set_ylabel('Validation Accuracy (%)')
-        ax2.set_title('Validation Performance During Training')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        # Plot validation accuracy progression
+        if has_val_data:
+            for i, (model_name, log_data) in enumerate(training_logs.items()):
+                if 'val_accuracies' in log_data:
+                    val_accs = log_data['val_accuracies']
+                    val_epochs = log_data.get('val_epochs', list(range(1, len(val_accs) + 1)))
+                    
+                    marker = 'o' if 'compositional' in model_name.lower() else 's'
+                    axes[ax_idx].plot(val_epochs, val_accs, marker=marker, 
+                                    label=model_name.capitalize(), linewidth=2.5, markersize=6)
+            
+            axes[ax_idx].set_xlabel('Training Epoch')
+            axes[ax_idx].set_ylabel('Validation Accuracy (%)')
+            axes[ax_idx].set_title('Validation Performance During Training')
+            axes[ax_idx].legend()
+            axes[ax_idx].grid(True, alpha=0.3)
         
         plt.tight_layout()
         plt.savefig(self.output_dir / 'figures' / 'training_curves.png')
         plt.close()
     
-    def plot_generalization_analysis(self):
-        """Generate generalization analysis (Figure 5)."""
+    def plot_generalization_analysis(self, results: Dict, stats_results: Dict):
+        """Generate generalization analysis using real evaluation data."""
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        # Check if we have in-domain vs out-domain data
+        has_domain_data = any('in_domain' in k or 'out_domain' in k for k in results.keys())
         
-        # In-domain vs out-of-domain performance
-        rule_counts = [1, 2, 3, 4]
-        in_domain_comp = [95.2, 88.7, 85.2, 78.9]
-        out_domain_comp = [91.8, 83.4, 79.7, 72.1]
-        in_domain_mono = [89.1, 72.3, 62.7, 48.2]
-        out_domain_mono = [85.6, 65.8, 54.9, 38.7]
+        # Check if we have detailed rule combination data
+        has_combination_data = any('combination_' in k for k in results.keys())
         
-        ax1.plot(rule_counts, in_domain_comp, 'o-', label='Compositional (In-Domain)', linewidth=2.5)
-        ax1.plot(rule_counts, out_domain_comp, 'o--', label='Compositional (Out-Domain)', linewidth=2.5)
-        ax1.plot(rule_counts, in_domain_mono, 's-', label='Monolithic (In-Domain)', linewidth=2.5)
-        ax1.plot(rule_counts, out_domain_mono, 's--', label='Monolithic (Out-Domain)', linewidth=2.5)
+        if not (has_domain_data or has_combination_data):
+            print("Skipping generalization analysis - requires domain-specific evaluation")
+            print("To generate generalization analysis, run evaluations with:")
+            print("  - In-domain vs out-of-domain test sets")
+            print("  - Specific rule combination breakdowns")
+            
+            # Instead create a plot showing performance by rule count if available
+            if stats_results:
+                self.plot_rule_complexity_analysis(stats_results)
+            return
         
-        ax1.set_xlabel('Number of Required Rules')
-        ax1.set_ylabel('Accuracy (%)')
-        ax1.set_title('In-Domain vs Out-of-Domain Generalization')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        ax1.set_xticks(rule_counts)
+        fig_count = int(has_domain_data) + int(has_combination_data)
+        fig, axes = plt.subplots(1, fig_count, figsize=(7 * fig_count, 6))
+        if fig_count == 1:
+            axes = [axes]
         
-        # Rule combination coverage
-        # Show which 2-rule combinations were tested
-        combinations_2_rule = [
-            'Dist+Comb', 'Dist+Isol', 'Dist+Div',
-            'Comb+Isol', 'Comb+Div', 'Isol+Div'
-        ]
-        comp_acc_2rule = [92.1, 89.7, 95.3, 85.2, 91.8, 88.9]
-        mono_acc_2rule = [78.3, 71.2, 82.1, 68.9, 75.4, 70.6]
+        ax_idx = 0
         
-        x = np.arange(len(combinations_2_rule))
-        width = 0.35
+        # In-domain vs out-of-domain analysis
+        if has_domain_data:
+            # Extract domain-specific results
+            rule_counts = []
+            in_domain_comp = []
+            out_domain_comp = []
+            in_domain_mono = []
+            out_domain_mono = []
+            
+            for key, data in results.items():
+                if 'in_domain' in key and isinstance(data, dict):
+                    if 'compositional' in key:
+                        rule_count = int(key.split('_')[1])  # Assuming format: compositional_X_rules_in_domain
+                        if rule_count not in rule_counts:
+                            rule_counts.append(rule_count)
+                        in_domain_comp.append(data.get('accuracy', 0) * 100)
+                    elif 'monolithic' in key:
+                        in_domain_mono.append(data.get('accuracy', 0) * 100)
+            
+            # Similar extraction for out-domain...
+            # Plot the domain comparison
+            if rule_counts and in_domain_comp:
+                axes[ax_idx].plot(sorted(rule_counts), in_domain_comp[:len(rule_counts)], 
+                                'o-', label='Compositional (In-Domain)', linewidth=2.5)
+                axes[ax_idx].plot(sorted(rule_counts), in_domain_mono[:len(rule_counts)], 
+                                's-', label='Monolithic (In-Domain)', linewidth=2.5)
+                
+                axes[ax_idx].set_xlabel('Number of Required Rules')
+                axes[ax_idx].set_ylabel('Accuracy (%)')
+                axes[ax_idx].set_title('Performance by Problem Complexity')
+                axes[ax_idx].legend()
+                axes[ax_idx].grid(True, alpha=0.3)
+                axes[ax_idx].set_xticks(sorted(rule_counts))
+            
+            ax_idx += 1
         
-        ax2.bar(x - width/2, comp_acc_2rule, width, label='Compositional', alpha=0.8)
-        ax2.bar(x + width/2, mono_acc_2rule, width, label='Monolithic', alpha=0.8)
-        
-        ax2.set_xlabel('Rule Combination')
-        ax2.set_ylabel('Accuracy (%)')
-        ax2.set_title('Performance on 2-Rule Combinations')
-        ax2.set_xticks(x)
-        ax2.set_xticklabels(combinations_2_rule, rotation=45, ha='right')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3, axis='y')
+        # Rule combination analysis
+        if has_combination_data:
+            combinations = []
+            comp_accuracies = []
+            mono_accuracies = []
+            
+            for key, data in results.items():
+                if 'combination_' in key and isinstance(data, dict):
+                    combo_name = key.replace('combination_', '').replace('_', '+')
+                    combinations.append(combo_name)
+                    
+                    if 'compositional' in key:
+                        comp_accuracies.append(data.get('accuracy', 0) * 100)
+                    elif 'monolithic' in key:
+                        mono_accuracies.append(data.get('accuracy', 0) * 100)
+            
+            if combinations:
+                x = np.arange(len(combinations))
+                width = 0.35
+                
+                axes[ax_idx].bar(x - width/2, comp_accuracies, width, label='Compositional', alpha=0.8)
+                axes[ax_idx].bar(x + width/2, mono_accuracies, width, label='Monolithic', alpha=0.8)
+                
+                axes[ax_idx].set_xlabel('Rule Combination')
+                axes[ax_idx].set_ylabel('Accuracy (%)')
+                axes[ax_idx].set_title('Performance on Specific Rule Combinations')
+                axes[ax_idx].set_xticks(x)
+                axes[ax_idx].set_xticklabels(combinations, rotation=45, ha='right')
+                axes[ax_idx].legend()
+                axes[ax_idx].grid(True, alpha=0.3, axis='y')
         
         plt.tight_layout()
         plt.savefig(self.output_dir / 'figures' / 'generalization_analysis.png')
         plt.close()
+    
+    def plot_rule_complexity_analysis(self, stats_results: Dict):
+        """Plot performance by rule complexity using statistical results."""
+        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+        
+        rule_counts = []
+        comp_means = []
+        comp_stds = []
+        mono_means = []
+        mono_stds = []
+        
+        # Extract data for different rule counts
+        for key, data in stats_results.items():
+            if 'rule_' in key and '_acc' in key:
+                try:
+                    rule_num = int(key.split('_')[1])
+                    rule_counts.append(rule_num)
+                    comp_means.append(data['compositional_mean'])
+                    comp_stds.append(data['compositional_std'])
+                    mono_means.append(data['monolithic_mean'])
+                    mono_stds.append(data['monolithic_std'])
+                except (ValueError, KeyError):
+                    continue
+        
+        if rule_counts:
+            # Sort by rule count
+            sorted_indices = np.argsort(rule_counts)
+            rule_counts = [rule_counts[i] for i in sorted_indices]
+            comp_means = [comp_means[i] for i in sorted_indices]
+            comp_stds = [comp_stds[i] for i in sorted_indices]
+            mono_means = [mono_means[i] for i in sorted_indices]
+            mono_stds = [mono_stds[i] for i in sorted_indices]
+            
+            ax.errorbar(rule_counts, comp_means, yerr=comp_stds, 
+                       marker='o', label='Compositional', linewidth=2.5, capsize=5)
+            ax.errorbar(rule_counts, mono_means, yerr=mono_stds, 
+                       marker='s', label='Monolithic', linewidth=2.5, capsize=5)
+            
+            ax.set_xlabel('Number of Required Rules')
+            ax.set_ylabel('Accuracy (%)')
+            ax.set_title('Performance vs Problem Complexity')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_xticks(rule_counts)
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / 'figures' / 'rule_complexity_analysis.png')
+            plt.close()
+        else:
+            print("No rule complexity data available for plotting")
     
     def generate_detailed_results_table(self, results: Dict):
         """Generate detailed breakdown table (Appendix Table)."""
@@ -342,10 +555,22 @@ class PaperFigureGenerator:
         return df
     
     def generate_all_figures(self):
-        """Generate all figures and tables for the paper."""
+        """Generate all figures and tables for the paper using real data."""
         
         print("Loading comparison results...")
         results = self.load_comparison_results()
+        
+        print("Loading statistical analysis results...")
+        stats_results = self.load_statistical_results()
+        
+        print("Loading performance metrics...")
+        df = self.load_performance_metrics()
+        
+        print("Loading training logs...")
+        training_logs = self.load_training_logs()
+        
+        if not results:
+            print("Warning: No comparison results found. Some plots may be skipped.")
         
         print("Generating main results table...")
         self.generate_main_results_table(results)
@@ -356,17 +581,20 @@ class PaperFigureGenerator:
         print("Plotting performance comparison...")
         self.plot_performance_by_rules(results)
         
-        print("Plotting ablation studies...")
-        self.plot_ablation_study(results)
+        print("Plotting statistical comparison...")
+        if stats_results:
+            self.plot_ablation_study(results, stats_results)
+        else:
+            print("Skipping statistical comparison plot - no statistical results available")
         
         print("Plotting error analysis...")
-        self.plot_error_analysis(results)
+        self.plot_error_analysis(results, df)
         
         print("Plotting training curves...")
-        self.plot_training_curves()
+        self.plot_training_curves(training_logs)
         
         print("Plotting generalization analysis...")
-        self.plot_generalization_analysis()
+        self.plot_generalization_analysis(results, stats_results)
         
         # Generate LaTeX tables
         print("Generating LaTeX tables...")
@@ -375,7 +603,10 @@ class PaperFigureGenerator:
         # Generate summary report
         self.generate_figure_summary()
         
-        print(f"\nAll figures saved to: {self.output_dir}")
+        print(f"\nFigures generated using real data saved to: {self.output_dir}")
+        if not results and not stats_results:
+            print("\nWarning: Many plots were skipped due to missing evaluation data.")
+            print("Run the statistical comparison evaluation first to generate complete figures.")
     
     def generate_latex_tables(self, results: Dict):
         """Generate LaTeX tables using the table creation script."""
