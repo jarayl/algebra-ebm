@@ -201,6 +201,7 @@ def run_single_rule_evaluation(
     decoder: Any,
     rule: str,
     num_problems: int = 1000,
+    seed: Optional[int] = 42,
     **eval_kwargs
 ) -> Dict[str, Any]:
     """
@@ -220,7 +221,7 @@ def run_single_rule_evaluation(
     logger.info(f"Running single-rule evaluation for: {rule}")
     
     # Create test dataset
-    datasets = create_single_rule_datasets([rule], num_problems=num_problems)
+    datasets = create_single_rule_datasets([rule], num_problems=num_problems, seed=seed)
     dataset_name = f"single_rule_{rule}"
     
     if dataset_name not in datasets:
@@ -252,6 +253,7 @@ def run_full_evaluation_suite(
     single_rule_problems: int = 1000,
     multi_rule_problems: int = 1000,
     constrained_problems: int = 500,
+    seed: Optional[int] = 42,
     **eval_kwargs
 ) -> Dict[str, Dict[str, Any]]:
     """
@@ -278,7 +280,8 @@ def run_full_evaluation_suite(
     try:
         single_datasets = create_single_rule_datasets(
             rules=['distribute', 'combine', 'isolate', 'divide'],
-            num_problems=single_rule_problems
+            num_problems=single_rule_problems,
+            seed=seed
         )
         all_datasets.update(single_datasets)
         logger.info(f"Created {len(single_datasets)} single-rule datasets")
@@ -296,7 +299,8 @@ def run_full_evaluation_suite(
     try:
         multi_datasets = create_multi_rule_datasets(
             num_rules_list=[2, 3, 4],
-            num_problems=multi_rule_problems
+            num_problems=multi_rule_problems,
+            seed=seed
         )
         all_datasets.update(multi_datasets)
         logger.info(f"Created {len(multi_datasets)} multi-rule datasets")
@@ -1071,6 +1075,7 @@ def main():
                 decoder=decoder,
                 rule=args.rule,
                 num_problems=args.single_rule_problems,
+                seed=args.seed,
                 **eval_params
             )
             
@@ -1080,7 +1085,8 @@ def main():
                 
             datasets = create_multi_rule_datasets(
                 num_rules_list=[args.num_rules],
-                num_problems=args.multi_rule_problems
+                num_problems=args.multi_rule_problems,
+                seed=args.seed
             )
             
             from src.algebra.algebra_evaluation import evaluate_model_suite
@@ -1123,6 +1129,7 @@ def main():
                 single_rule_problems=args.single_rule_problems,
                 multi_rule_problems=args.multi_rule_problems,
                 constrained_problems=args.constrained_problems,
+                seed=args.seed,
                 **eval_params
             )
         

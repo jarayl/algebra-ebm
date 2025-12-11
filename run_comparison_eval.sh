@@ -58,7 +58,9 @@ git clone "$REPO_URL" "$REPO_DIR" || {
 # Copy evaluation scripts
 /bin/cp "$REPO_DIR"/eval_algebra.py "$JOB_SCRATCH"/
 /bin/cp "$REPO_DIR"/scripts/compare_monolithic_vs_compositional.py "$JOB_SCRATCH"/
+/bin/cp "$REPO_DIR"/scripts/statistical_comparison_evaluation.py "$JOB_SCRATCH"/
 /bin/cp -r "$REPO_DIR"/src "$JOB_SCRATCH"/
+/bin/cp -r "$REPO_DIR"/scripts "$JOB_SCRATCH"/
 
 # ------------------------------------------------------------------------------
 # 3. Find and copy trained models
@@ -141,49 +143,41 @@ export PYTHONPATH="${JOB_SCRATCH}:${PYTHONPATH}"
 echo "Installing dependencies..."
 python -m pip install --user -q torch torchvision einops accelerate tqdm \
     tabulate matplotlib numpy pandas ema-pytorch \
-    ipdb seaborn scikit-learn sympy
+    ipdb seaborn scikit-learn sympy scipy
 
 echo "GPU check:"
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPUs: {torch.cuda.device_count()}')"
 
 # ------------------------------------------------------------------------------
-# 6. Run comparison evaluation
+# 6. Run multi-seed statistical comparison evaluation
 # ------------------------------------------------------------------------------
 
-EVAL_SAMPLES=50  # Quick test (change to 1000 for full evaluation)
-OUTPUT_DIR="$JOB_SCRATCH/comparison_results"
+EVAL_SAMPLES=1000  # Number of samples per seed
+NUM_SEEDS=5       # Number of random seeds (use 5 for full statistical validation)
+OUTPUT_DIR="$JOB_SCRATCH/statistical_comparison_results"
 
 echo "=============================================="
-echo "  Running Comparison Evaluation"
+echo "  Running Multi-Seed Statistical Comparison"
 echo "=============================================="
 echo "Monolithic model: $JOB_SCRATCH/results/monolithic/model.pt"
 echo "Rule models dir:  $JOB_SCRATCH/results"
-echo "Samples per test: $EVAL_SAMPLES"
+echo "Samples per seed: $EVAL_SAMPLES"
+echo "Number of seeds:  $NUM_SEEDS"
 echo "Output dir:       $OUTPUT_DIR"
 echo ""
 
 start_time=$(date +%s)
 
-# Option 2: Direct call (recommended for cluster)
-python eval_algebra.py \
-    --eval_type comparison \
-    --use_real_diffusion \
-    --checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
+# Use the new multi-seed statistical framework
+python scripts/statistical_comparison_evaluation.py \
     --monolithic_checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
-    --model_dir "$JOB_SCRATCH/results" \
-    --max_samples $EVAL_SAMPLES \
+    --compositional_dir "$JOB_SCRATCH/results" \
+    --seeds $NUM_SEEDS \
+    --num_samples $EVAL_SAMPLES \
     --output_dir "$OUTPUT_DIR" \
-    --verbose
+    --eval_script "$JOB_SCRATCH/eval_algebra.py"
 
 EVAL_EXIT=$?
-
-# Option 1: Use wrapper script (alternative - has path issues on cluster)
-# python compare_monolithic_vs_compositional.py \
-#     --monolithic_checkpoint "$JOB_SCRATCH/results/monolithic/model.pt" \
-#     --compositional_dir "$JOB_SCRATCH/results" \
-#     --num_samples $EVAL_SAMPLES \
-#     --output_dir "$OUTPUT_DIR" \
-#     --verbose
 
 end_time=$(date +%s)
 duration=$((end_time - start_time))
@@ -194,20 +188,28 @@ duration=$((end_time - start_time))
 
 echo ""
 echo "=============================================="
-echo "  Evaluation Results"
+echo "  Statistical Analysis Results"
 echo "=============================================="
 
 if [ $EVAL_EXIT -eq 0 ]; then
-    echo "✓ Comparison evaluation completed in ${duration}s"
+    echo "✓ Multi-seed statistical evaluation completed in ${duration}s"
     
-    # Show comparison report if it exists
-    if [ -f "$OUTPUT_DIR/comparison_report.md" ]; then
+    # Show statistical analysis report if it exists
+    if [ -f "$OUTPUT_DIR/statistical_analysis_report.md" ]; then
         echo ""
-        echo "COMPARISON SUMMARY:"
-        echo "===================="
-        head -30 "$OUTPUT_DIR/comparison_report.md"
+        echo "STATISTICAL ANALYSIS SUMMARY:"
+        echo "============================="
+        head -40 "$OUTPUT_DIR/statistical_analysis_report.md"
     else
-        echo "⚠️  Comparison report not found"
+        echo "⚠️  Statistical analysis report not found"
+    fi
+    
+    # Show generated LaTeX tables
+    if [ -f "$OUTPUT_DIR/paper_tables.tex" ]; then
+        echo ""
+        echo "📊 LaTeX tables for paper generated"
+        echo "First few lines:"
+        head -20 "$OUTPUT_DIR/paper_tables.tex"
     fi
     
     # Generate publication-ready figures and tables
@@ -276,16 +278,22 @@ echo "  Final Summary"
 echo "=============================================="
 
 if [ $EVAL_EXIT -eq 0 ]; then
-    echo "✅ COMPARISON EVALUATION SUCCESSFUL!"
+    echo "✅ MULTI-SEED STATISTICAL EVALUATION SUCCESSFUL!"
     echo ""
     echo "Results saved to: $FINAL_OUTPUT"
     echo ""
     echo "Key files:"
-    if [ -f "$FINAL_OUTPUT/comparison_report.md" ]; then
-        echo "  📊 comparison_report.md (main results)"
+    if [ -f "$FINAL_OUTPUT/statistical_analysis_report.md" ]; then
+        echo "  📊 statistical_analysis_report.md (main statistical results)"
     fi
-    if [ -f "$FINAL_OUTPUT/comparison_results.json" ]; then
-        echo "  📈 comparison_results.json (detailed data)"
+    if [ -f "$FINAL_OUTPUT/paper_tables.tex" ]; then
+        echo "  📋 paper_tables.tex (LaTeX tables with confidence intervals)"
+    fi
+    if [ -f "$FINAL_OUTPUT/performance_metrics.csv" ]; then
+        echo "  📈 performance_metrics.csv (raw performance data)"
+    fi
+    if [ -f "$FINAL_OUTPUT/statistical_tests.json" ]; then
+        echo "  🧮 statistical_tests.json (detailed statistical test results)"
     fi
     if [ -d "$FINAL_OUTPUT/paper_figures" ]; then
         echo "  🎨 paper_figures/ (publication-ready visualizations)"
@@ -296,7 +304,8 @@ if [ $EVAL_EXIT -eq 0 ]; then
     
     echo ""
     echo "View results with:"
-    echo "  cat $FINAL_OUTPUT/comparison_report.md"
+    echo "  cat $FINAL_OUTPUT/statistical_analysis_report.md"
+    echo "  cat $FINAL_OUTPUT/paper_tables.tex"
 else
     echo "❌ Evaluation failed"
     echo "Check error logs in: $FINAL_OUTPUT"
