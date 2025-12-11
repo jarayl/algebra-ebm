@@ -152,8 +152,8 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPUs: {torch
 # 6. Run multi-seed statistical comparison evaluation
 # ------------------------------------------------------------------------------
 
-EVAL_SAMPLES=50  # Number of samples per seed
-NUM_SEEDS=2       # Number of random seeds (use 5 for full statistical validation)
+EVAL_SAMPLES=1000  # Number of samples per seed
+NUM_SEEDS=4       # Number of random seeds (use 5 for full statistical validation)
 OUTPUT_DIR="$JOB_SCRATCH/statistical_comparison_results"
 
 echo "=============================================="
@@ -255,9 +255,9 @@ ax.set_xlabel('Number of Rules')
 ax.set_ylabel('Accuracy (%)')
 ax.set_title('Performance Comparison')
 ax.grid(True, alpha=0.3)
-plt.savefig('$PAPER_FIGURES_DIR/figures/basic_performance.pdf', dpi=300, bbox_inches='tight')
+plt.savefig('$PAPER_FIGURES_DIR/figures/basic_performance.png', dpi=300, bbox_inches='tight')
 plt.close()
-print('Basic plot saved to basic_performance.pdf')
+print('Basic plot saved to basic_performance.png')
 "
     fi
     
@@ -275,9 +275,9 @@ print('Basic plot saved to basic_performance.pdf')
         echo "✓ Paper figures generated successfully"
         echo ""
         echo "Generated files:"
-        echo "📊 Main performance plot: $PAPER_FIGURES_DIR/figures/performance_by_rules.pdf"
-        echo "📈 Ablation studies: $PAPER_FIGURES_DIR/figures/ablation_study.pdf"
-        echo "🔍 Error analysis: $PAPER_FIGURES_DIR/figures/error_analysis.pdf"
+        echo "📊 Main performance plot: $PAPER_FIGURES_DIR/figures/performance_by_rules.png"
+        echo "📈 Ablation studies: $PAPER_FIGURES_DIR/figures/ablation_study.png"
+        echo "🔍 Error analysis: $PAPER_FIGURES_DIR/figures/error_analysis.png"
         echo "📋 Results tables: $PAPER_FIGURES_DIR/tables/"
         echo ""
         echo "See $PAPER_FIGURES_DIR/README.md for usage instructions"
@@ -330,7 +330,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
     fi
     if [ -d "$FINAL_OUTPUT/paper_figures" ]; then
         echo "  🎨 paper_figures/ (publication-ready visualizations)"
-        echo "      ├── figures/ (PDF plots for paper)"
+        echo "      ├── figures/ (PNG plots for paper)"
         echo "      ├── tables/ (LaTeX and CSV tables)"
         echo "      └── README.md (usage guide)"
         
@@ -355,7 +355,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
     echo "  scp -r mkrasnow@login.rc.fas.harvard.edu:$(pwd)/comparison_results_${SLURM_JOB_ID}/ ."
     echo ""
     echo "This will download:"
-    echo "  • All PDF figures in comparison_results_${SLURM_JOB_ID}/paper_figures/figures/"
+    echo "  • All PNG figures in comparison_results_${SLURM_JOB_ID}/paper_figures/figures/"
     echo "  • All data tables in comparison_results_${SLURM_JOB_ID}/paper_figures/tables/" 
     echo "  • Statistical analysis report"
     echo "  • Raw performance data"
@@ -367,7 +367,7 @@ if [ $EVAL_EXIT -eq 0 ]; then
     echo ""
     echo "Specific figures to check:"
     if [ -d "$FINAL_OUTPUT/paper_figures" ]; then
-        find "$FINAL_OUTPUT/paper_figures" -name "*.pdf" 2>/dev/null | while read -r file; do
+        find "$FINAL_OUTPUT/paper_figures" -name "*.png" 2>/dev/null | while read -r file; do
             echo "  • $(basename "$file")"
         done
     fi

@@ -474,21 +474,30 @@ class MultiRuleDataset(data.Dataset):
         # Start with a complex expression that requires all rules in sequence
         # This is a simplified implementation - in practice, this would be more sophisticated
         
-        # Pick variable and coefficients - use only 'x' to match encoder vocabulary
+        # Pick variable and coefficients - match training data ranges
         var = 'x'
-        a, b, c, d = [random.randint(2, 5) for _ in range(4)]
+        a, b, c, d = [random.randint(2, 10) for _ in range(4)]
         
         # Create a complex starting expression
         if len(rule_sequence) == 2:
             input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var}"
             target_eq = f"{a*b + d}*{var} + {a*c}"
         elif len(rule_sequence) == 3:
+            # 3-rule problems: a*(b*x + c) = d -> distribute -> isolate -> divide
+            # Work backwards from integer solution to ensure correctness
+            x_val = random.randint(2, 15)  # Pick integer solution first - match training range
+            d = a*b*x_val + a*c  # Compute RHS to make x_val the exact solution
             input_eq = f"{a}*({b}*{var} + {c}) = {d}"
-            solution = (d - a*c) // (a*b) if (d - a*c) % (a*b) == 0 else 1
-            target_eq = f"{var} = {solution}"
+            target_eq = f"{var} = {x_val}"
         else:  # 4 rules
-            input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var} = {a*c + d}"
-            target_eq = f"{var} = 1"
+            # 4-rule problems: a*(b*x + c) + d*x = RHS -> distribute -> combine -> isolate -> divide
+            # Work backwards from integer solution to ensure correctness
+            x_val = random.randint(2, 15)  # Pick integer solution first - match training range
+            # Expand: a*b*x + a*c + d*x = (a*b + d)*x + a*c
+            # For solution x_val: RHS = (a*b + d)*x_val + a*c
+            rhs = (a*b + d)*x_val + a*c
+            input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var} = {rhs}"
+            target_eq = f"{var} = {x_val}"
             
         return input_eq, target_eq
     

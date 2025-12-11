@@ -193,7 +193,7 @@ class StatisticalComparisonFramework:
                 for rule in ['distribute', 'combine', 'isolate', 'divide']:
                     rule_key = f'single_rule_{rule}'
                     if rule_key in mono_data and 'summary' in mono_data[rule_key]:
-                        acc = mono_data[rule_key]['summary'].get('accuracy', 0)
+                        acc = mono_data[rule_key]['summary'].get('accuracy', 0) * 100
                         single_rule_accs.append(acc)
                 single_rule_acc = np.mean(single_rule_accs) if single_rule_accs else np.nan
                 
@@ -206,7 +206,7 @@ class StatisticalComparisonFramework:
                 for num_rules in [2, 3, 4]:
                     rule_key = f'multi_rule_{num_rules}'
                     if rule_key in mono_data and 'summary' in mono_data[rule_key]:
-                        acc = mono_data[rule_key]['summary'].get('accuracy', 0)
+                        acc = mono_data[rule_key]['summary'].get('accuracy', 0) * 100
                         multi_rule_accs.append(acc)
                         if num_rules == 2:
                             rule_2_acc = acc
@@ -245,7 +245,7 @@ class StatisticalComparisonFramework:
                 for num_rules in [2, 3, 4]:
                     rule_key = f'multi_rule_{num_rules}'
                     if rule_key in comp_data and 'summary' in comp_data[rule_key]:
-                        acc = comp_data[rule_key]['summary'].get('accuracy', 0)
+                        acc = comp_data[rule_key]['summary'].get('accuracy', 0) * 100
                         multi_rule_accs.append(acc)
                         if num_rules == 2:
                             rule_2_acc = acc
@@ -334,7 +334,10 @@ class StatisticalComparisonFramework:
             
             # Effect size (Cohen's d for paired samples)
             diff = comp_values - mono_values
-            d = np.mean(diff) / np.std(diff, ddof=1) if np.std(diff, ddof=1) > 0 else 0
+            diff_std = np.std(diff, ddof=1)
+            # Add small epsilon to prevent division by near-zero (overly consistent results)
+            epsilon = 1e-10
+            d = np.mean(diff) / max(diff_std, epsilon)
             
             # Confidence interval for mean difference (bootstrap)
             ci_lower, ci_upper = self._bootstrap_ci_difference(comp_values, mono_values)

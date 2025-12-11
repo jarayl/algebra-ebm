@@ -31,7 +31,7 @@ plt.rcParams.update({
     'text.usetex': False,  # Set to True if LaTeX available
     'figure.dpi': 300,
     'savefig.dpi': 300,
-    'savefig.format': 'pdf',
+    'savefig.format': 'png',
     'savefig.bbox': 'tight'
 })
 
@@ -129,7 +129,7 @@ class PaperFigureGenerator:
         ax.set_ylim(0, 105)
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'performance_by_rules.pdf')
+        plt.savefig(self.output_dir / 'figures' / 'performance_by_rules.png')
         plt.close()
     
     def plot_ablation_study(self, results: Dict):
@@ -171,7 +171,7 @@ class PaperFigureGenerator:
         ax2.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'ablation_study.pdf')
+        plt.savefig(self.output_dir / 'figures' / 'ablation_study.png')
         plt.close()
     
     def plot_error_analysis(self, results: Dict):
@@ -212,7 +212,7 @@ class PaperFigureGenerator:
         ax2.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'error_analysis.pdf')
+        plt.savefig(self.output_dir / 'figures' / 'error_analysis.png')
         plt.close()
     
     def plot_training_curves(self):
@@ -254,7 +254,7 @@ class PaperFigureGenerator:
         ax2.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'training_curves.pdf')
+        plt.savefig(self.output_dir / 'figures' / 'training_curves.png')
         plt.close()
     
     def plot_generalization_analysis(self):
@@ -305,7 +305,7 @@ class PaperFigureGenerator:
         ax2.grid(True, alpha=0.3, axis='y')
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'figures' / 'generalization_analysis.pdf')
+        plt.savefig(self.output_dir / 'figures' / 'generalization_analysis.png')
         plt.close()
     
     def generate_detailed_results_table(self, results: Dict):
@@ -411,25 +411,25 @@ class PaperFigureGenerator:
 
 ## Main Paper Figures
 
-1. **Figure 1**: `figures/performance_by_rules.pdf`
+1. **Figure 1**: `figures/performance_by_rules.png`
    - Performance comparison across different rule complexity
    - Shows compositional advantage as problems become more complex
 
-2. **Figure 2**: `figures/ablation_study.pdf` 
+2. **Figure 2**: `figures/ablation_study.png` 
    - Energy composition weight strategies
    - Effect of training data size
 
-3. **Figure 3**: `figures/error_analysis.pdf`
+3. **Figure 3**: `figures/error_analysis.png`
    - Error type distribution comparison
    - Solution distance analysis for incorrect answers
 
 ## Supplementary Figures
 
-4. **Figure S1**: `figures/training_curves.pdf`
+4. **Figure S1**: `figures/training_curves.png`
    - Individual rule training convergence
    - Validation accuracy progression
 
-5. **Figure S2**: `figures/generalization_analysis.pdf`
+5. **Figure S2**: `figures/generalization_analysis.png`
    - In-domain vs out-of-domain performance
    - Performance on specific 2-rule combinations
 
@@ -448,7 +448,7 @@ To include figures in your paper:
 ```latex
 \\begin{figure}[t]
     \\centering
-    \\includegraphics[width=0.8\\textwidth]{figures/performance_by_rules.pdf}
+    \\includegraphics[width=0.8\\textwidth]{figures/performance_by_rules.png}
     \\caption{Performance comparison across different problem complexities.}
     \\label{fig:performance}
 \\end{figure}
