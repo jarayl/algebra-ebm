@@ -818,7 +818,9 @@ def main():
     
     # Validate real diffusion arguments
     if args.use_real_diffusion and not args.checkpoint:
-        parser.error("--checkpoint is required when using --use_real_diffusion")
+        # For comparison mode, checkpoints are loaded from model_dir, so --checkpoint is not required
+        if args.eval_type != 'comparison':
+            parser.error("--checkpoint is required when using --use_real_diffusion (except for comparison mode)")
     
     # Set logging level
     if args.verbose:

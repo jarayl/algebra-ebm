@@ -152,8 +152,8 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPUs: {torch
 # 6. Run multi-seed statistical comparison evaluation
 # ------------------------------------------------------------------------------
 
-EVAL_SAMPLES=1000  # Number of samples per seed
-NUM_SEEDS=5       # Number of random seeds (use 5 for full statistical validation)
+EVAL_SAMPLES=50  # Number of samples per seed
+NUM_SEEDS=2       # Number of random seeds (use 5 for full statistical validation)
 OUTPUT_DIR="$JOB_SCRATCH/statistical_comparison_results"
 
 echo "=============================================="
