@@ -1,0 +1,20 @@
+# Critical Batch Size Fix for Production Safety
+# 
+# Issue: Line 617 in algebra_inference.py calls .item() on multi-element tensor
+# Impact: Complete system crash with batch_size > 1
+# Fix: Use .mean().item() to handle batched final energy calculation
+#
+# Apply with: patch -p1 < CRITICAL_BATCH_FIX.patch
+
+--- a/src/algebra/algebra_inference.py
++++ b/src/algebra/algebra_inference.py
+@@ -614,7 +614,8 @@ class AlgebraInference:
+         # Final statistics
+         final_k = k  # k is the last completed landscape
+         final_timestep_tensor = torch.full((batch_size,), final_k, dtype=torch.long, device=inp_embedding.device)
+-        info['final_energy'] = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor).item()
++        final_energy_tensor = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor)
++        info['final_energy'] = final_energy_tensor.mean().item()  # Handle batched tensors safely
+         info['acceptance_rate'] = info['accepted_steps'] / max(info['total_steps'], 1)
+         
+         # OPTIMIZATION: Add caching effectiveness statistics

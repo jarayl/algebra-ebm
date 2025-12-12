@@ -1,0 +1,1135 @@
+#!/usr/bin/env python3
+"""
+Algebra equation inference using energy-based models and IRED optimization.
+
+This module implements the IRED (Iterative Reverse Energy Diffusion) algorithm
+for solving algebraic equations. The approach combines multiple rule-specific
+energy functions through a compositional framework with annealed optimization
+across multiple energy landscapes.
+
+Key components:
+- AlgebraInference: Main inference engine with IRED algorithm
+- InferenceConfig: Configuration for optimization parameters
+- Energy composition with normalization and calibration
+- Robust gradient-based optimization with Metropolis acceptance
+"""
+
+import torch
+import torch.nn.functional as F
+import logging
+import math
+from typing import Dict, List, Optional, Tuple, Any, Union
+from dataclasses import dataclass
+
+from .algebra_models import AlgebraDiffusionWrapper
+from .algebra_encoder import CharacterLevelEncoder
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class InferenceConfig:
+    """
+    Configuration parameters for IRED inference algorithm.
+    
+    The IRED algorithm performs annealed optimization across multiple energy landscapes,
+    using adaptive step sizes and convergence detection to find optimal solutions.
+    
+    Parameters:
+        step_size: Base learning rate for gradient descent
+        max_iterations: Maximum optimization iterations per landscape
+        K: Number of energy landscapes (must match diffusion model training)
+        use_adaptive_step: Whether to use adaptive step size decay
+        step_size_decay_rate: Multiplicative decay factor for step size
+        step_size_decay_interval: Apply decay every N landscapes
+        energy_threshold: Early stopping threshold for energy convergence
+        clip_grad_norm: Gradient clipping threshold (None = no clipping)
+    """
+    step_size: float = 0.01
+    max_iterations: int = 50
+    K: int = 10
+    use_adaptive_step: bool = True
+    step_size_decay_rate: float = 0.8
+    step_size_decay_interval: int = 2
+    energy_threshold: float = 1e-6
+    clip_grad_norm: Optional[float] = 5.0
+    
+    def __post_init__(self):
+        """Validate parameters and precompute step size schedule."""
+        if self.step_size <= 0:
+            raise ValueError("step_size must be positive")
+        if self.max_iterations <= 0:
+            raise ValueError("max_iterations must be positive")
+        if self.K <= 0:
+            raise ValueError("K must be positive")
+        if self.K > 10000:  # Reasonable upper bound
+            raise ValueError("K exceeds maximum supported value (10000)")
+        if not (0.0 < self.step_size_decay_rate < 1.0):
+            raise ValueError("step_size_decay_rate must be in (0, 1)")
+        
+        # Precompute adaptive step sizes for all landscapes
+        self._step_sizes = []
+        for k in range(self.K):
+            if self.use_adaptive_step:
+                decay_count = k // self.step_size_decay_interval
+                step_k = self.step_size * (self.step_size_decay_rate ** decay_count)
+            else:
+                step_k = self.step_size
+            self._step_sizes.append(step_k)
+    
+    def get_adaptive_step_size(self, landscape_idx: int) -> float:
+        """Get the adaptive step size for a given landscape index."""
+        if landscape_idx < 0 or landscape_idx >= self.K:
+            raise IndexError(f"landscape_idx {landscape_idx} out of bounds [0, {self.K})")
+        return self._step_sizes[landscape_idx]
+    
+    def should_early_stop(self, energy: float) -> bool:
+        """Check if optimization should stop early based on energy threshold."""
+        return energy <= self.energy_threshold
+
+
+def cosine_beta_schedule(timesteps: int) -> torch.Tensor:
+    """
+    Cosine beta schedule for diffusion process.
+    
+    Args:
+        timesteps: Number of timesteps
+        
+    Returns:
+        Beta values for each timestep
+    """
+    s = 0.008
+    steps = timesteps + 1
+    x = torch.linspace(0, timesteps, steps)
+    alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
+    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+    return torch.clip(betas, 0.0001, 0.9999)
+
+
+def compute_alphas_cumprod(timesteps: int) -> torch.Tensor:
+    """Compute cumulative product of alphas for diffusion."""
+    betas = cosine_beta_schedule(timesteps)
+    alphas = 1.0 - betas
+    return torch.cumprod(alphas, dim=0)
+
+
+def load_rule_models(
+    rule_names: List[str], 
+    model_dir: str,
+    device: str = 'cpu'
+) -> Dict[str, AlgebraDiffusionWrapper]:
+    """
+    Load pre-trained rule models from disk.
+    
+    Args:
+        rule_names: List of rule names to load
+        model_dir: Directory containing model files
+        device: Device to load models on
+        
+    Returns:
+        Dictionary mapping rule names to loaded models
+    """
+    import os
+    rule_models = {}
+    
+    for rule_name in rule_names:
+        model_path = os.path.join(model_dir, f"{rule_name}_model.pth")
+        if os.path.exists(model_path):
+            try:
+                # Load model checkpoint
+                checkpoint = torch.load(model_path, map_location=device)
+                
+                # Reconstruct model
+                from .algebra_models import AlgebraEBM
+                ebm = AlgebraEBM(rule_name=rule_name)
+                ebm.load_state_dict(checkpoint['model_state_dict'])
+                
+                wrapper = AlgebraDiffusionWrapper(ebm)
+                wrapper.to(device)
+                wrapper.eval()
+                
+                rule_models[rule_name] = wrapper
+                logger.info(f"Loaded {rule_name} model from {model_path}")
+                
+            except Exception as e:
+                logger.error(f"Failed to load {rule_name} model: {e}")
+        else:
+            logger.warning(f"Model file not found: {model_path}")
+    
+    return rule_models
+
+
+class AlgebraInference:
+    """
+    Main inference engine for algebraic equation solving using IRED algorithm.
+    
+    The IRED (Iterative Reverse Energy Diffusion) algorithm performs annealed
+    optimization across multiple energy landscapes to find equation solutions.
+    It combines multiple rule-specific energy functions through compositional
+    energy modeling with robust optimization techniques.
+    
+    Key Features:
+    - Multi-rule energy composition with normalization
+    - Annealed gradient descent across K energy landscapes  
+    - Adaptive step sizing and convergence detection
+    - Energy caching optimization for computational efficiency
+    - Robust gradient clipping and Metropolis acceptance
+    """
+    
+    def __init__(
+        self,
+        rule_models: Dict[str, AlgebraDiffusionWrapper],
+        encoder: CharacterLevelEncoder,
+        config: Optional[InferenceConfig] = None,
+        device: str = 'cpu'
+    ):
+        """
+        Initialize inference engine.
+        
+        Args:
+            rule_models: Dictionary of pre-trained rule-specific models
+            encoder: Equation encoder for string-to-embedding conversion
+            config: Inference configuration (default: InferenceConfig())
+            device: Device to run inference on
+        """
+        self.rule_models = rule_models
+        self.encoder = encoder
+        self.config = config if config is not None else InferenceConfig()
+        self.device = device
+        
+        # Validate configuration matches loaded models
+        self.K = self.config.K
+        self.alphas_cumprod = compute_alphas_cumprod(self.K).to(device)
+        
+        # Move models to device
+        for model in self.rule_models.values():
+            model.to(device)
+        
+        logger.info(f"AlgebraInference initialized with {len(rule_models)} rules, "
+                   f"K={self.K} landscapes on device {device}")
+
+    def compose_energies(
+        self, 
+        inp: torch.Tensor, 
+        out: torch.Tensor, 
+        k: int,
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None,
+        normalize: bool = True,
+        calibration_scales: Optional[Dict[str, float]] = None
+    ) -> torch.Tensor:
+        """
+        Compose energy functions from multiple rules by weighted summation.
+        
+        Args:
+            inp: Input equation embedding (B, 128)
+            out: Output equation embedding (B, 128)
+            k: Landscape index [0, K-1]
+            rule_weights: Optional weights for each rule (default: all 1.0)
+            t: Optional pre-allocated timestep tensor (default: allocate new)
+            normalize: Whether to apply z-score normalization (default: True)
+            calibration_scales: Optional per-rule calibration scales (default: None)
+            
+        Returns:
+            total_energy: Composed energy value (B, 1)
+        """
+        if rule_weights is None:
+            rule_weights = {name: 1.0 for name in self.rule_models.keys()}
+        
+        # Create timestep tensor if not provided
+        if t is None:
+            t = torch.full((inp.shape[0],), k, dtype=torch.long, device=self.device)
+        else:
+            # Validate pre-allocated tensor
+            if t.device != self.device:
+                raise ValueError(f"Pre-allocated tensor device {t.device} does not match inference device {self.device}")
+        
+        # Collect individual energy values for each rule
+        individual_energies = []
+        rule_names = list(self.rule_models.keys())
+        
+        for rule_name in rule_names:
+            model = self.rule_models[rule_name]
+            energy = model(inp, out, t, return_energy=True)  # (B, 1)
+            
+            # Apply calibration scales if provided
+            if calibration_scales is not None and rule_name in calibration_scales:
+                energy = energy * calibration_scales[rule_name]
+            
+            individual_energies.append(energy)
+        
+        if not normalize:
+            # Backward compatibility: original weighted summation
+            total_energy = torch.zeros_like(individual_energies[0])
+            for i, rule_name in enumerate(rule_names):
+                weight = rule_weights.get(rule_name, 1.0)
+                total_energy += weight * individual_energies[i]
+            return total_energy
+        
+        # Apply z-score normalization only for multi-rule case
+        if len(individual_energies) > 1:
+            # Stack energies for normalization: (B, num_rules)
+            energies_stacked = torch.cat(individual_energies, dim=1)  
+            
+            # Compute z-score normalization across rules (per batch item)
+            mean = energies_stacked.mean(dim=1, keepdim=True)  # (B, 1)
+            std = energies_stacked.std(dim=1, keepdim=True)    # (B, 1)
+            
+            # FIXED STAB-001: Use precision-adaptive epsilon for numerical stability
+            dtype_eps = torch.finfo(energies_stacked.dtype).eps
+            adaptive_epsilon = dtype_eps * 1000.0  # 1000x safety factor
+            epsilon = max(1e-10, min(adaptive_epsilon, 1e-2))  # Bounds: [1e-10, 1e-2]
+            
+            # FIXED STAB-002: Use robust division with second-order gradient stability  
+            safe_denominator = std + epsilon
+            energies_normalized = (energies_stacked - mean) / safe_denominator  # (B, num_rules)
+            
+            # FIXED STAB-003: Additional bounds checking after normalization
+            if not torch.isfinite(energies_normalized).all():
+                logger.warning("Non-finite values detected after normalization, applying fallback")
+                # Fallback: use unnormalized energies with warning
+                energies_normalized = energies_stacked - mean  # Mean-center only            
+            # Rescale to target range [1, 15] approximately
+            # This provides stable energy scales for optimization
+            target_std = 3.5  # Half of range [1, 15]
+            target_mean = 8.0  # Center of range [1, 15]
+            energies_rescaled = target_std * energies_normalized + target_mean  # (B, num_rules)
+            
+            # Apply rule weights to normalized energies
+            total_energy = torch.zeros((inp.shape[0], 1), device=self.device)
+            for i, rule_name in enumerate(rule_names):
+                weight = rule_weights.get(rule_name, 1.0)
+                total_energy += weight * energies_rescaled[:, i:i+1]  # (B, 1)
+        else:
+            # Single rule: no normalization needed, just apply weight
+            rule_name = rule_names[0]
+            weight = rule_weights.get(rule_name, 1.0)
+            total_energy = weight * individual_energies[0]
+        
+        return total_energy
+
+    def compute_composed_gradient(
+        self,
+        inp: torch.Tensor,
+        out: torch.Tensor,
+        k: int,
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None,
+        clip_grad_norm: Optional[float] = 5.0,
+        normalize: bool = True,
+        calibration_scales: Optional[Dict[str, float]] = None
+    ) -> torch.Tensor:
+        """
+        Compute gradient of composed energy w.r.t. output embedding.
+        
+        Args:
+            inp: Input equation embedding (B, 128)
+            out: Output equation embedding (B, 128) 
+            k: Landscape index [0, K-1]
+            rule_weights: Optional weights for each rule
+            t: Optional pre-allocated timestep tensor (default: allocate new)
+            clip_grad_norm: Optional L2 norm clipping threshold (default: 5.0)
+            normalize: Whether to apply z-score normalization (default: True)
+            calibration_scales: Optional per-rule calibration scales (default: None)
+            
+        Returns:
+            grad: Energy gradient dE/dout (B, 128), clipped if necessary
+        """
+        if rule_weights is None:
+            rule_weights = {name: 1.0 for name in self.rule_models.keys()}
+        
+        # Enable gradient computation
+        out_grad = out.clone().detach().requires_grad_(True)
+        
+        # Compute composed energy
+        energy = self.compose_energies(inp, out_grad, k, rule_weights, t, normalize, calibration_scales)
+        
+        # Compute gradient via automatic differentiation
+        total_energy = energy.sum()  # Reduce to scalar
+        total_energy.backward()
+        
+        grad = out_grad.grad
+        if grad is None:
+            # Fallback: zero gradient
+            grad = torch.zeros_like(out)
+        
+        # Gradient clipping
+        if clip_grad_norm is not None and clip_grad_norm > 0:
+            grad_norm = torch.norm(grad, dim=1, keepdim=True)  # (B, 1)
+            # Clamp gradient norm to prevent explosion
+            grad = grad * torch.clamp(grad_norm, max=clip_grad_norm) / torch.clamp(grad_norm, min=1e-8)
+        
+        return grad.detach()
+
+    def compute_energy_and_gradient(
+        self,
+        inp: torch.Tensor,
+        out: torch.Tensor,
+        k: int,
+        rule_weights: Optional[Dict[str, float]] = None,
+        t: Optional[torch.Tensor] = None,
+        clip_grad_norm: Optional[float] = 5.0,
+        normalize: bool = True,
+        calibration_scales: Optional[Dict[str, float]] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute both composed energy and gradient in a single forward pass.
+        
+        This optimizes performance by avoiding redundant energy computation.
+        Used for BUG-3 energy caching optimization in IRED inference.
+        
+        Args:
+            inp: Input equation embedding (B, 128)
+            out: Output equation embedding (B, 128)
+            k: Landscape index [0, K-1]
+            rule_weights: Optional weights for each rule
+            t: Optional pre-allocated timestep tensor (default: allocate new)
+            clip_grad_norm: Optional L2 norm clipping threshold (default: 5.0)
+            normalize: Whether to apply z-score normalization (default: True)
+            calibration_scales: Optional per-rule calibration scales (default: None)
+            
+        Returns:
+            energy: Composed energy value (B, 1)
+            grad: Energy gradient dE/dout (B, 128), clipped if necessary
+        """
+        if rule_weights is None:
+            rule_weights = {name: 1.0 for name in self.rule_models.keys()}
+        
+        # Enable gradient computation on output
+        out_grad = out.clone().detach().requires_grad_(True)
+        
+        # Compute composed energy (this will build computation graph)
+        energy = self.compose_energies(inp, out_grad, k, rule_weights, t, normalize, calibration_scales)
+        
+        # Compute gradient via automatic differentiation
+        total_energy = energy.sum()  # Reduce to scalar for gradient computation
+        total_energy.backward()
+        
+        grad = out_grad.grad
+        if grad is None:
+            # Fallback: zero gradient
+            grad = torch.zeros_like(out)
+        
+        # Gradient clipping to prevent explosion
+        if clip_grad_norm is not None and clip_grad_norm > 0:
+            grad_norm = torch.norm(grad, dim=1, keepdim=True)  # (B, 1)
+            grad = grad * torch.clamp(grad_norm, max=clip_grad_norm) / torch.clamp(grad_norm, min=1e-8)
+        
+        return energy.detach(), grad.detach()
+
+    def ired_inference(
+        self,
+        inp_embedding: torch.Tensor,
+        config: Optional[InferenceConfig] = None,
+        rule_weights: Optional[Dict[str, float]] = None,
+        normalize: bool = True,
+        calibration_scales: Optional[Dict[str, float]] = None
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """
+        Core IRED inference algorithm with annealed gradient descent.
+        
+        Args:
+            inp_embedding: Input equation embedding (B, 128)  
+            config: InferenceConfig with optimization parameters (uses self.config if None)
+            rule_weights: Optional weights for rule composition
+            normalize: Whether to apply z-score normalization (default: True)
+            calibration_scales: Optional per-rule calibration scales (default: None)
+            
+        Returns:
+            out_embedding: Final optimized embedding (B, 128)
+            info: Dictionary with optimization statistics
+        """
+        # Input validation
+        if not isinstance(inp_embedding, torch.Tensor):
+            raise TypeError("inp_embedding must be a torch.Tensor")
+        if inp_embedding.shape[1] != 128:
+            raise ValueError("inp_embedding must have shape (B, 128)")
+        if not torch.isfinite(inp_embedding).all():
+            raise ValueError("inp_embedding contains NaN or Inf values")
+        if len(self.rule_models) == 0:
+            raise ValueError("No rule models loaded")
+        
+        # Use provided config or fallback to instance config
+        config = config if config is not None else self.config
+        
+        if rule_weights is None:
+            rule_weights = {name: 1.0 for name in self.rule_models.keys()}
+        
+        # Initialize output embedding with input + small random noise
+        batch_size = inp_embedding.shape[0]
+        out = inp_embedding.clone()
+        out += 0.01 * torch.randn_like(out)  # Small perturbation
+        
+        # Optimization tracking
+        info = {
+            'energy_history': [],
+            'step_sizes': config._step_sizes.copy(),
+            'landscape_transitions': [],
+            'gradient_norms': [],
+            'accepted_steps': [],
+            'total_steps': 0,
+            'final_energy': 0.0,
+            'acceptance_rate': 0.0,
+            'cache_hit_rate': 0.0,  # BUG-3: Energy caching performance tracking
+            'converged': False
+        }
+        
+        # Energy caching for BUG-3 optimization
+        cached_energy_val = None
+        have_cached_energy = False
+        cache_hits = 0
+        cache_misses = 0
+        
+        total_accepted = 0
+        
+        # Pre-allocate timestep tensor for efficiency (BUG-3 optimization)
+        timestep_tensor = torch.empty((batch_size,), dtype=torch.long, device=self.device)
+        
+        try:
+            # Annealed optimization across K energy landscapes
+            for k in range(config.K):
+                logger.debug(f"IRED Landscape {k}/{config.K-1}")
+                
+                # Update timestep tensor in-place to avoid repeated allocation
+                timestep_tensor.fill_(k)
+                
+                step_size = config.get_adaptive_step_size(k)
+                landscape_accepted = 0
+                
+                for iter_num in range(config.max_iterations):
+                    info['total_steps'] += 1
+                    
+                    # OPTIMIZATION: Energy caching to avoid redundant forward passes
+                    # Key insight: if we have cached energy from previous iteration, reuse it
+                    if have_cached_energy:
+                        # Use cached energy from previous iteration
+                        energy_before_val = cached_energy_val
+                        grad = self.compute_composed_gradient(inp_embedding, out, k, rule_weights, timestep_tensor, config.clip_grad_norm, normalize, calibration_scales)
+                        cache_hits += 1
+                    else:
+                        # No cached energy - compute both energy and gradient atomically
+                        energy_current, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights, timestep_tensor, config.clip_grad_norm, normalize, calibration_scales)
+                        energy_before_val = energy_current.item()
+                        cache_misses += 1
+                    grad_norm = torch.norm(grad).item()
+                    info['energy_history'].append(energy_before_val)
+                    info['gradient_norms'].append(grad_norm)
+                    
+                    # Gradient explosion detection
+                    if grad_norm > 100.0:  # Threshold for explosion
+                        logger.warning(f"Gradient explosion detected (norm={grad_norm:.2e}) at k={k}, iter={iter_num}")
+                        info['convergence_reason'] = f'gradient_explosion_k{k}_iter{iter_num}'
+                        break
+                    
+                    # Early stopping for very small gradients
+                    if grad_norm < 1e-8:
+                        info['convergence_reason'] = f'converged_small_gradient_k{k}_iter{iter_num}'
+                        break
+                    
+                    # Gradient descent step
+                    out_candidate = out - step_size * grad
+                    
+                    # Compute energy for candidate point
+                    energy_after = self.compose_energies(inp_embedding, out_candidate, k, rule_weights, timestep_tensor, normalize, calibration_scales)
+                    energy_after_val = energy_after.item()
+                    
+                    # Metropolis acceptance criterion
+                    energy_delta = energy_after_val - energy_before_val
+                    
+                    # Accept if energy decreases or meets Metropolis criterion  
+                    if energy_delta <= 0:
+                        accept = True
+                    else:
+                        # Metropolis acceptance for energy increases
+                        temperature = 0.1  # Fixed temperature
+                        accept_prob = math.exp(-energy_delta / temperature)
+                        accept = torch.rand(1).item() < accept_prob
+                    
+                    if accept:
+                        out = out_candidate
+                        landscape_accepted += 1
+                        total_accepted += 1
+                        info['accepted_steps'].append(info['total_steps'])
+                        
+                        # Cache the energy for next iteration (BUG-3 optimization)
+                        cached_energy_val = energy_after_val
+                        have_cached_energy = True
+                    else:
+                        # Keep current position, invalidate cache
+                        have_cached_energy = False
+                    
+                    # Check for energy-based convergence
+                    if config.should_early_stop(energy_after_val if accept else energy_before_val):
+                        info['convergence_reason'] = f'converged_energy_threshold_k{k}_iter{iter_num}'
+                        info['converged'] = True
+                        break
+                
+                # Landscape transition tracking
+                info['landscape_transitions'].append({
+                    'k': k,
+                    'iterations': iter_num + 1,
+                    'accepted': landscape_accepted,
+                    'final_energy': energy_after_val if 'energy_after_val' in locals() else energy_before_val,
+                    'final_grad_norm': grad_norm
+                })
+                
+                # Early termination if converged
+                if info.get('converged', False):
+                    break
+            
+            # Final statistics
+            if info['total_steps'] > 0:
+                info['acceptance_rate'] = total_accepted / info['total_steps']
+                info['cache_hit_rate'] = cache_hits / (cache_hits + cache_misses) if (cache_hits + cache_misses) > 0 else 0.0
+            else:
+                info['acceptance_rate'] = 0.0
+                info['cache_hit_rate'] = 0.0
+            
+            # Compute final energy
+            final_energy = self.compose_energies(inp_embedding, out, config.K-1, rule_weights, normalize=normalize, calibration_scales=calibration_scales)
+            info['final_energy'] = final_energy.item()
+            
+        except Exception as e:
+            logger.error(f"IRED inference failed: {e}")
+            # Return input embedding as fallback
+            out = inp_embedding.clone()
+            info['final_energy'] = float('inf')
+            info['error'] = str(e)
+        
+        # Add convergence status to final reporting
+        convergence_status = info.get('convergence_reason', 'completed_all_landscapes')
+        logger.info(f"Inference completed. Final energy: {info['final_energy']:.6f}, "
+                   f"Acceptance rate: {info['acceptance_rate']:.3f}, "
+                   f"Cache hit rate: {info['cache_hit_rate']:.3f}, "
+                   f"Convergence: {convergence_status}")
+        
+        return out.detach(), info
+    
+    def calibrate_energy_scales(
+        self,
+        calibration_dataset,
+        num_samples: int = 1000,
+        reference_rule: str = 'distribute',
+        timesteps: Optional[List[int]] = None,
+        use_timestep_averaged: bool = True,
+        validate_landscape_preservation: bool = True,
+        validation_samples: int = 100
+    ) -> Dict[str, float]:
+        """
+        Calibrate energy scales across different rules using multi-timestep methodology.
+        
+        This enhanced method samples energies across multiple timesteps to better
+        represent the varying energy scales throughout the k=0-9 inference process.
+        It includes validation that calibration preserves optimization landscapes.
+        
+        Args:
+            calibration_dataset: Dataset to sample from for calibration
+                                Must support get_equation_pair(idx) or __getitem__
+            num_samples: Number of samples to use per rule for statistics (default: 1000)
+            reference_rule: Rule to use as baseline for scaling (default: 'distribute')
+            timesteps: List of timesteps to sample from (default: [1,3,5,7,9])
+            use_timestep_averaged: If True, average across timesteps; if False, use timestep-specific calibration
+            validate_landscape_preservation: Whether to validate energy landscape preservation (default: True)
+            validation_samples: Number of samples for landscape validation (default: 100)
+            
+        Returns:
+            Dict mapping rule names to calibration scaling factors
+            
+        Raises:
+            ValueError: If reference rule not found or dataset is empty
+            RuntimeError: If calibration fails due to numerical issues
+        """
+        logger.info(f"Starting multi-timestep energy scale calibration with {num_samples} samples per rule")
+        
+        # Input validation
+        if reference_rule not in self.rule_models:
+            raise ValueError(f"Reference rule '{reference_rule}' not found in loaded models. "
+                           f"Available rules: {list(self.rule_models.keys())}")
+        
+        if len(calibration_dataset) == 0:
+            raise ValueError("Calibration dataset is empty")
+        
+        # Default timesteps: sample across the full range with emphasis on middle values
+        if timesteps is None:
+            timesteps = [1, 3, 5, 7, 9]  # Distribute across k=0-9 range
+        
+        # Validate timesteps
+        for k in timesteps:
+            if k < 0 or k >= self.K:
+                raise ValueError(f"Timestep {k} is outside valid range [0, {self.K-1}]")
+        
+        logger.info(f"Using timesteps: {timesteps}, averaging={'on' if use_timestep_averaged else 'off'}")
+        
+        # Ensure models are in eval mode for consistent calibration
+        original_modes = {}
+        for rule_name, model in self.rule_models.items():
+            original_modes[rule_name] = model.training
+            model.eval()
+        
+        try:
+            with torch.no_grad():  # No training during calibration
+                # Collect energy statistics for each rule across multiple timesteps
+                rule_energy_stats = {}
+                
+                for rule_name in self.rule_models.keys():
+                    logger.info(f"Collecting multi-timestep energy statistics for rule: {rule_name}")
+                    
+                    # Collect energies across all specified timesteps
+                    all_energies = []  # All energies across timesteps
+                    timestep_energies = {k: [] for k in timesteps}  # Per-timestep energies
+                    
+                    samples_collected = 0
+                    max_attempts = num_samples * 3  # Allow some failures
+                    attempts = 0
+                    
+                    while samples_collected < num_samples and attempts < max_attempts:
+                        attempts += 1
+                        
+                        # Sample random equation pair from dataset
+                        try:
+                            idx = torch.randint(0, len(calibration_dataset), (1,)).item()
+                            
+                            # Try different methods to get equation pairs
+                            if hasattr(calibration_dataset, 'get_equation_pair'):
+                                input_eq, target_eq = calibration_dataset.get_equation_pair(idx)
+                            elif hasattr(calibration_dataset, 'get_problem_info'):
+                                problem_info = calibration_dataset.get_problem_info(idx)
+                                input_eq = problem_info['input_equation']
+                                target_eq = problem_info['target_equation']
+                            else:
+                                # Fallback: assume dataset returns tuple
+                                data_item = calibration_dataset[idx]
+                                if isinstance(data_item, tuple) and len(data_item) >= 2:
+                                    input_eq, target_eq = data_item[0], data_item[1]
+                                else:
+                                    logger.warning(f"Cannot extract equation pair from dataset item at index {idx}")
+                                    continue
+                            
+                            # Encode equations
+                            inp_embedding = self.encoder(input_eq).unsqueeze(0).to(self.device)
+                            out_embedding = self.encoder(target_eq).unsqueeze(0).to(self.device)
+                            
+                            # Sample energies across multiple timesteps
+                            sample_energies = []
+                            all_finite = True
+                            
+                            for k in timesteps:
+                                t = torch.full((1,), k, dtype=torch.long, device=self.device)
+                                model = self.rule_models[rule_name]
+                                energy = model(inp_embedding, out_embedding, t, return_energy=True)
+                                
+                                if torch.isfinite(energy).all():
+                                    energy_val = energy.item()
+                                    sample_energies.append(energy_val)
+                                    timestep_energies[k].append(energy_val)
+                                else:
+                                    all_finite = False
+                                    break
+                            
+                            # Only use sample if all timesteps produced finite energies
+                            if all_finite and len(sample_energies) == len(timesteps):
+                                all_energies.extend(sample_energies)
+                                samples_collected += 1
+                            else:
+                                logger.debug(f"Non-finite energy for rule {rule_name}, skipping sample")
+                                
+                        except Exception as e:
+                            logger.debug(f"Error processing sample {idx} for rule {rule_name}: {e}")
+                            continue
+                    
+                    if len(all_energies) == 0:
+                        raise RuntimeError(f"Failed to collect any valid energy samples for rule {rule_name}")
+                    
+                    # Compute energy distribution statistics
+                    if use_timestep_averaged:
+                        # Use aggregated statistics across all timesteps
+                        energies_tensor = torch.tensor(all_energies)
+                        rule_energy_stats[rule_name] = {
+                            'mean': energies_tensor.mean().item(),
+                            'std': energies_tensor.std().item(),
+                            'min': energies_tensor.min().item(),
+                            'max': energies_tensor.max().item(),
+                            'samples': len(all_energies),
+                            'method': 'timestep_averaged'
+                        }
+                    else:
+                        # Use per-timestep statistics (more complex implementation)
+                        # For now, use the middle timestep as representative
+                        middle_k = timesteps[len(timesteps) // 2]
+                        if len(timestep_energies[middle_k]) > 0:
+                            energies_tensor = torch.tensor(timestep_energies[middle_k])
+                            rule_energy_stats[rule_name] = {
+                                'mean': energies_tensor.mean().item(),
+                                'std': energies_tensor.std().item(),
+                                'min': energies_tensor.min().item(),
+                                'max': energies_tensor.max().item(),
+                                'samples': len(timestep_energies[middle_k]),
+                                'method': f'timestep_specific_k{middle_k}'
+                            }
+                        else:
+                            # Fallback to averaged
+                            energies_tensor = torch.tensor(all_energies)
+                            rule_energy_stats[rule_name] = {
+                                'mean': energies_tensor.mean().item(),
+                                'std': energies_tensor.std().item(),
+                                'min': energies_tensor.min().item(),
+                                'max': energies_tensor.max().item(),
+                                'samples': len(all_energies),
+                                'method': 'fallback_averaged'
+                            }
+                    
+                    logger.info(f"Rule {rule_name}: mean={rule_energy_stats[rule_name]['mean']:.4f}, "
+                               f"std={rule_energy_stats[rule_name]['std']:.4f}, "
+                               f"range=[{rule_energy_stats[rule_name]['min']:.4f}, "
+                               f"{rule_energy_stats[rule_name]['max']:.4f}], "
+                               f"samples={rule_energy_stats[rule_name]['samples']}, "
+                               f"method={rule_energy_stats[rule_name]['method']}")
+                
+                # Compute scaling factors relative to reference rule
+                reference_stats = rule_energy_stats[reference_rule]
+                reference_std = reference_stats['std']
+                
+                if reference_std < 1e-6:
+                    logger.warning(f"Reference rule '{reference_rule}' has very small energy std ({reference_std:.2e}), "
+                                 f"using mean-based scaling instead")
+                    reference_scale = reference_stats['mean'] if reference_stats['mean'] > 1e-6 else 1.0
+                    use_std_scaling = False
+                else:
+                    reference_scale = reference_std
+                    use_std_scaling = True
+                
+                calibration_scales = {}
+                
+                for rule_name, stats in rule_energy_stats.items():
+                    if use_std_scaling:
+                        rule_scale = stats['std']
+                    else:
+                        rule_scale = stats['mean'] if stats['mean'] > 1e-6 else 1.0
+                    
+                    # Compute relative scaling factor
+                    if rule_scale > 1e-6:
+                        scale_factor = reference_scale / rule_scale
+                    else:
+                        logger.warning(f"Rule {rule_name} has very small energy scale ({rule_scale:.2e}), "
+                                     f"setting calibration scale to 1.0")
+                        scale_factor = 1.0
+                    
+                    # Validate calibration scales are reasonable
+                    if not (0.1 <= scale_factor <= 10.0):
+                        logger.warning(f"Calibration scale for {rule_name} is outside reasonable range "
+                                     f"({scale_factor:.4f}), clamping to [0.1, 10.0]")
+                        scale_factor = max(0.1, min(scale_factor, 10.0))
+                    
+                    calibration_scales[rule_name] = scale_factor
+                    
+                    logger.info(f"Calibration scale for {rule_name}: {scale_factor:.4f}")
+                
+                # Enhanced validation: check that calibration preserves energy landscape properties
+                if validate_landscape_preservation:
+                    logger.info("Validating calibration preserves energy landscape properties...")
+                    
+                    landscape_validation_passed = True
+                    validation_results = {
+                        'finite_energy_preservation': True,
+                        'gradient_direction_preservation': True,
+                        'relative_ordering_preservation': True,
+                        'energy_scale_reasonableness': True
+                    }
+                    
+                    # Sample pairs for landscape validation across multiple timesteps
+                    for validation_idx in range(min(validation_samples, num_samples // 10)):
+                        try:
+                            idx = torch.randint(0, len(calibration_dataset), (1,)).item()
+                            
+                            # Get equation pair (same extraction logic as above)
+                            if hasattr(calibration_dataset, 'get_equation_pair'):
+                                input_eq, target_eq = calibration_dataset.get_equation_pair(idx)
+                            elif hasattr(calibration_dataset, 'get_problem_info'):
+                                problem_info = calibration_dataset.get_problem_info(idx)
+                                input_eq = problem_info['input_equation']
+                                target_eq = problem_info['target_equation']
+                            else:
+                                data_item = calibration_dataset[idx]
+                                if isinstance(data_item, tuple) and len(data_item) >= 2:
+                                    input_eq, target_eq = data_item[0], data_item[1]
+                                else:
+                                    continue
+                            
+                            inp_embedding = self.encoder(input_eq).unsqueeze(0).to(self.device)
+                            out_embedding = self.encoder(target_eq).unsqueeze(0).to(self.device)
+                            
+                            # Test validation across multiple timesteps
+                            for k in timesteps[:3]:  # Test subset for efficiency
+                                t = torch.full((1,), k, dtype=torch.long, device=self.device)
+                                
+                                # Test 1: Finite energy preservation
+                                original_energies = {}
+                                calibrated_energies = {}
+                                
+                                for rule_name, model in self.rule_models.items():
+                                    energy = model(inp_embedding, out_embedding, t, return_energy=True)
+                                    original_energies[rule_name] = energy.item()
+                                    calibrated_energies[rule_name] = energy.item() * calibration_scales[rule_name]
+                                
+                                # Check all calibrated energies are finite
+                                if not all(math.isfinite(e) for e in calibrated_energies.values()):
+                                    validation_results['finite_energy_preservation'] = False
+                                    landscape_validation_passed = False
+                                
+                                # Test 2: Gradient direction preservation
+                                # Create a small perturbation and check gradient directions
+                                perturbation = 0.01 * torch.randn_like(out_embedding)
+                                out_perturbed = out_embedding + perturbation
+                                out_perturbed.requires_grad_(True)
+                                
+                                # Original composed energy and gradient
+                                original_energy = self.compose_energies(inp_embedding, out_perturbed, k, normalize=False)
+                                original_energy.backward()
+                                original_grad = out_perturbed.grad.clone()
+                                out_perturbed.grad.zero_()
+                                
+                                # Calibrated composed energy and gradient
+                                calibrated_energy = self.compose_energies(inp_embedding, out_perturbed, k, normalize=False, calibration_scales=calibration_scales)
+                                calibrated_energy.backward()
+                                calibrated_grad = out_perturbed.grad.clone()
+                                
+                                # Check gradient direction similarity (cosine similarity > threshold)
+                                cos_sim = torch.nn.functional.cosine_similarity(original_grad.flatten(), calibrated_grad.flatten(), dim=0)
+                                if cos_sim < 0.8:  # Allow some deviation but ensure general direction preservation
+                                    validation_results['gradient_direction_preservation'] = False
+                                    landscape_validation_passed = False
+                                
+                                # Test 3: Relative energy ordering preservation
+                                # Check that relative rankings of rules are preserved
+                                original_ranking = sorted(original_energies.items(), key=lambda x: x[1])
+                                calibrated_ranking = sorted(calibrated_energies.items(), key=lambda x: x[1])
+                                
+                                # Check if top and bottom rules are preserved (allow some middle shuffling)
+                                if (len(original_ranking) > 1 and 
+                                    (original_ranking[0][0] != calibrated_ranking[0][0] or 
+                                     original_ranking[-1][0] != calibrated_ranking[-1][0])):
+                                    validation_results['relative_ordering_preservation'] = False
+                                    # Note: This is a warning, not a failure
+                                
+                                # Test 4: Energy scale reasonableness
+                                max_calibrated = max(calibrated_energies.values())
+                                min_calibrated = min(calibrated_energies.values())
+                                if max_calibrated - min_calibrated < 1e-6 or max_calibrated / min_calibrated > 1000:
+                                    validation_results['energy_scale_reasonableness'] = False
+                                    landscape_validation_passed = False
+                                
+                        except Exception as e:
+                            logger.debug(f"Landscape validation sample {validation_idx} failed: {e}")
+                            continue
+                    
+                    # Report validation results
+                    if landscape_validation_passed:
+                        logger.info("✓ Energy landscape validation passed - calibration preserves optimization properties")
+                    else:
+                        logger.warning("⚠ Energy landscape validation detected issues:")
+                        for test_name, passed in validation_results.items():
+                            status = "✓" if passed else "✗"
+                            logger.warning(f"  {status} {test_name}")
+                        logger.warning("Calibration may affect IRED convergence - consider adjusting parameters")
+                
+                logger.info(f"Multi-timestep energy scale calibration completed successfully. "
+                           f"Reference rule: {reference_rule}, "
+                           f"Timesteps: {timesteps}, "
+                           f"Method: {'averaged' if use_timestep_averaged else 'timestep-specific'}, "
+                           f"Scale factors: {calibration_scales}")
+                
+                return calibration_scales
+                
+        except Exception as e:
+            logger.error(f"Multi-timestep energy scale calibration failed: {e}")
+            raise RuntimeError(f"Calibration failed: {e}")
+            
+        finally:
+            # Restore original training modes
+            for rule_name, model in self.rule_models.items():
+                model.train(original_modes[rule_name])
+    
+    def _estimate_equation_complexity(self, equation: str) -> str:
+        """
+        Estimate the complexity level of an algebraic equation.
+        
+        Used for distance threshold adjustment and statistical analysis.
+        
+        Args:
+            equation: Input equation string
+            
+        Returns:
+            Complexity level: 'linear', 'quadratic', 'cubic', or 'unknown'
+        """
+        # Simple heuristic-based complexity estimation
+        if 'x' not in equation:
+            return 'unknown'  # No variable
+        
+        # Check for cubic terms
+        if '**3' in equation or 'x*x*x' in equation:
+            return 'cubic'
+        
+        # Check for quadratic terms
+        if '**2' in equation or 'x*x' in equation or 'x^2' in equation:
+            return 'quadratic'
+        
+        # Default to linear if variable present but no higher-order terms
+        return 'linear'
+    
+    def solve_equation(
+        self,
+        input_equation: str,
+        config: Optional[InferenceConfig] = None,
+        rule_weights: Optional[Dict[str, float]] = None,
+        distance_threshold: float = 6.0,  # Standard distance threshold for valid decoding
+        collect_distance_data: bool = False,  # Phase 2: Enable distance data collection for optimization
+        normalize: bool = True,  # Whether to apply z-score normalization
+        calibration_scales: Optional[Dict[str, float]] = None  # Optional per-rule calibration scales
+    ) -> Dict[str, Any]:
+        """
+        Solve an algebraic equation using IRED inference.
+        
+        Args:
+            input_equation: Input equation string
+            config: Optional inference configuration  
+            rule_weights: Optional weights for rule composition  
+            distance_threshold: Maximum distance for valid decoding
+                              Standard value: 2.0 provides good balance between precision and recall.
+            collect_distance_data: If True, collect distance data for statistical analysis (Phase 2)
+            normalize: Whether to apply z-score normalization (default: True)
+            calibration_scales: Optional per-rule calibration scales (default: None)
+            
+        Returns:
+            result: Dictionary containing solution and metadata
+                   If collect_distance_data=True, includes 'distance_data' field with analysis info
+        """
+        # Input validation
+        if not isinstance(input_equation, str):
+            raise TypeError("input_equation must be string")
+        if not input_equation.strip():
+            raise ValueError("input_equation cannot be empty")
+        if len(input_equation) > 1000:
+            raise ValueError("input_equation too long (max 1000 characters)")
+        
+        # Security validation: basic checks for dangerous patterns
+        dangerous_patterns = ['import', 'exec', 'eval', '__', 'subprocess', 'os.', 'file']
+        if any(pattern in input_equation.lower() for pattern in dangerous_patterns):
+            raise ValueError("input_equation contains potentially dangerous pattern")
+        
+        # Character validation: allow only mathematical symbols
+        allowed_chars = set('0123456789+-*/()=.x abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ^')
+        if not set(input_equation).issubset(allowed_chars):
+            raise ValueError("input_equation contains invalid characters")
+        
+        logger.info(f"Solving equation: {input_equation}")
+        
+        try:
+            # Encode input equation to embedding
+            with torch.no_grad():
+                inp_embedding = self.encoder(input_equation).unsqueeze(0).to(self.device)  # (1, 128)
+            
+            # Run IRED inference
+            out_embedding, info = self.ired_inference(
+                inp_embedding, config=config, rule_weights=rule_weights, normalize=normalize, calibration_scales=calibration_scales
+            )
+            
+            # Decode output embedding
+            result = {
+                'input_equation': input_equation,
+                'success': True,  # Will be updated based on decoding
+                'inference_info': info
+            }
+            
+            # Try to decode the output embedding if decoder is available
+            if hasattr(self, 'decoder') and self.decoder is not None:
+                try:
+                    decoded_output = self.decoder(out_embedding.squeeze(0))
+                    result['output_equation'] = decoded_output
+                    
+                    # Compute distance for validation
+                    # This is a placeholder - actual distance computation depends on decoder implementation
+                    decoding_distance = float('inf')  # Default if no distance computation available
+                    result['decoding_distance'] = decoding_distance
+                    
+                    # Update success based on distance threshold
+                    result['success'] = decoding_distance <= distance_threshold
+                    
+                except Exception as e:
+                    logger.warning(f"Decoding failed: {e}")
+                    result['output_equation'] = None
+                    result['decoding_distance'] = float('inf')
+                    result['success'] = False
+                    result['decoding_error'] = str(e)
+            else:
+                # No decoder available
+                result['output_equation'] = None
+                result['decoding_distance'] = float('inf')
+                result['success'] = False
+                result['decoding_error'] = "No decoder available"
+            
+            # Phase 2: Collect distance data for statistical analysis
+            if collect_distance_data:
+                complexity = self._estimate_equation_complexity(input_equation)
+                
+                distance_data = {
+                    'input_equation': input_equation,
+                    'distance': result.get('decoding_distance', float('inf')),
+                    'threshold_used': distance_threshold,
+                    'success': result['success'],
+                    'final_energy': info['final_energy'],
+                    'acceptance_rate': info['acceptance_rate'],
+                    'equation_length': len(input_equation),
+                    'equation_complexity': complexity,
+                    'config_params': {
+                        'K': config.K if config else self.config.K,
+                        'step_size': config.step_size if config else self.config.step_size,
+                        'max_iterations': config.max_iterations if config else self.config.max_iterations
+                    }
+                }
+                result['distance_data'] = distance_data
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Equation solving failed: {e}")
+            return {
+                'input_equation': input_equation,
+                'success': False,
+                'error': str(e),
+                'inference_info': {}
+            }
+
+    def solve_batch(
+        self,
+        equations: List[str],
+        config: Optional[InferenceConfig] = None,
+        rule_weights: Optional[Dict[str, float]] = None,
+        distance_threshold: float = 6.0,
+        collect_distance_data: bool = False,
+        normalize: bool = True,
+        calibration_scales: Optional[Dict[str, float]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Solve a batch of equations efficiently.
+        
+        Args:
+            equations: List of equation strings
+            config: Optional inference configuration
+            rule_weights: Optional rule weights
+            distance_threshold: Distance threshold for valid solutions
+            collect_distance_data: Whether to collect distance analysis data
+            normalize: Whether to apply z-score normalization
+            calibration_scales: Optional per-rule calibration scales
+            
+        Returns:
+            List of solution dictionaries, one per input equation
+        """
+        results = []
+        for equation in equations:
+            result = self.solve_equation(
+                equation, config, rule_weights, distance_threshold, 
+                collect_distance_data, normalize, calibration_scales
+            )
+            results.append(result)
+        return results

@@ -348,6 +348,13 @@ def parse_args():
     )
     
     parser.add_argument(
+        '--composition-aware-loss',
+        type=str2bool,
+        default=False,
+        help='Use scaled loss targets for compositional training (pos_target=0.25, neg_target=3.75) to account for energy accumulation across NUM_RULES=4 rules. This fixes the 4× energy magnitude issue.'
+    )
+    
+    parser.add_argument(
         '--use-innerloop-opt', 
         type=str2bool,
         default=True,
@@ -596,6 +603,37 @@ def main():
     
     # Create diffusion model with IRED configuration
     print("Setting up GaussianDiffusion1D...")
+    
+    # Configure loss targets based on composition-aware mode
+    NUM_RULES = 4  # Make configurable for future flexibility
+    if args.composition_aware_loss:
+        # Scale targets to account for energy accumulation across multiple rules
+        pos_target = 1.0 / NUM_RULES  # 0.25 - will sum to 1.0 across 4 rules
+        neg_target = 15.0 / NUM_RULES  # 3.75 - will sum to 15.0 across 4 rules
+        # LOSS1-007 FIX: Scale margin parameter proportionally to maintain contrastive loss mathematics
+        margin = 10.0 / NUM_RULES  # 2.5 - scaled to maintain proper mathematical relationships
+        print(f"[CompositionAwareLoss] Using scaled targets for {NUM_RULES} rules:")
+        print(f"  pos_target={pos_target:.3f} (4× sum={pos_target * NUM_RULES:.1f})")
+        print(f"  neg_target={neg_target:.3f} (4× sum={neg_target * NUM_RULES:.1f})")
+        print(f"  margin={margin:.3f} (4× sum={margin * NUM_RULES:.1f}) - FIXED: proportionally scaled")
+    else:
+        # Use standard monolithic targets
+        pos_target = 1.0
+        neg_target = 15.0
+        margin = 10.0
+        print(f"[MonolithicLoss] Using standard targets: pos={pos_target}, neg={neg_target}, margin={margin}")
+    
+    # LOSS1-002 FIX: Add validation that pos_target < neg_target after scaling
+    if pos_target >= neg_target:
+        error_msg = (
+            f"Invalid target configuration: pos_target ({pos_target:.3f}) must be < neg_target ({neg_target:.3f}) "
+            f"to ensure proper contrastive learning. Check composition-aware-loss scaling parameters."
+        )
+        print(f"Error: {error_msg}")
+        raise ValueError(error_msg)
+    
+    # LOSS1-006 FIX: Add try-catch around GaussianDiffusion1D constructor with proper error handling
+    print("Initializing GaussianDiffusion1D with validated parameters...")
     try:
         diffusion = GaussianDiffusion1D(
             model,
@@ -610,11 +648,40 @@ def main():
             enable_semantic_corruption=args.enable_semantic_corruption,
             corruption_strategy_probs=corruption_strategy_probs,
             show_inference_tqdm=False,
-            continuous=True  # For continuous algebraic embeddings
+            continuous=True,  # For continuous algebraic embeddings
+            contrastive_pos_target=pos_target,
+            contrastive_neg_target=neg_target,
+            contrastive_margin=margin
         )
+        print("✓ GaussianDiffusion1D initialized successfully with composition-aware loss parameters")
+    except ValueError as e:
+        if "pos_target" in str(e) or "neg_target" in str(e) or "margin" in str(e):
+            print(f"Error: Invalid contrastive loss parameters - {e}")
+            print(f"  Current values: pos_target={pos_target:.3f}, neg_target={neg_target:.3f}, margin={margin:.3f}")
+            print(f"  Required: pos_target < neg_target, margin > 0")
+            if args.composition_aware_loss:
+                print(f"  Composition-aware mode: targets scaled by 1/{NUM_RULES} for multi-rule training")
+        else:
+            print(f"Error: Parameter validation failed in GaussianDiffusion1D constructor - {e}")
+        return
+    except ImportError as e:
+        print(f"Error: Missing required dependencies for GaussianDiffusion1D - {e}")
+        print("Check that diffusion_lib and all dependencies are properly installed")
+        return
+    except RuntimeError as e:
+        print(f"Error: Runtime error during GaussianDiffusion1D initialization - {e}")
+        print("This may indicate GPU memory issues or CUDA incompatibility")
+        print("Try reducing batch_size or switching to CPU training")
+        return
     except Exception as e:
-        print(f"Error creating GaussianDiffusion1D: {e}")
+        print(f"Error: Unexpected error creating GaussianDiffusion1D - {e}")
         print("Check diffusion_lib installation and parameter compatibility")
+        print(f"Parameters used:")
+        print(f"  seq_length={args.d_model}")
+        print(f"  timesteps={args.timesteps}")
+        print(f"  contrastive_pos_target={pos_target}")
+        print(f"  contrastive_neg_target={neg_target}")
+        print(f"  contrastive_margin={margin}")
         return
     
     # Apply PyTorch compilation to diffusion model (actual hot path)

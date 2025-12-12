@@ -373,6 +373,13 @@ class AlgebraDataset(data.Dataset):
             }
         }
     
+
+    def get_equation_pair(self, index: int) -> Tuple[str, str]:
+        """Get equation pair as strings for calibration and testing."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        return self.equation_pairs[index]
+
     def get_problem_info(self, index: int) -> Dict:
         """Get problem information for evaluation."""
         if index >= len(self.equation_pairs):
@@ -501,6 +508,13 @@ class MultiRuleDataset(data.Dataset):
             
         return input_eq, target_eq
     
+
+    def get_equation_pair(self, index: int) -> Tuple[str, str]:
+        """Get equation pair as strings for calibration and testing."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        return self.equation_pairs[index]
+
     def get_problem_info(self, index: int) -> Dict:
         """Get problem information for evaluation."""
         if index >= len(self.equation_pairs):
@@ -627,6 +641,13 @@ class ConstrainedDataset(data.Dataset):
             
         return input_eq, target_eq
     
+
+    def get_equation_pair(self, index: int) -> Tuple[str, str]:
+        """Get equation pair as strings for calibration and testing."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        return self.equation_pairs[index]
+
     def get_problem_info(self, index: int) -> Dict:
         """Get problem information for evaluation."""
         if index >= len(self.equation_pairs):
@@ -973,6 +994,13 @@ class CombinedAlgebraDataset(data.Dataset):
             )
         }
     
+
+    def get_equation_pair(self, index: int) -> Tuple[str, str]:
+        """Get equation pair as strings for calibration and testing."""
+        if index >= len(self.equation_pairs):
+            raise IndexError(f"Index {index} out of range for dataset size {len(self.equation_pairs)}")
+        return self.equation_pairs[index]
+
     def get_problem_info(self, index: int) -> Dict:
         """Get problem information for evaluation."""
         if index >= len(self.equation_pairs):

@@ -326,6 +326,9 @@ class GaussianDiffusion1D(nn.Module):
         compositional_models = None,
         compositional_weights = None,
         use_detached_opt_step = False,
+        contrastive_pos_target = 1.0,
+        contrastive_neg_target = 15.0,
+        contrastive_margin = 10.0,
     ):
         super().__init__()
         self.model = model
@@ -347,13 +350,17 @@ class GaussianDiffusion1D(nn.Module):
         self.contrastive_loss_fn = None
         if self.use_contrastive_energy_loss:
             if CONTRASTIVE_LOSS_AVAILABLE:
-                # Use explicit energy targets for IRED energy supervision as specified in BUG-4
+                # Validate loss targets
+                if contrastive_pos_target >= contrastive_neg_target:
+                    raise ValueError(f"pos_target ({contrastive_pos_target}) must be < neg_target ({contrastive_neg_target})")
+                
+                # Use explicit energy targets for IRED energy supervision
                 self.contrastive_loss_fn = ContrastiveEnergyLoss(
-                    margin=10.0,      # Required margin for proper energy gap enforcement
-                    pos_target=1.0,   # Positive energies should target 1.0
-                    neg_target=15.0   # Negative energies should target 15.0
+                    margin=contrastive_margin,
+                    pos_target=contrastive_pos_target,
+                    neg_target=contrastive_neg_target
                 )
-                print("[ContrastiveLoss] Initialized with margin=10.0, pos_target=1.0, neg_target=15.0 (BUG-4 fix)")
+                print(f"[ContrastiveLoss] Initialized with margin={contrastive_margin}, pos_target={contrastive_pos_target}, neg_target={contrastive_neg_target}")
             else:
                 print("Warning: ContrastiveEnergyLoss requested but not available, falling back to cross-entropy")
                 self.use_contrastive_energy_loss = False
