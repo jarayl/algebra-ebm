@@ -286,6 +286,19 @@ def cosine_beta_schedule(timesteps, s = 0.008):
 
 
 class GaussianDiffusion1D(nn.Module):
+    """
+    Gaussian diffusion model with energy-based optimization and optional experimental features.
+    
+    EXPERIMENTAL PARAMETER:
+        use_detached_opt_step (bool): When True, detaches the opt_step from the computation 
+            graph to eliminate second-order gradients. This is EXPERIMENTAL and changes 
+            training dynamics significantly. May reduce model quality by preventing 
+            gradient flow through the optimization step. Use only for diagnostic purposes 
+            and comparison studies. Default: False.
+    
+    WARNING: The detached optimization mode is for research purposes only and may
+    significantly impact model performance and training stability.
+    """
     def __init__(
         self,
         model,
@@ -312,6 +325,7 @@ class GaussianDiffusion1D(nn.Module):
         corruption_strategy_probs = None,
         compositional_models = None,
         compositional_weights = None,
+        use_detached_opt_step = False,
     ):
         super().__init__()
         self.model = model
@@ -378,6 +392,11 @@ class GaussianDiffusion1D(nn.Module):
         self.continuous = continuous
         self.shortest_path = shortest_path
         self.enable_semantic_corruption = enable_semantic_corruption
+        
+        # EXPERIMENTAL: Optional gradient detach alternative for diagnostic purposes
+        # WARNING: This changes training dynamics significantly and may reduce model quality
+        # by preventing gradient flow through the optimization step. Use only for comparison studies.
+        self.use_detached_opt_step = use_detached_opt_step
         # Validate and cache corruption strategy probabilities
         if corruption_strategy_probs is not None:
             strategy_names = ['heavy_gaussian', 'extreme_gaussian', 'pure_random']
@@ -594,7 +613,81 @@ class GaussianDiffusion1D(nn.Module):
                     # ORIGINAL PATH (unchanged for backward compatibility)
                     energy, grad = self.model(inp, img, t, return_both=True)
                 
-                img_new = img - extract(self.opt_step_size, t, grad.shape) * grad * sf  # / (i + 1) ** 0.5
+                # Gradient magnitude tracking for debugging gradient explosions
+                # Only log every 1000 steps to avoid performance impact
+                if hasattr(self, 'opt_step_counter'):
+                    self.opt_step_counter += 1
+                else:
+                    self.opt_step_counter = 1
+                    
+                if self.opt_step_counter % 1000 == 0:
+                    # Pre-clipping gradient statistics
+                    grad_norm = torch.norm(grad.detach(), dim=-1)  # Per-sample gradient norm
+                    grad_max = torch.max(grad_norm)
+                    grad_mean = torch.mean(grad_norm)
+                    grad_std = torch.std(grad_norm)
+                    
+                    # Per-timestep statistics (t can be batch of timesteps)
+                    if len(t.shape) > 0 and t.shape[0] > 1:
+                        unique_t, counts = torch.unique(t, return_counts=True)
+                        timestep_stats = {}
+                        for timestep in unique_t:
+                            mask_t = (t == timestep)
+                            if torch.any(mask_t):
+                                timestep_grad_norms = grad_norm[mask_t]
+                                timestep_stats[int(timestep)] = {
+                                    'count': int(counts[unique_t == timestep].item()),
+                                    'max_norm': float(torch.max(timestep_grad_norms)),
+                                    'mean_norm': float(torch.mean(timestep_grad_norms)),
+                                    'std_norm': float(torch.std(timestep_grad_norms)) if len(timestep_grad_norms) > 1 else 0.0
+                                }
+                    else:
+                        timestep_stats = {int(t.item()): {
+                            'count': grad_norm.shape[0],
+                            'max_norm': float(grad_max),
+                            'mean_norm': float(grad_mean), 
+                            'std_norm': float(grad_std)
+                        }}
+                    
+                    print(f"[GRAD_DEBUG] Step {self.opt_step_counter}, Iter {i}: Pre-clipping grad_norm max={grad_max:.6f}, mean={grad_mean:.6f}, std={grad_std:.6f}")
+                    print(f"[GRAD_DEBUG] Timestep breakdown: {timestep_stats}")
+                
+                # Defense-in-depth gradient clipping to prevent gradient explosion
+                # Apply per-sample clipping while preserving gradient direction
+                max_grad_norm = 10.0
+                grad_norms = torch.norm(grad, dim=-1, keepdim=True)  # Per-sample gradient norm [batch, 1]
+                
+                # Create clipping mask for gradients exceeding threshold
+                clip_mask = grad_norms > max_grad_norm
+                
+                # For clipped samples: normalize gradient direction and scale to max_grad_norm
+                # For non-clipped samples: keep original gradient
+                clipped_grad = torch.where(
+                    clip_mask,
+                    (grad / grad_norms) * max_grad_norm,  # Normalized direction * max norm
+                    grad  # Original gradient
+                )
+                
+                # Log clipping statistics if monitoring is active
+                if self.opt_step_counter % 1000 == 0:
+                    num_clipped = torch.sum(clip_mask).item()
+                    if num_clipped > 0:
+                        clipped_ratio = num_clipped / grad.shape[0]
+                        max_unclipped_norm = torch.max(grad_norms[clip_mask])
+                        print(f"[GRAD_DEBUG] Step {self.opt_step_counter}, Iter {i}: Clipped {num_clipped}/{grad.shape[0]} samples ({clipped_ratio:.2%}), max_unclipped_norm={max_unclipped_norm:.6f}")
+                
+                img_new = img - extract(self.opt_step_size, t, grad.shape) * clipped_grad * sf  # / (i + 1) ** 0.5
+                
+                # Log post-clipping gradient magnitude if logging is active
+                if self.opt_step_counter % 1000 == 0:
+                    # Compute effective gradient after clipping and scaling
+                    effective_grad = extract(self.opt_step_size, t, grad.shape) * clipped_grad * sf
+                    effective_grad_norm = torch.norm(effective_grad.detach(), dim=-1)
+                    effective_grad_max = torch.max(effective_grad_norm)
+                    effective_grad_mean = torch.mean(effective_grad_norm)
+                    effective_grad_std = torch.std(effective_grad_norm)
+                    
+                    print(f"[GRAD_DEBUG] Step {self.opt_step_counter}, Iter {i}: Post-clipping effective_grad_norm max={effective_grad_max:.6f}, mean={effective_grad_mean:.6f}, std={effective_grad_std:.6f}")
 
                 if mask is not None:
                     img_new = img_new * (1 - mask) + mask * data_cond
@@ -707,7 +800,27 @@ class GaussianDiffusion1D(nn.Module):
         
         # Numerical stability protection before gradient computation
         if not torch.isfinite(total_energy).all():
-            print("Warning: Non-finite composed energy detected, returning zero energy and gradient")
+            # Enhanced error diagnostics for energy instability
+            energy_norm = torch.norm(total_energy[torch.isfinite(total_energy)]).item() if torch.isfinite(total_energy).any() else 0.0
+            energy_max = torch.max(total_energy[torch.isfinite(total_energy)]).item() if torch.isfinite(total_energy).any() else float('nan')
+            energy_min = torch.min(total_energy[torch.isfinite(total_energy)]).item() if torch.isfinite(total_energy).any() else float('nan')
+            img_norm = torch.norm(img).item()
+            
+            # Count non-finite elements
+            non_finite_energy_count = (~torch.isfinite(total_energy)).sum().item()
+            total_energy_elements = total_energy.numel()
+            
+            # Current training state (if available during training)
+            energy_scale_info = ""
+            if hasattr(self, '_ema_energy_mag') and self._ema_energy_mag is not None:
+                energy_scale_info = f", EMA_energy={self._ema_energy_mag:.4f}"
+            if hasattr(self, '_ema_mse_mag') and self._ema_mse_mag is not None:
+                energy_scale_info += f", EMA_mse={self._ema_mse_mag:.4f}"
+            
+            print(f"Warning: Non-finite composed energy detected ({non_finite_energy_count}/{total_energy_elements} elements), returning zero energy and gradient")
+            print(f"  Energy stats: norm={energy_norm:.6f}, range=[{energy_min:.6f}, {energy_max:.6f}]")
+            print(f"  Input stats: img_norm={img_norm:.6f}, timestep={t[0].item() if len(t) > 0 else 'unknown'}{energy_scale_info}")
+            
             zero_grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
             zero_energy = torch.zeros_like(total_energy, device=img.device, dtype=img.dtype)
             return zero_energy, zero_grad
@@ -722,12 +835,50 @@ class GaussianDiffusion1D(nn.Module):
             
             # Additional stability check for computed gradient
             if not torch.isfinite(grad).all():
-                print("Warning: Non-finite gradient computed, using zero gradient")
+                # Enhanced error diagnostics for debugging numerical instability
+                grad_norm = torch.norm(grad[torch.isfinite(grad)]).item() if torch.isfinite(grad).any() else 0.0
+                grad_max = torch.max(grad[torch.isfinite(grad)]).item() if torch.isfinite(grad).any() else float('nan')
+                grad_min = torch.min(grad[torch.isfinite(grad)]).item() if torch.isfinite(grad).any() else float('nan')
+                energy_norm = torch.norm(total_energy).item()
+                energy_max = torch.max(total_energy).item()
+                energy_min = torch.min(total_energy).item()
+                img_norm = torch.norm(img).item()
+                
+                # Count non-finite elements for detailed diagnostics
+                non_finite_grad_count = (~torch.isfinite(grad)).sum().item()
+                total_grad_elements = grad.numel()
+                
+                # Current training state (if available during training)
+                energy_scale_info = ""
+                if hasattr(self, '_ema_energy_mag') and self._ema_energy_mag is not None:
+                    energy_scale_info = f", EMA_energy={self._ema_energy_mag:.4f}"
+                if hasattr(self, '_ema_mse_mag') and self._ema_mse_mag is not None:
+                    energy_scale_info += f", EMA_mse={self._ema_mse_mag:.4f}"
+                
+                print(f"Warning: Non-finite gradient computed ({non_finite_grad_count}/{total_grad_elements} elements), using zero gradient")
+                print(f"  Gradient stats: norm={grad_norm:.6f}, range=[{grad_min:.6f}, {grad_max:.6f}]")
+                print(f"  Energy stats: norm={energy_norm:.6f}, range=[{energy_min:.6f}, {energy_max:.6f}]")
+                print(f"  Input stats: img_norm={img_norm:.6f}, timestep={t[0].item() if len(t) > 0 else 'unknown'}{energy_scale_info}")
+                
                 grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
                 
         except RuntimeError as e:
-            # Handle gradient computation failures gracefully
+            # Handle gradient computation failures gracefully with enhanced diagnostics
+            energy_norm = torch.norm(total_energy).item()
+            energy_max = torch.max(total_energy).item()
+            energy_min = torch.min(total_energy).item()
+            img_norm = torch.norm(img).item()
+            
+            # Current training state (if available during training)
+            energy_scale_info = ""
+            if hasattr(self, '_ema_energy_mag') and self._ema_energy_mag is not None:
+                energy_scale_info = f", EMA_energy={self._ema_energy_mag:.4f}"
+            if hasattr(self, '_ema_mse_mag') and self._ema_mse_mag is not None:
+                energy_scale_info += f", EMA_mse={self._ema_mse_mag:.4f}"
+            
             print(f"Warning: Composed gradient computation failed: {e}")
+            print(f"  Energy stats: norm={energy_norm:.6f}, range=[{energy_min:.6f}, {energy_max:.6f}]")
+            print(f"  Input stats: img_norm={img_norm:.6f}, timestep={t[0].item() if len(t) > 0 else 'unknown'}{energy_scale_info}")
             grad = torch.zeros_like(img, device=img.device, dtype=img.dtype)
         
         return total_energy, grad
@@ -1110,8 +1261,17 @@ class GaussianDiffusion1D(nn.Module):
 
                 # loss_scale will be computed adaptively below
             else:
-
-                xmin_noise = self.opt_step(inp, xmin_noise, t, mask, data_cond, step=2, sf=1.0)
+                # EXPERIMENTAL: Optional gradient detach alternative for diagnostic purposes
+                # This eliminates second-order gradients through the optimization step
+                if self.use_detached_opt_step:
+                    # Detach opt_step from computation graph to prevent second-order gradients
+                    with torch.no_grad():
+                        xmin_noise = self.opt_step(inp, xmin_noise, t, mask, data_cond, step=2, sf=1.0)
+                    # Reattach for energy computation while blocking gradients through optimization
+                    xmin_noise = xmin_noise.detach().requires_grad_()
+                else:
+                    # Standard behavior - preserves gradient flow through optimization
+                    xmin_noise = self.opt_step(inp, xmin_noise, t, mask, data_cond, step=2, sf=1.0)
                 xmin = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
                 loss_opt = torch.pow(xmin_noise - xmin, 2).mean()
 
@@ -1230,7 +1390,7 @@ class GaussianDiffusion1D(nn.Module):
             # CRITICAL FIX: Adjust clamp range to allow proper 40-60% energy contribution
             # Previous range [10.0, 500.0] caused 100% energy dominance, violating the balance requirement
             # New range allows very fine-grained adaptive scaling to achieve target balance
-            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=0.001, max=1000.0)
+            energy_loss_scale_factor = torch.clamp(energy_loss_scale_factor, min=0.001, max=100.0)
             
             self._adaptive_loss_step_counter += 1
             

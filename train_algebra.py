@@ -373,14 +373,14 @@ def parse_args():
         '--amp',
         type=str2bool,
         default=True,
-        help='Enable Automatic Mixed Precision (AMP) for ~2x speedup'
+        help='Enable Automatic Mixed Precision (AMP) for ~2x training speedup. AMP automatically handles FP16/FP32 switching to balance performance and numerical stability. Works with --fp16 flag. Performance: Major speedup on Tensor Core GPUs (V100, RTX, A100). Memory: Significant memory savings when combined with FP16. Disable for debugging precision-related issues.'
     )
     
     parser.add_argument(
         '--fp16',
         type=str2bool,
         default=True,
-        help='Use FP16 mixed precision training'
+        help='Use FP16 mixed precision training. FP16 has smaller numerical range (~65k) than FP32 (~3.4e38) which may contribute to overflow/underflow issues. Disable with --fp16=False to switch to FP32 for debugging numerical instability. Performance: FP16 provides ~2x memory savings and speedup on modern GPUs. Memory: FP32 mode uses ~2x more GPU memory.'
     )
     
     parser.add_argument(
@@ -463,6 +463,18 @@ def main():
         if args.batch_size >= 2048 and gpu_memory_gb < 15:
             print(f"Warning: Batch size {args.batch_size} may cause OOM on {gpu_memory_gb:.1f}GB GPU")
             print("Consider reducing batch size with --batch_size")
+        
+        # FP32 memory usage warning
+        if not args.fp16:
+            estimated_memory_gb = gpu_memory_gb * 2  # FP32 uses ~2x memory vs FP16
+            print(f"🚨 FP32 PRECISION MODE ENABLED (--fp16=False)")
+            print(f"Memory Impact: FP32 uses ~2x more GPU memory than FP16")
+            print(f"Expected memory usage: ~{estimated_memory_gb:.1f}GB vs {gpu_memory_gb:.1f}GB for FP16")
+            if args.batch_size >= 2048:
+                print(f"Consider reducing batch size with --batch_size for FP32 debugging")
+            print(f"This mode is intended for debugging numerical instability issues")
+            print(f"Revert to FP16 with --fp16=True for production training")
+            print()
     
     # Set up results directory
     if args.results_folder is None:
@@ -643,8 +655,38 @@ def main():
     
     # Create trainer with performance optimizations
     print("Setting up Trainer1D with performance optimizations...")
-    if args.amp and args.fp16:
-        print("✓ Mixed precision training enabled (FP16)")
+    
+    # Precision mode documentation
+    print("=" * 50)
+    print("PRECISION MODE CONFIGURATION")
+    print("=" * 50)
+    if args.fp16 and args.amp:
+        print("✅ FP16 + AMP: Maximum performance mode")
+        print("   • Memory usage: ~50% of FP32")
+        print("   • Training speed: ~2x faster on Tensor Core GPUs")
+        print("   • Numerical range: ±65,504 (may overflow with large gradients)")
+        print("   • Recommended for: Production training with stable gradients")
+    elif args.fp16 and not args.amp:
+        print("⚪ FP16 without AMP: Reduced memory mode")
+        print("   • Memory usage: ~50% of FP32")
+        print("   • Training speed: Moderate improvement")
+        print("   • Numerical range: ±65,504")
+    elif not args.fp16 and args.amp:
+        print("🔧 FP32 + AMP: Debugging mode with mixed precision")
+        print("   • Memory usage: ~2x FP16 mode")
+        print("   • Training speed: Slower than FP16")
+        print("   • Numerical range: ±3.4e38 (maximum precision)")
+        print("   • Use for: Debugging overflow/underflow issues")
+    else:
+        print("🛠️  FP32 Full Precision: Maximum debugging mode")
+        print("   • Memory usage: ~2x FP16 mode")
+        print("   • Training speed: Slowest")
+        print("   • Numerical range: ±3.4e38 (maximum precision)")
+        print("   • Use for: Debugging numerical instability")
+        print("   • ⚠️  May require reduced batch size")
+    print("=" * 50)
+    print()
+    
     if args.pin_memory:
         print("✓ Pinned memory enabled for faster GPU transfers")
     if args.persistent_workers and args.data_workers and args.data_workers > 0:
@@ -688,12 +730,25 @@ def main():
     # Enhanced progress logging with convergence monitoring
     loss_history = []
     training_unstable = False
+    energy_scale_history = []
+    energy_bias_history = []
     
     def log_progress(step, loss, metrics=None):
         nonlocal training_unstable
         
         # Track loss and gradient information
         loss_history.append(loss)
+        
+        # Track energy_scale and energy_bias parameters
+        try:
+            energy_scale_val = trainer.model.model.ebm.energy_scale.item()
+            energy_bias_val = trainer.model.model.ebm.energy_bias.item()
+            energy_scale_history.append(energy_scale_val)
+            energy_bias_history.append(energy_bias_val)
+        except AttributeError:
+            # Handle cases where EBM parameters might not be available
+            energy_scale_val = None
+            energy_bias_val = None
         
         # Check for gradient explosion through loss explosion
         if loss > 1000.0 or (len(loss_history) > 1 and loss > 10 * loss_history[-2]):
@@ -722,6 +777,22 @@ def main():
                 recent_trend = (loss_history[-1] - loss_history[-100]) / 100
                 trend_indicator = "📈" if recent_trend > 0.01 else "📉" if recent_trend < -0.01 else "➡️"
                 msg += f" {trend_indicator}"
+            
+            # Add energy parameter monitoring
+            if energy_scale_val is not None and energy_bias_val is not None:
+                msg += f", E_scale={energy_scale_val:.3f}, E_bias={energy_bias_val:.3f}"
+                
+                # Calculate running averages
+                if len(energy_scale_history) >= 10:
+                    recent_avg_scale = sum(energy_scale_history[-10:]) / 10
+                    recent_avg_bias = sum(energy_bias_history[-10:]) / 10
+                    msg += f" (avg: {recent_avg_scale:.3f}, {recent_avg_bias:.3f})"
+                
+                # Warning for energy_scale exceeding threshold
+                if energy_scale_val > 20.0:
+                    print(f"\n⚠️  ENERGY SCALE WARNING: Step {step}, energy_scale={energy_scale_val:.3f} > 20.0")
+                    print("This may indicate unbounded parameter growth leading to gradient instability")
+                    print("Consider implementing energy_scale clamping or regularization")
                 
             print(msg)
             
@@ -785,6 +856,28 @@ def main():
                         
             print(f"📈 Loss Progress: {initial_loss:.4f} → {final_loss:.4f} "
                   f"({((final_loss - initial_loss) / initial_loss * 100):+.1f}%)")
+        
+        # Energy parameter analysis
+        if len(energy_scale_history) > 0:
+            print("\n" + "🔋 Energy Parameter Analysis")
+            initial_scale = energy_scale_history[0] if energy_scale_history else 1.0
+            final_scale = energy_scale_history[-1]
+            initial_bias = energy_bias_history[0] if energy_bias_history else 0.0
+            final_bias = energy_bias_history[-1]
+            
+            print(f"⚖️  Energy Scale: {initial_scale:.3f} → {final_scale:.3f} "
+                  f"({((final_scale - initial_scale) / initial_scale * 100):+.1f}%)")
+            print(f"⚖️  Energy Bias: {initial_bias:.3f} → {final_bias:.3f}")
+            
+            # Check for concerning energy_scale growth
+            max_scale = max(energy_scale_history)
+            if max_scale > 20.0:
+                print(f"⚠️  WARNING: energy_scale reached {max_scale:.3f} (max threshold: 20.0)")
+                print("   This indicates potential parameter instability")
+            elif final_scale > 10.0:
+                print(f"⚠️  CAUTION: energy_scale at {final_scale:.3f} (consider monitoring)")
+            else:
+                print(f"✅ Energy Scale: Stable at {final_scale:.3f}")
                   
         if training_unstable:
             print("\n⚠️ Training completed with instability warnings")

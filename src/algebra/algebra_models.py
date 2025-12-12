@@ -207,7 +207,9 @@ class AlgebraEBM(nn.Module):
         
         # Apply learnable scaling to match contrastive loss target range (~1 to ~15)
         # This is critical: without scaling, energies are stuck at ~0.2 with normalized inputs
-        energy = self.energy_scale * raw_energy + self.energy_bias
+        # Clamp energy_scale to prevent unbounded growth that causes gradient explosions
+        clamped_energy_scale = torch.clamp(self.energy_scale, min=0.1, max=10.0)
+        energy = clamped_energy_scale * raw_energy + self.energy_bias
         
         # Energy statistics monitoring for debugging and analysis (only in DEBUG mode)
         logger = logging.getLogger(__name__)
