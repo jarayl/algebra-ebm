@@ -475,7 +475,8 @@ class AlgebraInference:
                 else:
                     # No cached energy - compute both energy and gradient atomically
                     energy_current, grad = self.compute_energy_and_gradient(inp_embedding, out, k, rule_weights, timestep_tensor)
-                    energy_before_val = energy_current.item()
+                    # Handle batched energy tensors: take mean across batch for tracking
+                    energy_before_val = energy_current.mean().item()
                     cache_misses += 1
                 grad_norm = torch.norm(grad).item()
                 info['energy_history'].append(energy_before_val)
@@ -503,7 +504,8 @@ class AlgebraInference:
                 
                 # Metropolis acceptance criteria with temperature schedule
                 energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights, timestep_tensor)
-                energy_after_val = energy_after.item()
+                # Handle batched energy tensors: take mean across batch for comparison
+                energy_after_val = energy_after.mean().item()
                 delta_E = energy_after_val - energy_before_val
                 
                 # Temperature schedule constants (extracted per maintainability requirements)
@@ -612,7 +614,8 @@ class AlgebraInference:
         # Final statistics
         final_k = k  # k is the last completed landscape
         final_timestep_tensor = torch.full((batch_size,), final_k, dtype=torch.long, device=inp_embedding.device)
-        info['final_energy'] = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor).item()
+        final_energy_tensor = self.compose_energies(inp_embedding, out, final_k, rule_weights, final_timestep_tensor)
+        info['final_energy'] = final_energy_tensor.mean().item()  # Handle batched tensors safely
         info['acceptance_rate'] = info['accepted_steps'] / max(info['total_steps'], 1)
         
         # OPTIMIZATION: Add caching effectiveness statistics
