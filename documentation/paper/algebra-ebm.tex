@@ -1,29 +1,43 @@
-\documentclass[11pt]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
+\documentclass{article}
+
+\usepackage[main, preprint]{neurips_2025}
+
+\makeatletter
+\renewcommand{\@noticestring}{}
+\makeatother
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+
 \usepackage{amsmath}
-\usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{graphicx}
-\usepackage{booktabs}
 \usepackage{url}
 \usepackage{natbib}
 \usepackage{geometry}
 \usepackage{algorithm}
 \usepackage{algorithmic}
-\usepackage{hyperref}
 
-\geometry{margin=1in}
 
-\title{Compositional Energy-Based Reasoning for Symbolic Algebra}
+\geometry{margin=0.5in}
+
+\title{Algebra-EBM: Compositional Energy-Based Reasoning for Symbolic Algebra}
 
 \author{
     Matt Krasnow \\
-    Harvard College \\
+    Harvard University \\
     \texttt{mkrasnow@college.harvard.edu} \\
-    \and
+    \And
     Jaray Liu \\
-    Harvard College \\
+    Harvard University\\
     \texttt{jarayliu@college.harvard.edu}
 }
 
@@ -34,221 +48,273 @@
 \maketitle
 
 \begin{abstract}
-We introduce a compositional approach to symbolic algebra reasoning with energy-based models (EBMs). Instead of training a single model on complete multi-step solution sequences, we train separate energy functions for individual algebraic rules and compose them at inference time to solve multi-rule problems. Building on IRED (Iterative Reasoning through Energy Diffusion), we define rule-level energies and sum them to guide optimization toward valid solution states. On multi-rule problems, our compositional model improves accuracy by 6.2 percentage points over a monolithic IRED baseline (13.2\% vs 7.1\%), an 87\% relative gain. The advantage grows with problem length, from a modest +0.7\% on 2-rule problems to +16.0\% on 4-rule chains, where performance more than doubles (28.0\% vs 12.0\%). The modular design supports runtime constraint injection and provides a practical mechanism for systematic generalization in neural reasoning systems.
+    We propose a compositional approach to symbolic algebra reasoning using energy-based models (EBMs). Rather than training a single model on complete multi-step solution sequences, we train separate energy functions for individual algebraic rules, composing them at inference time to solve multi-rule problems. Building on the work of IRED (Iterative Reasoning through Energy Diffusion), we compute rule-level energies and sum them to guide optimization toward valid solution states. On multi-rule problems, our compositional model improves accuracy by 6.2 percent over a monolithic IRED baseline (13.2\% vs 7.1\%), achieving an 87\% relative improvement in reasoning capabilities. We find this advantage also grows with problem complexity, increasing from a +0.7\% advantage on 2-rule problems to a +16.0\% advantage on 4-rule chains. Our modular design supports runtime constraint injection and provides a practical mechanism for systematic generalization in neural reasoning systems.
 \end{abstract}
 
 \section{Introduction}
 
 \subsection{Problem Statement and Motivation}
 
-Neural approaches to symbolic reasoning often learn from complete multi-step trajectories, which ties generalization to the training distribution of rule sequences. This setup makes it difficult to solve new combinations of known steps without retraining. We study compositional generalization in symbolic algebra: can a model solve multi-rule problems after training only on single-rule data?
+Neural systems for symbolic reasoning are often trained on complete multi-step solution trajectories, which can conflate performance with the specific distributions of steps seen during training. As a result, models may struggle to solve novel combinations of familiar steps without additional retraining, rendering many existing intelligent systems fragile to out of distribution tasks.
 
-\subsection{Contributions}
+Energy-based models provide an alternative approach towards generalizable reasoning. Rather than learning a single mapping from problem statements to final solutions, an energy-based approach learns separate energy functions encoding individual reasoning operations or constraints. At inference time, these functions can be composed with no additional training to define an objective whose minima correspond to states that satisfy multiple constraints at the same time. This modular composition enables zero-shot generalization to unseen rule combinations, avoiding retraining on the exponentially large space of possible rule sequences.
 
-We make three contributions:
+In our paper, we examine the potential advantages of energy-based approach towards generalizable reasoning in the specific field of algebra. Specifically, we explore the research question: Can a model solve multi-rule problems after training only on single-rule data?
+\subsection{Contribution}
+
+Our work makes three primary contributions to the EBM literature: 
 \begin{itemize}
 \item We define and evaluate rule-level energy composition for symbolic algebra reasoning.
 \item We extend IRED with modular, rule-specific energy functions composed by energy summation at inference time.
 \item We show improved performance on multi-step algebraic problems while matching single-rule performance.
 \end{itemize}
 
+
 \section{Related Work}
+% CUT DOWN
+Classical energy-based models (EBMs) assign a scalar energy to each configuration and perform inference by searching for low-energy states~\citep{lecun2006ebm}, framing problem solving as search over the trained energy landscape. 
 
-\subsection{Energy-Based Reasoning}
+IRED (Iterative Reasoning through Energy Diffusion)~\citep{du2024ired} extends classical EBMs by formulating reasoning as optimization over annealed energy landscapes. The model learns an energy that scores compatibility of candidate outputs conditioned on the input, then applies gradient-based diffusion steps to reason towards a valid solution state at inference time. IRED reports strong out-of-distribution performance on structured tasks, including Sudoku, path-finding, and matrix completion, by adapting the number of optimization steps at inference time~\citep{du2024ired}.
 
-Energy-based models (EBMs) assign a scalar energy to each configuration and perform inference by searching for low-energy states~\citep{lecun2006ebm}. This view connects discriminative prediction and structured inference by casting prediction as optimization over an energy landscape.
+Our work extends upon IRED's optimization-based inference with modifications to the problem modeling granularity. In IRED, reasoning trains a monolithic energy function per task family, which can convolute multiple constraints and rules. In our paper, we instead train separate energies for individual algebraic rules (distribution, combining like terms, isolation, division) and compose them at inference time. This design mirrors classical modular constraint systems, with the caveat that we work with a differentiable, energy-based architecture.
 
-IRED (Iterative Reasoning through Energy Diffusion)~\citep{du2024ired} formulates reasoning as optimization over annealed energy landscapes. The model learns an energy that scores compatibility between inputs and outputs, then applies gradient-based diffusion steps at inference time. IRED reports strong out-of-distribution performance on structured tasks, including Sudoku, path-finding, and matrix completion, by adapting the number of optimization steps at inference time~\citep{du2024ired}.
+Other work explores compositional structure in constraint solving with diffusion-style methods. Diffusion-CCSP~\citep{yang2023diffusion} factors continuous constraint satisfaction problems into simpler constraints and composes them at inference. Recurrent Transformer approaches to constraint satisfaction~\citep{yang2023recurrentcsp} solve CSP instances end-to-end without explicit energies, emphasizing learned constraint satisfaction rather than explicit compositional energy terms. While these methods focus on continuous or general CSP settings, we target discrete symbolic algebra with explicit rule semantics.
 
-Our work keeps IRED's optimization-based inference but changes the modeling granularity. IRED typically uses a monolithic energy function per task family, which entangles multiple constraints and rules. We instead train separate energies for individual algebraic rules (distribution, combining like terms, isolation, division) and compose them at inference. This design matches classical modular constraint systems, but we implement it within a differentiable, energy-based pipeline.
+In mathematical and symbolic reasoning, energy-based methods remain less common than sequence models. Large-scale studies of neural mathematical reasoning~\citep{saxton2019math} and symbolic mathematics~\citep{lample2019symbolicmath} primarily use sequence-to-sequence or Transformer architectures. These methods often learn monolithic mappings from problems to solutions rather than reusable, rule-specific components. Our paper targets this gap by investigating whether composing interpretable rule-level energies improves multi-step generalization compared to monolithic approaches.
 
-Other work explores compositional structure in constraint solving with diffusion-style methods. Diffusion-CCSP~\citep{yang2023diffusion} factors continuous constraint satisfaction problems into simpler constraints and composes them at inference. Recurrent Transformer approaches to constraint satisfaction~\citep{yang2023recurrentcsp} solve CSP instances end-to-end without explicit energies, emphasizing learned constraint satisfaction rather than explicit compositional energy terms. These methods focus on continuous or general CSP settings, while we target discrete symbolic algebra with explicit rule semantics.
 
-In mathematical and symbolic reasoning, energy-based methods remain less common than sequence models. Large-scale studies of neural mathematical reasoning~\citep{saxton2019math} and symbolic mathematics~\citep{lample2019symbolicmath} primarily use sequence-to-sequence or Transformer architectures. These methods often learn monolithic mappings from problems to solutions rather than reusable, rule-specific components. We address this gap by testing whether composing interpretable rule-level energies improves multi-step generalization.
+\section{Methodology}
 
-\subsection{Compositional Reasoning and Neuro-Symbolic Methods}
+\subsection{Algebraic Formulation and Definition}
+\label{rules}
 
-Compositional reasoning aims to solve new problems by recombining learned primitives. Neuro-symbolic approaches often encode structure explicitly while using gradient-based learning. Neural Logic Machines (NLMs)~\citep{dong2019neural} build hierarchies of neural modules that implement lifted logical operations over relational data and can generalize from small to larger instances. Differentiable inductive logic programming methods~\citep{evans2018dilp} learn Horn-clause-like rules from data, combining inductive biases from ILP with neural robustness. Neural theorem proving~\citep{minervini2018ntp} relaxes proof search into differentiable operations over embeddings.
-
-Our method sits between explicit symbolic search and end-to-end sequence modeling. Like neuro-symbolic systems, we align model structure with human-interpretable rules. Like IRED, we perform inference through continuous optimization rather than discrete proof search or program execution. We focus on rule-level energy composition and quantify its effect on multi-step algebraic generalization.
-
-\subsection{Symbolic AI, Systematic Generalization, and Algebraic Reasoning}
-
-Computer algebra systems achieve compositional generalization by encoding algebraic rules explicitly and applying deterministic rewriting procedures. These systems excel at symbolic manipulation but rely on hand-engineered rule sets and do not learn from data.
-
-A central question in machine learning asks whether neural networks can acquire systematic generalization from data. Lake and Baroni~\citep{lake2018generalization} introduced SCAN to test compositional generalization from limited combinations of primitives. Standard sequence models often fail to extrapolate to new combinations even when they perform well on i.i.d.\ splits. Saxton et al.~\citep{saxton2019math} constructed synthetic math suites, including algebra, to probe generalization across curricular splits and found similar gaps between i.i.d.\ performance and compositional generalization.
-
-In symbolic mathematics, Lample and Charton~\citep{lample2019symbolicmath} showed that sequence models trained on synthetic data can solve tasks such as integration and differential equation solving. These models learn holistic mappings, which makes it difficult to attribute generalization to explicit rule reuse rather than distributional pattern matching.
-
-We target this gap with a controlled setup: single-variable linear equations with a fixed set of algebraic rules and symbolic verification via SymPy. We train only on single-rule data and test on multi-rule problems, which mirrors compositional splits in the SCAN tradition~\citep{lake2018generalization}. Our approach ties generalization to the composition of interpretable rule-level energies rather than to a single monolithic mapping.
-
-\section{Method}
-
-\subsection{Problem Formulation}
-
-We solve single-variable linear equations of the form $ax + b = cx + d$ using sequences of rule applications. Let $\mathcal{R} = \{r_1, r_2, r_3, r_4\}$ denote four algebraic rules:
+To train our energy models, we use single-variable linear equation examples of the form $ax + b = cx + d$ using sequences of rule applications. Let $\mathcal{R} = \{r_1, r_2, r_3, r_4\}$ denote the following four rules which we refer to extensively in this paper:
 \begin{itemize}
-\item $r_1$: \textbf{Distribution} --- $a(bx + c) \rightarrow abx + ac$
-\item $r_2$: \textbf{Combining like terms} --- $ax + bx \rightarrow (a+b)x$
-\item $r_3$: \textbf{Isolation} --- $ax + b = c \rightarrow ax = c - b$
-\item $r_4$: \textbf{Division} --- $ax = b \rightarrow x = \frac{b}{a}$ (when $a \neq 0$)
+    \item \textbf{Distribution ($r_1$)}: $a(bx + c) \rightarrow abx + ac$
+    \item \textbf{Combine ($r_2$)}: $ax + bx \rightarrow (a+b)x$
+    \item \textbf{Isolate ($r_3$)}: $ax + b = c \rightarrow ax = c - b$
+    \item \textbf{Division ($r_4$)}: $ax = b \rightarrow x = \frac{b}{a}$ (when $a \neq 0$)
 \end{itemize}
 
-Given an initial equation $e_0$, the goal is to transform it into a solved form $x = v$ for some $v \in \mathbb{R}$. We define the state space $\mathcal{X}$ as the set of valid expressions representable in our domain. Each rule $r_i$ defines a transformation function $f_{r_i}: \mathcal{X} \rightarrow \mathcal{X}$.
+We define the state space $\mathcal{X}$ as the set of valid expressions representable in our domain. Therefore, each rule $r_i$ defines a transformation function $f_{r_i}: \mathcal{X} \rightarrow \mathcal{X}$. The process of algebraic solving can then be represented as a sequence of $T$ states $\{e_t\}_{t=0}^{T}$ where $e_{t+1} = f_{r_{i_{t+1}}}(e_t)$ and the terminal state $e_T$ has the simplified form $x = v$. 
 
-We represent a solution process as a length-$T$ sequence of states $\{e_t\}_{t=0}^{T}$ where $e_{t+1} = f_{r_{i_{t+1}}}(e_t)$ and the terminal state $e_T$ has the form $x = v$.
+Put simply, given an initial equation $e_0$, we can apply a series of algebraic rules to reach a final solved form $x = v$ for some $v \in \mathbb{R}$.
 
-\subsection{Rule-Level Energy Functions}
+\subsection{Equation Representation}
+\label{representation}
+To allow gradient-based optimization, we must encode discrete algebraic equations into a continuous 128-dimensional vector space. Let us define $\mathcal{E}$ as the space of valid equation strings in our domain.
 
-We train separate energy functions $E_i: \mathcal{X} \rightarrow \mathbb{R}$ for each rule $r_i \in \mathcal{R}$. Each $E_i$ assigns low energy to expressions aligned with the effect of rule $r_i$ and higher energy to mismatched expressions.
-
-For rule $r_i$, we construct a dataset $\mathcal{D}_i = \{(e^{(j)}, s^{(j)})\}_{j=1}^{N_i}$ where each example contains an initial expression $e^{(j)}$ and a target solution $s^{(j)}$ obtained by applying only rule $r_i$. We parameterize $E_i$ by a neural network and train it with an IRED-style objective:
+We first define an encoder $\phi: \mathcal{E} \rightarrow \mathbb{R}^{128}$ which maps equation strings to the continuous embedding space. Specifically, we use a character level encoding scheme, with each character in the equation mapped to a one-hot vector over a universe $\mathcal{U}$ of 24 symbols (digits, operators, parentheses, and the variable $x$). For a string of maximum length $L = 64$, we flatten the one-hot representation into a vector of dimension $L \times |\mathcal{U}|$ and project it through a learned linear layer:
 \begin{equation}
-\mathcal{L}_i = \mathbb{E}_{(e,s) \sim \mathcal{D}_i} \left[ E_i(s) - E_i(\tilde{s}) + \alpha \|\nabla_{x} E_i(x)\|^2 \right],
+\phi(e) = \frac{W \cdot \text{flatten}(\text{onehot}(e))}{\|W \cdot \text{flatten}(\text{onehot}(e))\|_2}
 \end{equation}
-where $\tilde{s}$ is an incorrect (negative) solution and the gradient penalty encourages smoother energy landscapes for optimization-based inference.
+where $W \in \mathbb{R}^{128 \times (L \cdot |\mathcal{U}|)}$ is the projection matrix. We normalize the embeddings to improve stability throughout training and the diffusion based inference procedure.
 
-\subsection{Energy Composition for Multi-Rule Problems}
+Moreover, since our downstream inference procedure operates in this continuous embedding space, we must also map the final embedding back to a discrete equation. To solve this, we use a nearest neighbor decoder based on a candidate set $\mathcal{C} \subset \mathcal{E}$ of valid equations with predefined embeddings $\{\phi(c)\}_{c \in \mathcal{C}}$. Thus, we decode an embedding $z$ as follows:
+$$
+\text{decode}(z) = \arg\min_{c \in \mathcal{C}} \|z - \phi(c)\|_2
+$$
+Note that during evaluation, we construct the candidate set from all target equations in the test dataset. This approach avoids the issue of decoding invalid equations since all candidates are verified equations. As such, we guarantee all decoded solutions after inference are syntactically valid equations. 
 
-For multi-rule problems, we compose rule energies by weighted summation. Let $\mathcal{R}_{\text{active}} \subseteq \mathcal{R}$ denote rules relevant to a given problem. We define the compositional energy:
+\subsection{Rule-based Energy} % Prob need to improve descriptions here, especially on diffusion step conditioning and input conditioning.
+\label{rule-based-energy}
+We then define individual energy functions $E_i(e,s, t): \mathcal{X} \rightarrow \mathbb{R}$ for each rule $r_i \in \mathcal{R}$, where the energy landscape over candidate outputs is conditioned on the input equation $e$ and diffusion timestep $t$. In line with classical EBM work, we train each function $E_i$ to assign low energy for states corresponding to valid applications of rule $r_i$ and higher energy to mismatched expressions. Thus, our rule based energy functions measure how compatible an input equation and candidate output are given the specific rule constraint, with low energy corresponding to more "correct" outputs and high energy corresponding to incorrect outputs conditioned on the input $e$.
+
+Then, for each rule $r_i$, we construct a dataset $\mathcal{D}_i = \{(e^{(j)}, s^{(j)})\}_{j=1}^{N_i}$ where each example contains an initial expression $e^{(j)}$ and a target solution $s^{(j)}$ obtained by applying only rule $r_i$. Further, we parameterize $E_i$ with an MLP network and train with an objective function that combines denoising score matching with an explicit contrastive energy loss:
+
+\begin{align}
+\mathcal{L}_i &= \mathcal{L}_{\text{score}} + \lambda \mathcal{L}_{\text{contrast}}, \\[4pt]
+\mathcal{L}_{\text{score}} &=
+\mathbb{E}_{k,\epsilon}\!\left[
+\left\| \nabla_{\tilde{s}} E_i(e,\tilde{s}_k,t) - \epsilon \right\|^2
+\right], \\[4pt]
+\mathcal{L}_{\text{contrast}} &=
+(E_i(e,s,t) - \tau^+)^2
++ (E_i(e,s^-,t) - \tau^-)^2
++ \max\!\left(0, m - E_i(e,s^-,t) + E_i(e,s,t)\right)
+\end{align}
+
+where $\tilde{s}_k$ is the target corrupted by Gaussian noise at step $k$ and $s^-$ denotes an incorrect solution (negative solution). Note that the first loss term (denoising score matching) trains the model to predict the noise direction for iterative refinement, while the second term (contrastive) enforces explicit energy gaps between valid and invalid outputs, preventing flat landscapes and preserving output distinguishability. % Eh?? 
+
+\subsection{Compositional Reasoning}
+
+For multi-rule problems, we compose rule energies in a zero shot manner using weighted summation. Let us define $\mathcal{R}_{\text{active}} \subseteq \mathcal{R}$ as the subset of algebraic rules relevant to a given problem. We then define the compositional energy as follows:
 \begin{equation}
 E_{\text{comp}}(x; \mathcal{R}_{\text{active}}) = \sum_{r_i \in \mathcal{R}_{\text{active}}} \lambda_i E_i(x),
 \end{equation}
-where $\lambda_i \geq 0$ are composition weights. We use uniform weights $\lambda_i = 1$ in our experiments.
+where $\lambda_i \geq 0$ are composition weights. For simplicity, we use uniform weights $\lambda_i = 1$ in our experiments. However, we hope to continue our research beyond CS2821r.
 
-Each $E_i$ encodes a rule-specific preference. Summation combines these preferences into a single landscape that encourages states compatible with multiple rules, enabling optimization to move through multi-step solution trajectories.
+Since each $E_i$ encodes a rule-specific preference, summation naturally combines these preferences into a single landscape that encourages states compatible with multiple rules. The idea is that candidate output states that are closest to the target solution will correspond to low energy valleys across several rule energy landscapes, yielding a combined lower energy than candidate solutions which only apply one or two rules correctly.
 
-\subsection{Inference Algorithm}
+\subsection{Inference}
 
-At inference, we adapt IRED's optimization procedure to use $E_{\text{comp}}$. Given an initial equation $e_0$ and active rules $\mathcal{R}_{\text{active}}$, we optimize in the energy landscape defined by $E_{\text{comp}}$.
+During inference, we extend the optimization procedure outlined in IRED to use $E_{\text{comp}}$. Concretely, given an initial equation $e_0$ and active rules $\mathcal{R}_{\text{active}}$, we optimize using the energy landscape defined by $E_{\text{comp}}$ according to the following algorithm:
 
 \begin{algorithm}
-\caption{Compositional Energy-Based Algebraic Reasoning}
+\caption{Compositional IRED Inference}
 \begin{algorithmic}[1]
-\STATE \textbf{Input:} Initial equation $e_0$, active rules $\mathcal{R}_{\text{active}}$, steps $T$
-\STATE \textbf{Output:} Solution expression
-\STATE Initialize $x^{(0)} \leftarrow \text{encode}(e_0)$
-\STATE Define $E_{\text{comp}}(x) \leftarrow \sum_{r_i \in \mathcal{R}_{\text{active}}} E_i(x)$
-\FOR{$t = 0$ to $T-1$}
-    \STATE $g^{(t)} \leftarrow -\nabla_x E_{\text{comp}}(x^{(t)})$ \COMMENT{Energy gradient}
-    \STATE $x^{(t+1)} \leftarrow x^{(t)} + \eta \cdot g^{(t)} + \sqrt{2\eta\beta^{-1}} \epsilon^{(t)}$ \COMMENT{Langevin dynamics}
-    \STATE Apply annealing: $\beta^{(t+1)} \leftarrow \beta^{(t)} \cdot \gamma$
+\STATE \textbf{Input:} Input embedding $z_{\text{in}}$, rule energies $\{E_i\}$, landscapes $K$, steps $T$
+\STATE \textbf{Output:} Solution embedding
+\STATE Initialize $z \sim \mathcal{N}(0, I)$
+\STATE Define $E_{\text{comp}}(z) = \sum_{i} E_i(z_{\text{in}}, z)$
+\FOR{$k = 0$ to $K-1$}
+    \FOR{$t = 0$ to $T-1$}
+        \STATE $z' \leftarrow z - \eta \nabla_z E_{\text{comp}}(z)$
+        \STATE Accept $z \leftarrow z'$ with $p = \exp(-\Delta E / \tau)$
+    \ENDFOR
+    \STATE Scale $z$ for next landscape
 \ENDFOR
-\STATE \textbf{return} $\text{decode}(x^{(T)})$ \COMMENT{Convert to algebraic expression}
+\STATE \textbf{return} $\text{decode}(z)$
 \end{algorithmic}
 \end{algorithm}
 
-The procedure alternates energy-reducing gradient steps with stochastic perturbations to escape poor local minima. The annealing schedule reduces noise over time to promote convergence.
-
-\subsection{Zero-Shot Multi-Rule Generalization}
-
-The rule-level decomposition supports zero-shot generalization to multi-rule problems. During training, each $E_i$ learns a rule-specific energy landscape from single-rule data. At inference, $E_{\text{comp}}$ combines these learned preferences into a joint landscape that guides optimization through multi-step solutions without training on multi-rule sequences.
+The algorithm iterates through increasingly sharp energy landscapes conditioned on diffusion time steps, at each step performing $T$ optimization steps. Moreover, we use an annealed noise schedule to escape local minima while allowing convergence in later time steps. We hypothesize that combining these disjointly trained rule-based energy landscapes into a composed function can successfully guide optimization through multi-step solutions \emph{without any} prior training on multi-rule sequences.
 
 \section{Experimental Setup}
 
-\subsection{Dataset Construction}
+\subsection{Single-Rule Training Datasets}
 
-We build datasets for single-rule training and multi-rule evaluation. The generator targets broad coverage of expression structure while controlling difficulty and ensuring symbolic verifiability.
-
-\subsubsection{Single-Rule Training Datasets}
-
-For each rule $r_i \in \mathcal{R}$, we generate a dataset $\mathcal{D}_i$ containing problems solvable by only that rule:
+Prior to training, we generate a separate synthetic dataset $\mathcal{D}_i$ for each of the 4 rules $r_i \in \mathcal{R}$ described in \ref{rules}. Each dataset $\mathcal{D}_i$ contains $50,000$ examples of algebraic problems which can be solved only through applying the corresponding rule $r_i$. Further, we validate each training example using SymPy to guarantee mathematical correctness. 
 \begin{itemize}
-\item \textbf{Distribution ($\mathcal{D}_1$):} Problems of the form $a(bx + c) = d$, where $a, b, c, d$ are sampled integers from $[-10, 10] \setminus \{0\}$. Examples: $3(2x + 5) = 21$, $-2(x - 4) = 6$.
-
-\item \textbf{Combining like terms ($\mathcal{D}_2$):} Problems of the form $ax + bx + c = d$, with coefficients sampled from the same range. Examples: $3x + 2x - 4 = 11$, $x - 3x + 7 = -5$.
-
-\item \textbf{Isolation ($\mathcal{D}_3$):} Problems of the form $ax + b = c$ where isolation yields a division-ready equation. Examples: $2x + 3 = 7$, $-x - 5 = 2$.
-
-\item \textbf{Division ($\mathcal{D}_4$):} Problems already in the form $ax = b$. Examples: $4x = 12$, $-3x = 9$.
+    \item \textbf{Distribution ($\mathcal{D}_1$):} Problems of the form $a(bx + c) = d$, where $a, b, c, d$ are sampled integers from $[-10, 10] \setminus \{0\}$. 
+    
+    \item \textbf{Combining like terms ($\mathcal{D}_2$):} Problems of the form $ax + bx + c = d$, with coefficients sampled from the same range $[-10, 10] \setminus \{0\}$.
+    
+    \item \textbf{Isolation ($\mathcal{D}_3$):} Problems of the form $ax + b = c$ where isolation yields a division-ready equation.
+    
+    \item \textbf{Division ($\mathcal{D}_4$):} Problems taking the form of $ax = b$. 
 \end{itemize}
 
-Each dataset includes the initial equation and the ground-truth solution $x = v$ computed with SymPy. We enforce unique rational solutions to avoid ambiguous targets.
+Note that each example includes the initial equation and the ground-truth label $x = v$ verified with SymPy. We also enforce unique rational solutions to avoid ambiguous targets.
 
-\subsubsection{Multi-Rule Test Set}
+\subsection{Multi-Rule Evaluation Dataset}
 
-Our evaluation set contains 175 problems that require 2 to 4 sequential rule applications:
+Similarly, we construct our evaluation set containing 175 problems which individually require between 2 to 4 sequential rule operations:
 \begin{itemize}
 \item \textbf{2-rule problems (75 instances):} Two-rule combinations, such as distribution followed by isolation or combining like terms followed by division.
-\item \textbf{3-rule problems (60 instances):} Three-step chains such as distribution $\rightarrow$ combining like terms $\rightarrow$ isolation.
-\item \textbf{4-rule problems (40 instances):} Problems that require all four rules.
+\item \textbf{3-rule problems (60 instances):} Three-step sequences such as distribution, combining like terms, isolation.
+\item \textbf{4-rule problems (40 instances):} Problems which require the application of all four rules.
 \end{itemize}
 
-We generate multi-rule problems by starting from a solved form $x = v$ and applying inverse transformations to produce a complex initial equation. This construction guarantees unique, verifiable solutions.
+Specifically, we generate multi-rule problems by starting from the terminal solved form of $x = v$, with $v \in \mathcal{R}$, and apply inverse transformations to produce a complex initial equation. Through this synthetic generation procedure, we guarantee unique and verifiable solutions to test on. We provide a reference example of a 4-rule problem below:
 
-Example multi-step problem:
-\begin{align}
-\text{Initial:} \quad & 2(3x + 4) + 5x = 19 \\
-\text{Distribution:} \quad & 6x + 8 + 5x = 19 \\
-\text{Combining:} \quad & 11x + 8 = 19 \\
-\text{Isolation:} \quad & 11x = 11 \\
-\text{Division:} \quad & x = 1
-\end{align}
+\paragraph{Example.}
+\begin{align*}
+2(3x + 4) + 5x = 19
+&\;\xrightarrow{\text{distribute}}\;
+6x + 8 + 5x = 19 \\
+&\;\xrightarrow{\text{combine}}\;
+11x + 8 = 19 \\
+&\;\xrightarrow{\text{isolate}}\;
+11x = 11 \\
+&\;\xrightarrow{\text{divide}}\;
+x = 1
+\end{align*}
 
-\subsection{Implementation Details}
 
-\subsubsection{Expression Encoding}
+\subsection{Architecture}
 
-We represent expressions as fixed-size vectors using a custom tokenization scheme. We parse each expression into an abstract syntax tree (AST) and convert it into tokens for operations, variables, and coefficients. Learnable token embeddings and positional encodings for tree structure produce 128-dimensional representations.
+We implement the Encoder and Decoder as described in \ref{representation}, using an encoder vocabulary size of 24 characters, max sequence length of 64 tokens, and representation dimension of 128. Table~\ref{tab:encoder} summarizes encoder and decoder specifications in more detail. 
 
-\subsubsection{Network Architecture}
+\begin{table}[H]
+\centering
+\caption{Encoder and Decoder Hyperparameters}
+\label{tab:encoder}
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Specification} \\
+\midrule
+\multicolumn{2}{l}{\textit{Encoder}} \\
+Vocabulary size & 24 characters \\
+Max sequence length & 64 tokens \\
+Input dimension & $64 \times 24 = 1536$ \\
+Output dimension & 128 \\
+Projection & Linear with orthogonal init (gain $= 0.1$) \\
+Normalization & L2 unit norm \\
+\midrule
+\multicolumn{2}{l}{\textit{Decoder}} \\
+Method & Nearest neighbor lookup \\
+Distance metric & L2 (Euclidean) \\
+Candidate set & Target equations from dataset \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Each rule-specific energy function $E_i$ uses a multi-layer perceptron (MLP):
+Our energy models use a small MLP architecture which takes the concatenated embeddings of an input equation and a candidate output equation as input, conditioned on a diffusion timestep. Table~\ref{tab:energy} contains more specifics on the network parameters. Note that each rule uses the same architecture for consistency.
+
+\begin{table}[H]
+\centering
+\caption{Energy Network Architecture (shared across rules)}
+\label{tab:energy}
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Specification} \\
+\midrule
+Input dimension & 256  \\
+Hidden dimension & 512 \\
+Hidden layers & 3 (FC $\rightarrow$ FiLM $\rightarrow$ Swish) \\
+Output dimension & 128 \\
+Time Embedding & Sinusoidal (dim $= 128$) + 2-layer MLP \\
+Parameters per rule & $\sim$1.3M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training}
+
+We train each rule-specific energy model independently using the paradigm described in \ref{rule-based-energy}. Note that due to resource constraints, we were only able to train each architecture for $20,000$ steps. Table~\ref{tab:training} lists the specific training hyperparameters.
+
+\begin{table}[H]
+\centering
+\caption{Training hyperparameters.}
+\label{tab:training}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+\multicolumn{2}{l}{\textit{Optimization}} \\
+Optimizer & Adam \\
+Learning rate & $10^{-4}$ \\
+Batch size & 2048 \\
+Training steps & 20,000 per rule \\
+\midrule
+\multicolumn{2}{l}{\textit{IRED Config}} \\
+Number of landscapes ($K$) & 10 \\
+Noise schedule & Cosine \\
+Contrastive loss targets & Positive: 1.0, Negative: 15.0 \\
+Contrastive margin & 10.0 \\
+\midrule
+\multicolumn{2}{l}{\textit{Dataset}} \\
+Problems per rule & 50,000 \\
+Coefficient range & $[-10, 10] \setminus \{0\}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metrics and Evaluation}
+
+We monitor model performance using three metrics:
+
 \begin{itemize}
-\item Input: 128 dimensions (expression encoding)
-\item Hidden layers: 3 layers with 256 units each
-\item Activation: ReLU with dropout (rate $= 0.1$)
-\item Output: scalar energy value
-\end{itemize}
-All rule networks share this architecture but use independent parameters, with about 200K parameters per rule.
+\item \textbf{Symbolic Accuracy (Main):} Using SymPy, we solve for $x$ in both the predicted and target equations, checking if the solutions match.
 
-\subsubsection{Training Protocol}
+% \item \textbf{Embedding L2 Distance:} We compute $\|z_{\text{pred}} - z_{\text{target}}\|_2$ in the 128-dimensional embedding space. This auxiliary metric measures how close the optimization came to the target, even for incorrect predictions.
 
-We train each $E_i$ independently on $\mathcal{D}_i$ using an IRED-style training loop:
-\begin{itemize}
-\item Optimizer: Adam with learning rate $10^{-3}$
-\item Batch size: 32
-\item Training epochs: 100 per rule
-\item Negative sampling: random incorrect solutions for contrastive learning
-\item Regularization: $\alpha = 0.01$ for the gradient penalty in Equation (1)
+\item \textbf{Invalid Equation Rate:} Fraction of decoded outputs that fail SymPy parsing. This measures how often the nearest neighbor decoding returns syntactically incorrect outputs.
+
+\item \textbf{Per-Rule Breakdown:} For multi-rule problems, we report accuracy stratified by the number of rules required (2-rule, 3-rule, 4-rule), allowing analysis of how performance degrades with problem complexity.
 \end{itemize}
 
-\subsection{Baselines}
+We compare our compositional rule-based approach against a baseline monolithic model trained on a dataset of complete multi-step algebraic sequences. Importantly, we use the same architecture as the individual energy models to preserve consistency for valid comparison.
 
-We compare against:
-\begin{itemize}
-\item \textbf{Monolithic IRED:} One energy function trained on complete multi-step sequences. It uses the same architecture as the rule models but trains on full problem-solution pairs.
+In our experiment, we train each rule-specific models on their respective single-rule dataset and evaluate on both single-rule and multi-rule data. We select hyperparameters using a grid search on a small validation set (10\% of training data) and track held out test performance. 
 
-\item \textbf{Sequence-to-Sequence Transformer:} An encoder-decoder Transformer trained to map problem statements to solutions as text. It uses 6 layers, 8 attention heads, and 512 hidden dimensions.
+% Also, we evaluate both \textit{in-domain generalization} (multi-rule problems with familiar coefficient ranges) and \textit{out-of-domain generalization} (coefficients from $[-50, 50]$, unseen during training) to assess robustness.
 
-\item \textbf{Random Composition:} Our compositional method with randomly initialized energies to test whether composition alone drives gains.
-
-\item \textbf{Oracle Composition:} A reference upper bound using hand-crafted energies that recognize when each rule should apply.
-\end{itemize}
-
-\subsection{Evaluation Metrics}
-
-We evaluate with:
-\begin{itemize}
-\item \textbf{Symbolic Correctness:} Exact-match accuracy using SymPy to verify equivalence between predicted and ground-truth solutions.
-\item \textbf{L2 Solution Distance:} Euclidean distance between predicted and correct numeric solutions for incorrect outputs.
-\item \textbf{Syntactic Validity:} Fraction of outputs that parse as valid algebraic expressions.
-\item \textbf{Intermediate Step Analysis:} For $n$-rule problems, accuracy on prefixes that require only the first $k < n$ rules.
-\end{itemize}
-
-\subsection{Experimental Protocol}
-
-We train rule-specific models on single-rule datasets and evaluate on both single-rule and multi-rule sets. We select hyperparameters by grid search on a small validation set (10\% of training data) and report held-out test performance.
-
-We evaluate both \textit{in-domain generalization} (multi-rule problems with familiar coefficient ranges) and \textit{out-of-domain generalization} (coefficients from $[-50, 50]$, unseen during training) to assess robustness.
 
 \section{Results}
-
-We report performance on single-rule and multi-rule algebraic problems. Compositional energy functions improve multi-step reasoning while maintaining comparable single-rule performance.
-
-\subsection{Main Performance Comparison}
-
-Table~\ref{tab:main_results} summarizes the core results. Monolithic IRED and the compositional model match on single-rule problems (about 29.6\% accuracy). On multi-rule problems, the compositional model improves accuracy by 6.2 percentage points (13.2\% vs 7.1\%), an 87\% relative improvement over the monolithic baseline.
+\subsection{Single and Multi-Rule Accuracy}
+We find that compositional energy functions actually improve multi-rule reasoning capability while maintaining comparable single-rule performance compared to the monolithic energy based approach. Monolithic IRED and the compositional model match on single-rule problems (about 29.6\% accuracy). On multi-rule problems, our compositional approach improves accuracy by 6.2 percent (13.2\% vs 7.1\%), an 87\% relative increase from the monolithic baseline. Table~\ref{tab:main_results} summarizes the core results.
 
 \begin{table}[h]
 \centering
@@ -265,20 +331,17 @@ Monolithic IRED & 29.6\% & 7.1\% \\
 \bottomrule
 \end{tabular}
 \vspace{0.5em}
-\footnotesize{*Compositional uses rule-specific models for single-rule evaluation}
 \end{table}
 
-\subsection{Multi-Rule Performance by Complexity}
-
-Table~\ref{tab:breakdown} breaks down multi-rule accuracy by the number of required rules. The compositional advantage grows with problem length: +0.7\% on 2-rule problems, +1.8\% on 3-rule problems, and +16.0\% on 4-rule problems.
+Note that compositional results used rule-specific models for single-rule evaluation. To provide a more fine grained comparison, we also test the performance of the compositional and monolithic models on varying levels of problem complexity. We find that the compositional reasoning advantage grows with problem length. On 2-rule problems, the compositional approach achieves a +0.7\% advantage. On 3-rule problems, the compositional advantage increases to +1.8\%, and on 4-rule problems the compositional approach yields a +16.0\% increase in performance compared to the monolithic baseline. Table~\ref{tab:breakdown} breaks down multi-rule accuracy in more depth.
 
 \begin{table}[h]
 \centering
-\caption{Multi-rule performance breakdown by number of required rules.}
+\caption{Multi-rule performance breakdown by number of rules.}
 \label{tab:breakdown}
 \begin{tabular}{lccc}
 \toprule
-Problem Type & Monolithic & Compositional & Advantage \\
+Problem Complexity & Monolithic & \textbf{Compositional} & Advantage \\
 \midrule
 2-rule (75 problems) & 1.2\% & 1.9\% & +0.7\% \\
 3-rule (60 problems) & 8.0\% & 9.8\% & +1.8\% \\
@@ -289,81 +352,41 @@ Problem Type & Monolithic & Compositional & Advantage \\
 \footnotesize{}
 \end{table}
 
-The 4-rule setting shows the largest gap: the compositional model more than doubles the monolithic baseline (28.0\% vs 12.0\%).
+Surprisingly, the 4-rule setting demonstrates the largest gap in performance despite the monolithic model being trained primarily on these examples and the compositional models performing out of distribution reasoning.
 
-\subsection{Error Analysis and Failure Modes}
+\subsection{Error Analysis}
 
-We examined incorrect outputs to identify bottlenecks. The monolithic model shows two dominant failure modes: (1) \textit{rule interference}, where learning one rule degrades performance on another, and (2) \textit{sequence confusion}, where the model applies correct rules in an incorrect order.
+In addition to algebraic accuracy metrics, we analyze incorrect outputs to identify limitations in either model's performances (compositional and monolithic). We find that the monolithic model exhibits two primary failure modes: (1) \textit{rule interference}, occurring when learning one rule degrades performance on another, and (2) \textit{sequence confusion}, occurring when the model applies the right set of rules in an incorrect order.
 
-The compositional model shows more stable per-rule behavior but fails in two main ways: (1) \textit{decoding errors}, where continuous embeddings decode to invalid expressions, and (2) \textit{energy balancing}, where one rule energy dominates others and pulls optimization toward a single-rule solution basin.
+By contrast, the compositional model shows more stable per-rule behavior but often fails in two areas: (1) \textit{decoding errors}, occurring when continuous equation embeddings decode to invalid expressions, and (2) \textit{energy balancing}, occurring when one rule energy dominates the others and pushes optimization trajectory toward an incorrect solution valley.
 
-Both models produce valid syntax in more than 95\% of cases, so representation and decoding quality is not the main driver of errors. The primary challenge is learning energy landscapes that support reliable multi-step optimization.
+However, we find that both models produce valid syntax in more than 95\% of cases. Thus, we suspect representation and decoding quality is not the main driver of errors. Instead, the primary challenge is learning energy landscapes that lead to reliable and robust multi-step optimization processes.
 
 \section{Discussion}
 
-\subsection{Why Compositional Energy Models Outperform Monolithic Approaches}
+\subsection{Result Analysis}
 
-The results suggest four mechanisms that favor compositional energies in multi-step reasoning.
+We interpret our results as strong evidence that a compositional approach towards multi-step reasoning is favorable compared to current monolithic approaches, especially given our limited training. We provide three explanations for the observed gap between monolithic and compositional energy-based reasoning on algebra problems. First, each individual rule-based model internalizes a clean representation of its specific rule and therefore reduces cross-rule confusion which arises when training on all rules simultaneously. 
 
-\textbf{Modular specialization.} Each rule-specific energy trains on focused examples, which encourages clean rule recognition and reduces cross-rule confusion. A monolithic model must represent multiple rules in one set of parameters, which increases interference.
+Further, our compositional algebra model reuses learned rule-energies in new combinations at test time. Therefore, the model is able to represent multiple subsets of $\mathcal{R}$ through energy summation without a need for training on each multi-rule sequence, promoting a more robust system of generalization by construction. On the other hand, our monolithic model must represent all 4 algebraic rules in one set of parameters, increasing the risk of overfitting on certain rule sequences and internal knowledge entanglement.
 
-\textbf{Combinatorial generalization.} The compositional model reuses learned rule energies in new combinations at test time. The model can represent multiple subsets of $\mathcal{R}$ through energy summation without training on each sequence, which aligns with the goal of systematic generalization~\citep{lake2018generalization}.
+Finally, individual rule energies form simpler landscapes around valid local transformations as a product of the simpler task at hand. Summation can then accurately capture multiple rules while maintaining strong performance on single rule tasks. By contrast, a monolithic training objective inherently changes the energy landscape for all other rules while training on another, leading to more complex and convoluted energy landscapes.
 
-\textbf{Energy landscape structure.} Individual rule energies can form simpler landscapes around valid local transformations. Summation can preserve useful gradients from multiple rules, while a monolithic energy must represent a more complex multimodal landscape that satisfies competing constraints.
+Beyond the domain of algebra, our findings suggest broader implications for energy-based approaches to generalizable reasoning. Since energy functions encode compositional constraints over states, they provide a unique approach towards many problem solving tasks. Moreover, their strong zero-shot generalization make them a promising avenue for the development of generally intelligent systems through reusable knowledge and scalable generalization.
 
-\textbf{Reduced interference.} Independent training avoids catastrophic interference across rules. A monolithic objective can shift the energy surface for one rule while training on another, which can destabilize longer chains that rely on all rules remaining available.
+\subsection{Limitations and Future Work}
 
-\subsection{Connection to Constraint Satisfaction and Modular Reasoning}
+Our approach faces two main limitations. First, decoding from continuous embeddings to discrete expressions introduces approximation noise into reasoning, especially as equations grow in complexity. Second, our algebra based approach assumes the existence of a well defined rule set while many real world settings involve evolving or unknown rules which present a separate set of challenges for future energy-based reasoning work.
 
-Our approach parallels compositional constraint satisfaction methods~\citep{yang2023diffusion} that factor complex problems into simpler constraint components. The energy-based formulation offers three practical benefits for symbolic reasoning: (1) gradient-based optimization provides a continuous search procedure, (2) energy summation naturally expresses conjunction of multiple constraints, and (3) annealing controls exploration and exploitation during inference.
-
-\subsection{Implications for Neural-Symbolic Reasoning}
-
-Rule-level energies combine interpretability with data-driven learning. Classical symbolic systems guarantee compositionality through explicit rules; our approach learns rule preferences from data while preserving a modular structure that supports rule recombination. The length-dependent performance gap suggests that modular structure becomes more valuable as reasoning chains grow.
-
-\subsection{Limitations and Failure Modes}
-
-The approach faces two main limitations. First, decoding from continuous embeddings to discrete expressions introduces approximation errors, especially for complex expressions that require exact symbolic structure. Second, the method assumes a predefined rule set, which limits applicability when rules are unknown or evolve.
-
-The multi-rule accuracy remains low in absolute terms (13.2\% overall), which points to several bottlenecks: (1) expression representations may not encode fine-grained algebraic structure, (2) optimization in high-dimensional energy landscapes can stall in local minima, and (3) discrete algebraic transitions do not always align with smooth continuous trajectories.
-
-Future work can address these issues by improving representations (for example, graph neural networks over ASTs), adding hybrid discrete-continuous inference operators, and learning dynamic rule weights conditioned on the current state.
-
-\subsection{Broader Impact and Future Directions}
-
-Energy-based composition provides a general mechanism for modular reasoning beyond algebra. Natural extensions include geometric reasoning with composable spatial constraints, logical inference with modular premises, and program synthesis where components must compose into longer structures.
-
-The modular design also enables runtime constraint injection, which can add domain-specific requirements without retraining a monolithic model. This direction suggests practical tools for controllable reasoning systems and systematic studies of how architectural modularity affects generalization.
-
+Future work should focus on extending compositional energy-based reasoning into more complex symbolic settings, particularly where the rule set $\mathcal{R}$ is not well defined such as medical diagnosis. Another path for future work could be integrating energy models into the classical AI systems which we have seen in CS 2821r, such as replacing the demons in \cite{selfridge1959pandemonium} with EBMs. With a learned weighting of the demon energy functions, one could replace the decision demon with a similar compositional reasoning approach.
 \section{Conclusion}
 
-We introduce compositional energy-based reasoning for symbolic algebra by training rule-level energy functions and composing them at inference time. The approach improves multi-rule accuracy by 6.2 percentage points over a monolithic IRED baseline (13.2\% vs 7.1\%) while matching single-rule performance.
+In Algebra-EBM, we introduce compositional energy-based reasoning for symbolic algebra by training rule-level energy functions and composing them at inference time. The approach improves multi-rule accuracy by 6.2\% over a monolithic IRED baseline (13.2\% vs 7.1\%) while matching equivalent single-rule performance.
 
-Our experiments show that the compositional advantage grows with problem length, culminating in more than doubled accuracy on 4-rule chains (28.0\% vs 12.0\%). The method supports modularity, enables constraint injection, and provides a concrete framework for studying systematic generalization through architectural decomposition.
+Our experiments show that the compositional advantage grows with problem length, achieving more than doubled accuracy on 4-rule chains (28.0\% vs 12.0\%). The method supports modularity, enables constraint injection, and provides a concrete framework for studying systematic generalization through architectural decomposition.
 
+\newpage
 \bibliographystyle{plainnat}
 \bibliography{references}
-
-\appendix
-
-\section{Implementation Details}
-
-Our implementation builds on IRED with three modifications: (1) separate training datasets and models for each rule, (2) energy composition by weighted summation, and (3) inference under the composed energy. Unless otherwise specified, we use IRED-style defaults for optimization and annealing.
-
-\section{Additional Results}
-
-\subsection{Detailed Performance Analysis}
-
-We observed several qualitative differences between compositional and monolithic behavior:
-
-\textbf{Error type distribution.} Monolithic models show more rule selection errors (wrong rule preference), while compositional models show more decoding errors (continuous-to-discrete conversion), suggesting different bottlenecks.
-
-\textbf{Convergence behavior.} In our runs, the compositional model typically reaches stable low-energy states in fewer inference steps than the monolithic model, and its energy trajectory is less erratic.
-
-\textbf{Rule activation patterns.} Individual rule energies often exhibit sequential activation patterns consistent with human solution strategies, while monolithic energy gradients are harder to interpret.
-
-\subsection{Computational Efficiency}
-
-Training the compositional approach trains four models instead of one, which increases total training compute. Inference time remains comparable because energy terms can be computed in parallel, and the modular design enables targeted fine-tuning of one rule model without retraining the full system.
 
 \end{document}
