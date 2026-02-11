@@ -1,0 +1,167 @@
+{
+  "project_slug": "algebra-ebm",
+  "phase": "TRAINING",
+  "description": "Algebra EBM - Compositional vs Monolithic Energy-Based Models for Algebraic Equation Solving",
+  "created_at": "2026-02-11T00:00:00Z",
+  "started_at": "2026-02-11T00:00:00Z",
+  "last_updated": "2026-02-11T00:00:00Z",
+  "model_storage": {
+    "location": "Cluster (/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/)",
+    "training_location": "GPU nodes (Temporary /tmp during training, auto-synced to persistent storage)",
+    "availability": "All models and evaluation happen exclusively on cluster"
+  },
+  "training_jobs": {
+    "status": "READY_TO_SUBMIT",
+    "description": "5 models to be trained in parallel on GPU nodes",
+    "submit_command": "bash submit_cluster_training.sh",
+    "models": [
+      {
+        "job_id": null,
+        "rule": "distribute",
+        "sbatch": "slurm/train_distribute.sbatch",
+        "partition": "gpu_test",
+        "gpu": 1,
+        "time": "04:00:00",
+        "status": "READY",
+        "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt"
+      },
+      {
+        "job_id": null,
+        "rule": "combine",
+        "sbatch": "slurm/train_combine.sbatch",
+        "partition": "gpu_test",
+        "gpu": 1,
+        "time": "04:00:00",
+        "status": "READY",
+        "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt"
+      },
+      {
+        "job_id": null,
+        "rule": "isolate",
+        "sbatch": "slurm/train_isolate.sbatch",
+        "partition": "gpu_test",
+        "gpu": 1,
+        "time": "04:00:00",
+        "status": "READY",
+        "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt"
+      },
+      {
+        "job_id": null,
+        "rule": "divide",
+        "sbatch": "slurm/train_divide.sbatch",
+        "partition": "gpu_test",
+        "gpu": 1,
+        "time": "04:00:00",
+        "status": "READY",
+        "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt"
+      },
+      {
+        "job_id": null,
+        "name": "monolithic",
+        "sbatch": "slurm/train_monolithic.sbatch",
+        "partition": "gpu",
+        "gpu": 1,
+        "time": "06:00:00",
+        "status": "READY",
+        "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/monolithic/model.pt"
+      }
+    ]
+  },
+  "active_runs": [],
+  "completed_runs": [],
+  "next_poll_after": null,
+  "pending_experiments": [
+    {
+      "experiment_id": "exp_001_single_rule_baseline",
+      "name": "Single-Rule Baseline Evaluation",
+      "description": "Evaluate compositional model on single-rule problems (distribute, combine, isolate, divide). Baseline accuracy target: ~85%",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "single_rule",
+        "rules": ["distribute", "combine", "isolate", "divide"],
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    },
+    {
+      "experiment_id": "exp_002_multi_rule_2",
+      "name": "Multi-Rule Evaluation (2 rules)",
+      "description": "Evaluate compositional model on 2-rule problems (require 2 sequential rules)",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "multi_rule",
+        "num_rules": 2,
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    },
+    {
+      "experiment_id": "exp_003_multi_rule_3",
+      "name": "Multi-Rule Evaluation (3 rules)",
+      "description": "Evaluate compositional model on 3-rule problems (require 3 sequential rules)",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "multi_rule",
+        "num_rules": 3,
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    },
+    {
+      "experiment_id": "exp_004_multi_rule_4",
+      "name": "Multi-Rule Evaluation (4 rules)",
+      "description": "Evaluate compositional model on 4-rule problems (require all 4 rules)",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "multi_rule",
+        "num_rules": 4,
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    },
+    {
+      "experiment_id": "exp_005_constrained",
+      "name": "Constrained Evaluation",
+      "description": "Evaluate compositional model with positivity and integerness constraints",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "constrained",
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    },
+    {
+      "experiment_id": "exp_007_comparison",
+      "name": "Compositional vs Monolithic Comparison",
+      "description": "Compare performance of compositional approach vs monolithic baseline",
+      "status": "BLOCKED",
+      "blocks_on": ["train_distribute", "train_combine", "train_isolate", "train_divide", "train_monolithic"],
+      "type": "evaluation",
+      "config": {
+        "eval_type": "comparison",
+        "num_problems": 1000,
+        "seed": 42,
+        "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results"
+      }
+    }
+  ],
+  "needs_user_input": {
+    "value": false,
+    "prompt": null
+  }
+}

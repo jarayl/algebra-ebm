@@ -34,18 +34,18 @@ import time
 import json
 import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 import torch
 import numpy as np
 
 # Import algebra components
 from src.algebra.algebra_evaluation import (
-    evaluate_model_suite, save_evaluation_results, print_evaluation_summary,
+    evaluate_model_suite, save_evaluation_results,
     evaluate_with_real_diffusion, run_monolithic_evaluation
 )
 from src.algebra.algebra_inference import load_rule_models
-from src.algebra.algebra_encoder import create_character_encoder, create_decoder_with_default_candidates
+from src.algebra.algebra_encoder import create_decoder_with_default_candidates
 from src.algebra.algebra_dataset import AlgebraDataset, MultiRuleDataset, ConstrainedDataset
 
 # Set up logging
@@ -196,7 +196,7 @@ def create_constrained_datasets(
 
 
 def run_single_rule_evaluation(
-    rule_models: Dict[str, Any],
+    rule_models: Optional[Dict[str, Any]],
     encoder: Any,
     decoder: Any,
     rule: str,
@@ -206,29 +206,29 @@ def run_single_rule_evaluation(
 ) -> Dict[str, Any]:
     """
     Run evaluation on a single rule.
-    
+
     Args:
-        rule_models: Loaded rule models
+        rule_models: Loaded rule models (can be None for compatibility)
         encoder: Equation encoder
         decoder: Equation decoder
         rule: Rule name to evaluate
         num_problems: Number of test problems
         **eval_kwargs: Additional evaluation arguments
-        
+
     Returns:
         Evaluation results dictionary
     """
     logger.info(f"Running single-rule evaluation for: {rule}")
-    
+
     # Create test dataset
     datasets = create_single_rule_datasets([rule], num_problems=num_problems, seed=seed)
     dataset_name = f"single_rule_{rule}"
-    
+
     if dataset_name not in datasets:
         raise ValueError(f"Failed to create dataset for rule {rule}")
-    
+
     # Run evaluation using only the specific rule model
-    single_rule_models = {rule: rule_models[rule]} if rule in rule_models else {}
+    single_rule_models = {rule: rule_models[rule]} if rule_models and rule in rule_models else {}
     
     if not single_rule_models:
         raise ValueError(f"Model for rule {rule} not found in loaded models")
@@ -247,7 +247,7 @@ def run_single_rule_evaluation(
 
 
 def run_full_evaluation_suite(
-    rule_models: Dict[str, Any],
+    rule_models: Optional[Dict[str, Any]],
     encoder: Any,
     decoder: Any,
     single_rule_problems: int = 1000,
@@ -258,23 +258,23 @@ def run_full_evaluation_suite(
 ) -> Dict[str, Dict[str, Any]]:
     """
     Run the complete evaluation suite across all test scenarios.
-    
+
     Args:
-        rule_models: Loaded rule models
+        rule_models: Loaded rule models (can be None for compatibility)
         encoder: Equation encoder
         decoder: Equation decoder
         single_rule_problems: Number of problems per single rule test
         multi_rule_problems: Number of problems per multi-rule test
         constrained_problems: Number of problems per constrained test
         **eval_kwargs: Additional evaluation arguments
-        
+
     Returns:
         Complete evaluation results across all test sets
     """
     logger.info("Starting full evaluation suite")
-    
-    # Create all test datasets
-    all_datasets = {}
+
+    # Create all test datasets - using Union type to support multiple dataset types
+    all_datasets: Dict[str, Union[AlgebraDataset, MultiRuleDataset, ConstrainedDataset]] = {}
     
     # 1. Single-rule datasets - CRITICAL: must succeed for basic evaluation
     try:
@@ -329,12 +329,15 @@ def run_full_evaluation_suite(
     
     if not all_datasets:
         raise ValueError("No test datasets were created successfully")
-    
+
+    if rule_models is None:
+        raise ValueError("rule_models cannot be None for evaluation")
+
     logger.info(f"Running evaluation on {len(all_datasets)} test sets")
-    
+
     # Run evaluation suite
     from src.algebra.algebra_evaluation import evaluate_model_suite
-    
+
     results = evaluate_model_suite(
         rule_models=rule_models,
         test_datasets=all_datasets,
@@ -1084,32 +1087,38 @@ def main():
         elif args.eval_type == 'multi_rule':
             if not args.num_rules:
                 raise ValueError("--num_rules must be specified for multi_rule evaluation")
-                
+
+            if rule_models is None:
+                raise ValueError("rule_models cannot be None for multi_rule evaluation")
+
             datasets = create_multi_rule_datasets(
                 num_rules_list=[args.num_rules],
                 num_problems=args.multi_rule_problems,
                 seed=args.seed
             )
-            
+
             from src.algebra.algebra_evaluation import evaluate_model_suite
             results = evaluate_model_suite(
                 rule_models=rule_models,
-                test_datasets=datasets,
+                test_datasets=datasets,  # type: ignore[arg-type]
                 encoder=encoder,
                 decoder=decoder,
                 **eval_params
             )
             
         elif args.eval_type == 'constrained':
+            if rule_models is None:
+                raise ValueError("rule_models cannot be None for constrained evaluation")
+
             datasets = create_constrained_datasets(
                 constraint_types=['positive', 'integer', 'both'],
                 num_problems=args.constrained_problems
             )
-            
+
             from src.algebra.algebra_evaluation import evaluate_model_suite
             results = evaluate_model_suite(
                 rule_models=rule_models,
-                test_datasets=datasets,
+                test_datasets=datasets,  # type: ignore[arg-type]
                 encoder=encoder,
                 decoder=decoder,
                 **eval_params

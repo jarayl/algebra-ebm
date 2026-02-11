@@ -468,7 +468,7 @@ def evaluate_with_real_diffusion(
         'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
         'checkpoint': checkpoint_path,
         'dataset_type': type(test_dataset).__name__,
-        'dataset_info': test_dataset.get_dataset_info() if hasattr(test_dataset, 'get_dataset_info') else {},
+        'dataset_info': getattr(test_dataset, 'get_dataset_info', lambda: {})(),
         'num_samples_evaluated': num_samples,
         'evaluation_time_seconds': eval_time,
         'inference_method': 'GaussianDiffusion1D.sample(continuous=True)',
@@ -690,7 +690,7 @@ def compute_per_rule_breakdown(
     Returns:
         Dictionary with per-rule statistics
     """
-    rule_stats = defaultdict(lambda: {
+    rule_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
         'total': 0,
         'correct': 0,
         'accuracy': 0.0,
@@ -982,7 +982,7 @@ def evaluate_model(
     evaluation_results = {
         # Dataset information
         'dataset_type': type(test_dataset).__name__,
-        'dataset_info': test_dataset.get_dataset_info() if hasattr(test_dataset, 'get_dataset_info') else {},
+        'dataset_info': getattr(test_dataset, 'get_dataset_info', lambda: {})(),
         'num_samples_evaluated': num_samples,
         'evaluation_time_seconds': evaluation_time,
         'inference_params': inference_params,
@@ -1096,10 +1096,17 @@ def save_evaluation_results(results: Dict[str, Any], output_path: str):
             return obj.tolist()
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, (np.float32, np.float64)):
-            return float(obj)
-        elif isinstance(obj, (np.int32, np.int64)):
-            return int(obj)
+        else:
+            try:
+                if isinstance(obj, (np.float32, np.float64)):
+                    return float(obj)
+            except TypeError:
+                pass
+            try:
+                if isinstance(obj, (np.int32, np.int64)):
+                    return int(obj)
+            except TypeError:
+                pass
         return obj
     
     # Recursively convert the results
@@ -1202,6 +1209,7 @@ def validate_energy_landscape(model, dataset, num_samples: int = 1000) -> Dict[s
             print("❌ Energy landscape needs improvement")
             print(f"Gap: {results['energy_gap']:.2f} (target: >8.0)")
     """
+    logger = logging.getLogger(__name__)
     logger.info(f"Starting energy landscape validation with {num_samples} samples...")
     
     correct_energies = []
@@ -1267,8 +1275,6 @@ def validate_energy_landscape(model, dataset, num_samples: int = 1000) -> Dict[s
                         gap_samples.append(e_i - e_c)
                     else:
                         # Skip if either energy is invalid
-                        import logging
-                        logger = logging.getLogger(__name__)
                         logger.debug(f"Skipping sample {i}: invalid energy tensors (e_correct={type(e_correct)}, e_incorrect={type(e_incorrect)})")
                     
                     samples_processed += 1
@@ -1801,7 +1807,7 @@ def evaluate_with_composition(
         'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
         'method': 'compositional_sampling',
         'dataset_type': type(test_dataset).__name__,
-        'dataset_info': test_dataset.get_dataset_info() if hasattr(test_dataset, 'get_dataset_info') else {},
+        'dataset_info': getattr(test_dataset, 'get_dataset_info', lambda: {})(),
         'num_samples_evaluated': num_samples,
         'num_valid_results': len(valid_results),
         'evaluation_time_seconds': eval_time,
