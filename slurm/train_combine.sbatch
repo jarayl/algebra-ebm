@@ -38,6 +38,9 @@ git clone "$GIT_URL" "$WORK_DIR"
 cd "$WORK_DIR"
 git checkout "$GIT_SHA"
 
+echo "Initializing git submodules..."
+git submodule update --init --recursive
+
 echo "Repository cloned and checked out to: $(git rev-parse --short HEAD)"
 git log -1 --oneline
 
