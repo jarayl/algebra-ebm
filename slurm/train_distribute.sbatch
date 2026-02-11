@@ -63,7 +63,8 @@ python train_algebra.py \
     --train_steps 50000 \
     --batch_size 2048 \
     --train_lr 0.0001 \
-    --compile_model False
+    --compile_model False \
+    --data_workers 2
 
 echo "Training completed at $(date)"
 
