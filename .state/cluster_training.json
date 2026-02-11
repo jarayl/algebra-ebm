@@ -1,0 +1,13 @@
+{
+  "submitted_at": "2026-02-11T15:21:22Z",
+  "git_sha": "eb1250c1c8815eb5ce0c6635229e7a0044d646e1",
+  "job_ids": {
+    "distribute": "59894409",
+    "combine": "59894415",
+    "isolate": "59894428",
+    "divide": "59894445",
+    "monolithic": "59894490"
+  },
+  "status": "submitted",
+  "notes": "Models will be trained on cluster and stored at /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/"
+}

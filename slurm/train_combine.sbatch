@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=algebra_train_combine
-#SBATCH --output=projects/algebra-ebm/slurm/logs/%x_%j.out
-#SBATCH --error=projects/algebra-ebm/slurm/logs/%x_%j.err
+#SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/%x_%j.out
+#SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=gpu_test
 #SBATCH --gres=gpu:1
