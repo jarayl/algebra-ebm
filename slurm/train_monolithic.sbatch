@@ -53,7 +53,8 @@ cd projects/algebra-ebm
 python train_algebra_monolithic.py \
     --train_steps 50000 \
     --batch_size 2048 \
-    --train_lr 0.0001
+    --train_lr 0.0001 \
+    --compile_model False
 
 echo "Training completed at $(date)"
 
