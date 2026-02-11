@@ -52,10 +52,9 @@ echo "Starting isolate rule training..."
 cd projects/algebra-ebm
 python train_algebra.py \
     --rule isolate \
-    --epochs 50 \
-    --batch_size 32 \
-    --learning_rate 0.001 \
-    --device cuda
+    --train_steps 50000 \
+    --batch_size 2048 \
+    --train_lr 0.0001
 
 echo "Training completed at $(date)"
 

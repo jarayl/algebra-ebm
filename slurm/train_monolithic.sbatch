@@ -51,10 +51,9 @@ pip install -q -r projects/algebra-ebm/requirements.txt 2>/dev/null || true
 echo "Starting monolithic baseline training..."
 cd projects/algebra-ebm
 python train_algebra_monolithic.py \
-    --epochs 50 \
-    --batch_size 32 \
-    --learning_rate 0.001 \
-    --device cuda
+    --train_steps 50000 \
+    --batch_size 2048 \
+    --train_lr 0.0001
 
 echo "Training completed at $(date)"
 
