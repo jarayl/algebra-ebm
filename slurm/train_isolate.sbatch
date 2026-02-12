@@ -3,7 +3,7 @@
 #SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/%x_%j.out
 #SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/%x_%j.err
 #SBATCH --time=06:00:00
-#SBATCH --partition=gpu_test
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
