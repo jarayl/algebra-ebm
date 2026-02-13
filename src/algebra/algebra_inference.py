@@ -255,7 +255,13 @@ class AlgebraInference:
             weight = rule_weights.get(rule_name, 1.0)
             energy = model(inp, out, t, return_energy=True)  # (B, 1)
             total_energy += weight * energy
-        
+
+        # Normalize by number of rules to keep gradient magnitudes stable
+        # regardless of composition size (prevents gradient explosions in multi-rule)
+        num_rules = len(self.rule_models)
+        if num_rules > 1:
+            total_energy = total_energy / num_rules
+
         return total_energy
     
     def compute_composed_gradient(
