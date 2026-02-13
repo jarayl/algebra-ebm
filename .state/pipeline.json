@@ -87,42 +87,42 @@
   "active_runs": [
     {
       "experiment_id": "exp_002_multi_rule_2",
-      "job_id": "60265851",
+      "job_id": "60283602",
       "sbatch": "slurm/eval_exp_002_multi_rule_2.sbatch",
       "partition": "gpu_test",
       "gpu": 1,
       "time": "04:00:00",
       "status": "RUNNING",
-      "submitted_at": "2026-02-13T04:45:00Z",
+      "submitted_at": "2026-02-13T15:00:00Z",
       "resubmitted": true,
-      "previous_job_ids": ["60169358", "60241715"],
-      "note": "Resubmitted with Option 1 fix (energy normalization revert + composition_scale removal)"
+      "previous_job_ids": ["60169358", "60241715", "60265851"],
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
     },
     {
       "experiment_id": "exp_004_multi_rule_4",
-      "job_id": "60265871",
+      "job_id": "60283603",
       "sbatch": "slurm/eval_exp_004_multi_rule_4.sbatch",
       "partition": "gpu",
       "gpu": 1,
       "time": "04:00:00",
       "status": "RUNNING",
-      "submitted_at": "2026-02-13T04:45:00Z",
+      "submitted_at": "2026-02-13T15:00:00Z",
       "resubmitted": true,
-      "previous_job_ids": ["60184225", "60241733"],
-      "note": "Resubmitted with Option 1 fix (energy normalization revert + composition_scale removal)"
+      "previous_job_ids": ["60184225", "60241733", "60265871"],
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
     },
     {
       "experiment_id": "exp_005_constrained",
-      "job_id": "60265872",
+      "job_id": "60283604",
       "sbatch": "slurm/eval_exp_005_constrained.sbatch",
       "partition": "gpu_test",
       "gpu": 1,
       "time": "04:00:00",
       "status": "RUNNING",
-      "submitted_at": "2026-02-13T04:45:00Z",
+      "submitted_at": "2026-02-13T15:00:00Z",
       "resubmitted": true,
-      "previous_job_ids": ["60150011", "60241251"],
-      "note": "Resubmitted with Option 1 fix (energy normalization revert + composition_scale removal)"
+      "previous_job_ids": ["60150011", "60241251", "60265872"],
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
     }
   ],
   "completed_runs": [
@@ -445,7 +445,7 @@
     }
   ],
   "queued_for_resubmission": [],
-  "next_poll_after": "2026-02-13T04:46:00Z",
+  "next_poll_after": "2026-02-13T15:01:00Z",
   "pending_experiments": [
     {
       "experiment_id": "exp_001_single_rule_baseline",
