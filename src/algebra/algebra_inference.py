@@ -256,12 +256,6 @@ class AlgebraInference:
             energy = model(inp, out, t, return_energy=True)  # (B, 1)
             total_energy += weight * energy
 
-        # Normalize by number of rules to keep gradient magnitudes stable
-        # regardless of composition size (prevents gradient explosions in multi-rule)
-        num_rules = len(self.rule_models)
-        if num_rules > 1:
-            total_energy = total_energy / num_rules
-
         return total_energy
     
     def compute_composed_gradient(
@@ -452,16 +446,12 @@ class AlgebraInference:
         cache_hits = 0
         cache_misses = 0
         
-        # Scale step size for multi-rule composition to account for gradient variance growth
-        num_rules = len(self.rule_models)
-        composition_scale = 1.0 / math.sqrt(num_rules) if num_rules > 1 else 1.0
-
         # Iterate through K landscapes
         for k in range(config.K):
             sigma_k = torch.sqrt(1 - self.alphas_cumprod[k]).item()
 
-            # Adaptive step size using config method, scaled for composition
-            current_step_size = config.get_adaptive_step_size(k) * composition_scale
+            # Adaptive step size using config method
+            current_step_size = config.get_adaptive_step_size(k)
             info['step_sizes'].append(current_step_size)
             
             logger.debug(f"Landscape {k}, sigma_k={sigma_k:.4f}, step_size={current_step_size:.4f}")
