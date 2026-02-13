@@ -304,20 +304,20 @@ class AlgebraInference:
                 grad = torch.autograd.grad(
                     outputs=total_energy.sum(),
                     inputs=out,
-                    create_graph=True
+                    create_graph=False
                 )[0]
-                
+
                 # Verify gradient is finite (additional safety check)
                 if not torch.isfinite(grad).all():
                     logger.warning("AlgebraInference: Non-finite gradient computed in composed gradient, using zero gradient")
                     grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
-                    
+
             except RuntimeError as e:
                 # Handle gradient computation failures gracefully
                 logger.error(f"AlgebraInference: Composed gradient computation failed: {e}")
                 logger.error(f"Energy stats: min={total_energy.min().item():.6e}, max={total_energy.max().item():.6e}")
                 grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
-        
+
         return grad
     
     def compute_energy_and_gradient(
@@ -363,20 +363,20 @@ class AlgebraInference:
                 grad = torch.autograd.grad(
                     outputs=total_energy.sum(),
                     inputs=out,
-                    create_graph=True
+                    create_graph=False
                 )[0]
-                
+
                 # Verify gradient is finite (additional safety check)
                 if not torch.isfinite(grad).all():
                     logger.warning("AlgebraInference: Non-finite gradient computed in energy+gradient computation, using zero gradient")
                     grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
-                    
+
             except RuntimeError as e:
                 # Handle gradient computation failures gracefully
                 logger.error(f"AlgebraInference: Energy+gradient computation failed: {e}")
                 logger.error(f"Energy stats: min={total_energy.min().item():.6e}, max={total_energy.max().item():.6e}")
                 grad = torch.zeros_like(out, device=out.device, dtype=out.dtype)
-        
+
         return total_energy, grad
     
     def ired_inference(
@@ -452,12 +452,16 @@ class AlgebraInference:
         cache_hits = 0
         cache_misses = 0
         
+        # Scale step size for multi-rule composition to account for gradient variance growth
+        num_rules = len(self.rule_models)
+        composition_scale = 1.0 / math.sqrt(num_rules) if num_rules > 1 else 1.0
+
         # Iterate through K landscapes
         for k in range(config.K):
             sigma_k = torch.sqrt(1 - self.alphas_cumprod[k]).item()
-            
-            # Adaptive step size using config method
-            current_step_size = config.get_adaptive_step_size(k)
+
+            # Adaptive step size using config method, scaled for composition
+            current_step_size = config.get_adaptive_step_size(k) * composition_scale
             info['step_sizes'].append(current_step_size)
             
             logger.debug(f"Landscape {k}, sigma_k={sigma_k:.4f}, step_size={current_step_size:.4f}")
@@ -487,13 +491,13 @@ class AlgebraInference:
                 grad_norm = torch.norm(grad).item()
                 info['energy_history'].append(energy_before_val)
                 info['gradient_norms'].append(grad_norm)
-                
-                # Convergence detection - gradient explosion protection
-                if grad_norm > 100.0:  # Configurable threshold for gradient explosion
-                    logger.warning(f"Gradient explosion detected at landscape {k}, step {t}: "
-                                   f"grad_norm={grad_norm:.2e}. Stopping optimization.")
-                    info['convergence_reason'] = f'gradient_explosion_k{k}_t{t}'
-                    break
+
+                # Gradient norm clipping: clip large gradients instead of stopping
+                max_grad_norm = 10.0
+                if grad_norm > max_grad_norm:
+                    grad = grad * (max_grad_norm / grad_norm)
+                    logger.debug(f"Gradient clipped at landscape {k}, step {t}: "
+                                 f"{grad_norm:.2e} -> {max_grad_norm:.2e}")
                 
                 # Energy stagnation detection (check last few steps)
                 if len(info['energy_history']) >= 10:
