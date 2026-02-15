@@ -170,42 +170,54 @@ class AlgebraDataset(data.Dataset):
             raise ValueError(f"Unknown rule: {self.rule}")
     
     def _generate_distribute(self) -> Tuple[str, str]:
-        """Generate distribute problems: a*(b+c) -> a*b + a*c"""
+        """Generate distribute problems: a*(b*x + c) = d -> a*b*x + a*c = d"""
         # Pick coefficients
         a = random.randint(self.min_coefficient, self.max_coefficient)
         b = random.randint(self.min_coefficient, self.max_coefficient)
         c = random.randint(self.min_coefficient, self.max_coefficient)
-        
+
         # Pick variable
         var = random.choice(self.use_variable_names)
-        
-        # Create equations
-        input_eq = f"{a}*({b}*{var} + {c})"
-        target_eq = f"{a*b}*{var} + {a*c}"
-        
+
+        # Pick solution value and compute RHS to ensure integer solution
+        x_val = random.randint(self.min_constant, self.max_constant)
+        d = a * (b * x_val + c)
+
+        # Create equations (with = sign for format consistency)
+        input_eq = f"{a}*({b}*{var} + {c}) = {d}"
+        target_eq = f"{a*b}*{var} + {a*c} = {d}"
+
         # Validate
         if not self._validate_equation_pair(input_eq, target_eq):
             return None, None
-            
+
         return input_eq, target_eq
     
     def _generate_combine(self) -> Tuple[str, str]:
-        """Generate combine problems: a*x + b*x -> (a+b)*x"""
-        # Pick coefficients  
+        """Generate combine problems: a*x + b*x = c -> (a+b)*x = c"""
+        # Pick coefficients
         a = random.randint(self.min_coefficient, self.max_coefficient)
         b = random.randint(self.min_coefficient, self.max_coefficient)
-        
+
         # Pick variable
         var = random.choice(self.use_variable_names)
-        
-        # Create equations
-        input_eq = f"{a}*{var} + {b}*{var}"
-        target_eq = f"{a+b}*{var}"
-        
+
+        # Pick solution value and compute RHS
+        x_val = random.randint(self.min_constant, self.max_constant)
+        c = (a + b) * x_val
+
+        # Avoid trivial case where a+b=0
+        if a + b == 0:
+            return None, None
+
+        # Create equations (with = sign for format consistency)
+        input_eq = f"{a}*{var} + {b}*{var} = {c}"
+        target_eq = f"{a+b}*{var} = {c}"
+
         # Validate
         if not self._validate_equation_pair(input_eq, target_eq):
             return None, None
-            
+
         return input_eq, target_eq
     
     def _generate_isolate(self) -> Tuple[str, str]:
@@ -257,21 +269,24 @@ class AlgebraDataset(data.Dataset):
         """Validate that equation pair is syntactically correct and equivalent."""
         try:
             # Basic syntax validation
-            if not validate_equation_syntax(input_eq) or not validate_equation_syntax(target_eq):
+            is_valid_inp, _, _ = validate_equation_syntax(input_eq)
+            is_valid_tgt, _, _ = validate_equation_syntax(target_eq)
+            if not is_valid_inp or not is_valid_tgt:
                 return False
-                
+
             # Check equivalence
-            if not check_equation_equivalence(input_eq, target_eq):
+            is_equiv, _ = check_equation_equivalence(input_eq, target_eq)
+            if not is_equiv:
                 return False
-                
+
             # Rule-specific validation
             if self.force_integer_solutions:
-                solution = solve_equation(target_eq)
-                if solution is not None and not isinstance(solution, int):
+                solutions, err = solve_equation(target_eq)
+                if err or not solutions or not all(isinstance(s, (int, float)) and float(s) == int(s) for s in solutions):
                     return False
-                    
+
             return True
-            
+
         except Exception:
             return False
     
@@ -422,8 +437,8 @@ class MultiRuleDataset(data.Dataset):
     """
     
     RULE_SEQUENCES = {
-        2: [['distribute', 'combine'], ['combine', 'distribute']],
-        3: [['distribute', 'isolate', 'divide'], ['combine', 'distribute', 'isolate']],
+        2: [['distribute', 'combine']],
+        3: [['distribute', 'isolate', 'divide']],
         4: [['distribute', 'combine', 'isolate', 'divide']]
     }
     
@@ -477,35 +492,70 @@ class MultiRuleDataset(data.Dataset):
         print(f"Generated {len(self.equation_pairs)} multi-rule problems")
     
     def _generate_sequential_problem(self, rule_sequence: List[str]) -> Tuple[str, str]:
-        """Generate a problem requiring the given sequence of rule applications."""
-        # Start with a complex expression that requires all rules in sequence
-        # This is a simplified implementation - in practice, this would be more sophisticated
-        
-        # Pick variable and coefficients - match training data ranges
+        """
+        Generate a problem requiring the given sequence of rule applications.
+
+        All problems work backwards from integer solutions to guarantee correctness.
+        Every generated pair is validated with check_equation_equivalence.
+        """
         var = 'x'
-        a, b, c, d = [random.randint(2, 10) for _ in range(4)]
-        
-        # Create a complex starting expression
-        if len(rule_sequence) == 2:
-            input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var}"
-            target_eq = f"{a*b + d}*{var} + {a*c}"
-        elif len(rule_sequence) == 3:
-            # 3-rule problems: a*(b*x + c) = d -> distribute -> isolate -> divide
-            # Work backwards from integer solution to ensure correctness
-            x_val = random.randint(2, 15)  # Pick integer solution first - match training range
-            d = a*b*x_val + a*c  # Compute RHS to make x_val the exact solution
-            input_eq = f"{a}*({b}*{var} + {c}) = {d}"
-            target_eq = f"{var} = {x_val}"
-        else:  # 4 rules
-            # 4-rule problems: a*(b*x + c) + d*x = RHS -> distribute -> combine -> isolate -> divide
-            # Work backwards from integer solution to ensure correctness
-            x_val = random.randint(2, 15)  # Pick integer solution first - match training range
-            # Expand: a*b*x + a*c + d*x = (a*b + d)*x + a*c
-            # For solution x_val: RHS = (a*b + d)*x_val + a*c
+        x_val = random.randint(2, 15)
+
+        if rule_sequence == ['distribute', 'combine']:
+            # a*(b*x + c) + d*x = RHS -> distribute -> a*b*x + a*c + d*x = RHS -> combine -> (a*b+d)*x + a*c = RHS
+            a, b, c, d = [random.randint(2, 10) for _ in range(4)]
             rhs = (a*b + d)*x_val + a*c
             input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var} = {rhs}"
             target_eq = f"{var} = {x_val}"
-            
+        elif rule_sequence == ['combine', 'distribute']:
+            # a*x + b*x + c = RHS -> combine -> (a+b)*x + c = RHS (then isolate-like simplification)
+            a = random.randint(2, 10)
+            b = random.randint(2, 10)
+            c = random.randint(1, 15)
+            rhs = (a + b)*x_val + c
+            input_eq = f"{a}*{var} + {b}*{var} + {c} = {rhs}"
+            target_eq = f"{var} = {x_val}"
+        elif rule_sequence == ['distribute', 'isolate', 'divide']:
+            # a*(b*x + c) = d -> distribute -> a*b*x + a*c = d -> isolate -> a*b*x = d - a*c -> divide -> x = val
+            a, b, c = [random.randint(2, 10) for _ in range(3)]
+            d = a*b*x_val + a*c
+            input_eq = f"{a}*({b}*{var} + {c}) = {d}"
+            target_eq = f"{var} = {x_val}"
+        elif rule_sequence == ['combine', 'distribute', 'isolate']:
+            # a*x + b*x + c*(d*x + e) = RHS -> combine a,b terms, distribute c, then isolate
+            a, b, c, d, e = [random.randint(2, 8) for _ in range(5)]
+            # Expands to (a+b)*x + c*d*x + c*e = (a+b+c*d)*x + c*e
+            coeff = a + b + c*d
+            if coeff == 0:
+                return None, None
+            rhs = coeff * x_val + c*e
+            input_eq = f"{a}*{var} + {b}*{var} + {c}*({d}*{var} + {e}) = {rhs}"
+            target_eq = f"{var} = {x_val}"
+        elif rule_sequence == ['distribute', 'combine', 'isolate', 'divide']:
+            # a*(b*x + c) + d*x + e = RHS -> distribute -> combine -> isolate -> divide
+            a, b, c, d = [random.randint(2, 10) for _ in range(4)]
+            e = random.randint(1, 15)
+            coeff = a*b + d
+            if coeff == 0:
+                return None, None
+            rhs = coeff * x_val + a*c + e
+            input_eq = f"{a}*({b}*{var} + {c}) + {d}*{var} + {e} = {rhs}"
+            target_eq = f"{var} = {x_val}"
+        else:
+            # Fallback: generate a distribute+isolate+divide problem
+            a, b, c = [random.randint(2, 10) for _ in range(3)]
+            d = a*b*x_val + a*c
+            input_eq = f"{a}*({b}*{var} + {c}) = {d}"
+            target_eq = f"{var} = {x_val}"
+
+        # Validate mathematical correctness
+        try:
+            is_equiv, _ = check_equation_equivalence(input_eq, target_eq)
+            if not is_equiv:
+                return None, None
+        except Exception:
+            return None, None
+
         return input_eq, target_eq
     
 
@@ -637,7 +687,7 @@ class ConstrainedDataset(data.Dataset):
             c = a * solution + b
             
             input_eq = f"{a}*{var} + {b} = {c}"
-            target_eq = f"{var} = {solution} (range: {self.solution_range[0]}-{self.solution_range[1]})"
+            target_eq = f"{var} = {solution}"
             
         return input_eq, target_eq
     
@@ -851,26 +901,32 @@ class CombinedAlgebraDataset(data.Dataset):
         return problems[:num_problems]  # Ensure exact count
     
     def _generate_distribute_problem(self, min_coeff, max_coeff, var_names):
-        """Generate distribute problem: a*(b+c) -> a*b + a*c"""
+        """Generate distribute problem: a*(b*x + c) = d -> a*b*x + a*c = d"""
         a = random.randint(min_coeff, max_coeff)
         b = random.randint(min_coeff, max_coeff)
         c = random.randint(min_coeff, max_coeff)
         var = random.choice(var_names)
-        
-        input_eq = f"{a}*({b}*{var} + {c})"
-        target_eq = f"{a*b}*{var} + {a*c}"
-        
+        x_val = random.randint(1, 15)
+        d = a * (b * x_val + c)
+
+        input_eq = f"{a}*({b}*{var} + {c}) = {d}"
+        target_eq = f"{a*b}*{var} + {a*c} = {d}"
+
         return input_eq, target_eq
-    
+
     def _generate_combine_problem(self, min_coeff, max_coeff, var_names):
-        """Generate combine problem: a*x + b*x -> (a+b)*x"""
+        """Generate combine problem: a*x + b*x = c -> (a+b)*x = c"""
         a = random.randint(min_coeff, max_coeff)
         b = random.randint(min_coeff, max_coeff)
+        if a + b == 0:
+            return None, None
         var = random.choice(var_names)
-        
-        input_eq = f"{a}*{var} + {b}*{var}"
-        target_eq = f"{a+b}*{var}"
-        
+        x_val = random.randint(1, 15)
+        c = (a + b) * x_val
+
+        input_eq = f"{a}*{var} + {b}*{var} = {c}"
+        target_eq = f"{a+b}*{var} = {c}"
+
         return input_eq, target_eq
     
     def _generate_isolate_problem(self, min_coeff, max_coeff, min_const, max_const, var_names):
@@ -902,15 +958,18 @@ class CombinedAlgebraDataset(data.Dataset):
         """Basic validation of equation pair."""
         try:
             # Basic syntax validation
-            if not validate_equation_syntax(input_eq) or not validate_equation_syntax(target_eq):
+            is_valid_inp, _, _ = validate_equation_syntax(input_eq)
+            is_valid_tgt, _, _ = validate_equation_syntax(target_eq)
+            if not is_valid_inp or not is_valid_tgt:
                 return False
-            
+
             # Check equivalence
-            if not check_equation_equivalence(input_eq, target_eq):
+            is_equiv, _ = check_equation_equivalence(input_eq, target_eq)
+            if not is_equiv:
                 return False
-            
+
             return True
-            
+
         except Exception:
             return False
     

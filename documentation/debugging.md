@@ -518,3 +518,85 @@ After all evaluation experiments completed with 0% multi-rule accuracy, a compre
 2. Resubmit full evaluation suite with fixes
 3. Compare results against pre-fix baselines
 4. If multi-rule improves but single-rule remains low, pursue AUDIT-003 fixes
+
+---
+
+## Dataset Generation Audit: 5 Critical Issues Found and Fixed (2026-02-14)
+
+### Summary
+Deep audit of equation generation code revealed that **training data, test data, and all validation were fundamentally broken**. All previous experimental results are invalid. Full retraining and re-evaluation required.
+
+### DATAGEN-001: Mathematically Incorrect Test Datasets (FIXED)
+**Severity**: CRITICAL
+**Files**: `src/algebra/algebra_dataset.py`, `scripts/create_test_datasets.py`, `results/test_datasets/*.json`
+**Problem**: `MultiRuleDataset._generate_sequential_problem()` produced equation pairs where the input and target were not mathematically equivalent. Verified examples:
+- `-3*x+4*x=6` → target `x=7` (correct: x=6)
+- `-5*x+5*x=-7` → target `x=-7` (correct: no solution, 0≠-7)
+- `10*x-19*x=3` → target `x=3` (correct: x=-1/3)
+- `4*x-6*x=7` → target `x=7` (correct: x=-3.5)
+
+**Root Cause**: Generation logic was wrong and no validation was applied (see DATAGEN-004).
+**Fix**: Rewrote `_generate_sequential_problem()` to work backwards from known integer solutions for all rule sequences. Added `check_equation_equivalence()` validation. Regenerated all 175 test problems — verified 0 errors via independent SymPy check.
+
+### DATAGEN-002: Train/Test Format Mismatch (FIXED)
+**Severity**: CRITICAL
+**Files**: `src/algebra/algebra_dataset.py`
+**Problem**: Training data for `distribute` and `combine` rules generated bare expressions without `=` signs:
+- distribute: `2*(3*x + 5)` → `6*x + 10` (expression, no equals)
+- combine: `3*x + 5*x` → `8*x` (expression, no equals)
+
+But test data (MultiRuleDataset) generates full equations with `=` signs and solutions like `x=7`. The model was trained on one format and tested on another.
+**Fix**: Changed all 4 rules to produce equations consistently:
+- distribute: `a*(b*x + c) = d` → `a*b*x + a*c = d`
+- combine: `a*x + b*x = c` → `(a+b)*x = c`
+- isolate and divide were already correct
+
+Fixed in both `AlgebraDataset` and `CombinedAlgebraDataset`.
+
+### DATAGEN-003: ConstrainedDataset Invalid Target Equation (FIXED)
+**Severity**: MODERATE
+**Files**: `src/algebra/algebra_dataset.py` (line 640)
+**Problem**: `range_constraint` target included metadata: `x = 5 (range: 1-20)` — not a valid parseable equation.
+**Fix**: Changed to `x = 5`.
+
+### DATAGEN-004: ALL Validation Silently Bypassed (FIXED)
+**Severity**: CRITICAL
+**Files**: `src/algebra/algebra_dataset.py` (5 call sites)
+**Problem**: `validate_equation_syntax()` returns a `(bool, str, expr)` 3-tuple and `check_equation_equivalence()` returns a `(bool, str)` 2-tuple. But ALL call sites did:
+```python
+if not validate_equation_syntax(input_eq):    # ALWAYS False — non-empty tuple is truthy
+if not check_equation_equivalence(eq1, eq2):  # ALWAYS False — non-empty tuple is truthy
+```
+This means **no equation was ever validated**. Invalid equations were silently accepted into every dataset.
+**Fix**: Fixed all 5 call sites to properly unpack tuples:
+```python
+is_valid, _, _ = validate_equation_syntax(input_eq)
+is_equiv, _ = check_equation_equivalence(eq1, eq2)
+```
+Also fixed `solve_equation()` return tuple handling for integer solution validation.
+
+### DATAGEN-005: Evaluation Seeding Incomplete (FIXED)
+**Severity**: MODERATE
+**Files**: `eval_algebra.py`
+**Problem**: `eval_algebra.py` set `np.random.seed()` but `AlgebraDataset` uses Python's `random` module. Evaluation results were non-deterministic despite `--seed` parameter.
+**Fix**: Added `random.seed()` calls alongside `np.random.seed()` at all 3 seeding locations.
+
+### Impact Assessment
+
+**ALL previous results are invalidated:**
+- Training data for distribute/combine was in wrong format (expressions, not equations)
+- No training data was ever validated (DATAGEN-004)
+- Test datasets contained mathematically wrong equations
+- Even correct models would get wrong scores on wrong test data
+
+**Required actions:**
+1. **Push** all code changes to GitHub
+2. **Cancel** currently running evaluation jobs (they use models trained on flawed data)
+3. **Retrain** all 5 models (distribute, combine, isolate, divide, monolithic) on corrected training data
+4. **Re-evaluate** all experiments (exp_001 through exp_007) with new models and corrected test datasets
+
+### Verification Performed
+- Generated 20 problems per rule type — all mathematically correct
+- Validation correctly rejects invalid pairs (`2*x+3=7 → x=99` returns False)
+- Validation correctly accepts valid pairs (`2*x+3=7 → x=2` returns True)
+- Regenerated all 175 test dataset problems — 0 errors via independent SymPy verification

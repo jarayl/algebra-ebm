@@ -36,6 +36,7 @@ import traceback
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
+import random
 import torch
 import numpy as np
 
@@ -83,6 +84,7 @@ def create_single_rule_datasets(
             # Use consistent deterministic offset for each rule
             rule_offset = {'distribute': 0, 'combine': 100, 'isolate': 200, 'divide': 300}.get(rule, 0)
             np.random.seed(seed + rule_offset)
+            random.seed(seed + rule_offset)
 
         try:
             dataset = AlgebraDataset(
@@ -126,7 +128,8 @@ def create_multi_rule_datasets(
     
     for num_rules in num_rules_list:
         if seed is not None:
-            np.random.seed(seed + num_rules * 100)  # Different seed per num_rules
+            np.random.seed(seed + num_rules * 100)
+            random.seed(seed + num_rules * 100)
             
         try:
             dataset = MultiRuleDataset(
@@ -173,7 +176,8 @@ def create_constrained_datasets(
     
     for i, constraint in enumerate(constraint_types):
         if seed is not None:
-            np.random.seed(seed + i * 200)  # Different seed per constraint
+            np.random.seed(seed + i * 200)
+            random.seed(seed + i * 200)
             
         try:
             dataset = ConstrainedDataset(

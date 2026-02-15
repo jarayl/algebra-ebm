@@ -58,9 +58,7 @@ def save_dataset(dataset: MultiRuleDataset, output_path: str, logger: logging.Lo
             'num_rules': dataset.num_rules,
             'num_problems': len(dataset),
             'split': dataset.split,
-            'coeff_range': dataset.coeff_range,
-            'd_model': dataset.d_model,
-            'valid_rules': dataset.VALID_RULES
+            'd_model': dataset.d_model
         },
         'problems': []
     }
@@ -110,9 +108,7 @@ def create_2_rule_dataset(output_dir: str, seed: int, logger: logging.Logger) ->
     dataset = MultiRuleDataset(
         num_rules=2,
         split='test',
-        num_problems=100,
-        coeff_range=[-10, 10],
-        seed=seed
+        num_problems=100
     )
     
     output_path = os.path.join(output_dir, '2_rule_test_dataset.json')
@@ -125,10 +121,8 @@ def create_3_rule_dataset(output_dir: str, seed: int, logger: logging.Logger) ->
     
     dataset = MultiRuleDataset(
         num_rules=3,
-        split='test', 
-        num_problems=50,
-        coeff_range=[-10, 10],
-        seed=seed + 1  # Different seed for variety
+        split='test',
+        num_problems=50
     )
     
     output_path = os.path.join(output_dir, '3_rule_test_dataset.json')
@@ -142,9 +136,7 @@ def create_4_rule_dataset(output_dir: str, seed: int, logger: logging.Logger) ->
     dataset = MultiRuleDataset(
         num_rules=4,
         split='test',
-        num_problems=25, 
-        coeff_range=[-10, 10],
-        seed=seed + 2  # Different seed for variety
+        num_problems=25
     )
     
     output_path = os.path.join(output_dir, '4_rule_test_dataset.json')
