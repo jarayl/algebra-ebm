@@ -799,8 +799,6 @@ def evaluate_model(
     # Set default inference parameters
     if inference_params is None:
         inference_params = {
-            'T': 20,
-            'step_size': 0.1,
             'rule_weights': None
         }
     
@@ -829,24 +827,30 @@ def evaluate_model(
         
         for idx in batch_indices:
             try:
-                # Get target equation(s)
+                # Get target equation(s) and determine which rules are relevant
+                rules_for_problem = None
+
                 if hasattr(test_dataset, 'get_equation_pair'):
                     # Single-rule dataset
                     input_eq, target_eq = test_dataset.get_equation_pair(idx)
+                    # Extract the single rule this dataset is for
+                    if hasattr(test_dataset, 'rule'):
+                        rules_for_problem = [test_dataset.rule]
                 elif hasattr(test_dataset, 'get_problem_info'):
                     # Multi-rule or constrained dataset
                     problem_info = test_dataset.get_problem_info(idx)
                     input_eq = problem_info['input_equation']
                     target_eq = problem_info['target_equation']
+                    rules_for_problem = problem_info.get('rules_applied', None)
                 else:
                     # Fallback - get raw tensors and skip this sample
                     logger.warning(f"Cannot get equation strings for index {idx}")
                     continue
-                
+
                 # Encode target for embedding distance computation
                 target_embedding = encoder(target_eq)
                 target_embeddings.append(target_embedding.detach())
-                
+
                 # Run inference
                 # Create InferenceConfig from inference_params
                 config_params = {}
@@ -861,9 +865,23 @@ def evaluate_model(
                         config_params['use_adaptive_step'] = inference_params['use_adaptive_step']
                     if 'energy_threshold' in inference_params:
                         config_params['energy_threshold'] = inference_params['energy_threshold']
-                
+
                 inference_config = InferenceConfig(**config_params)
+
+                # CRITICAL FIX (Issue 1): Set rule_weights based on problem's required rules
+                # Default to user-provided rule_weights if specified, otherwise compute from rules_for_problem
                 rule_weights = inference_params.get('rule_weights') if inference_params else None
+
+                if rule_weights is None and rules_for_problem is not None:
+                    # Build rule_weights dict: 1.0 for relevant rules, 0.0 for irrelevant ones
+                    all_rules = ['distribute', 'combine', 'isolate', 'divide']
+                    rule_weights = {}
+                    for rule in all_rules:
+                        if rule in rules_for_problem:
+                            rule_weights[rule] = 1.0
+                        else:
+                            rule_weights[rule] = 0.0
+                    logger.debug(f"Sample {idx}: Using rule_weights {rule_weights} for rules {rules_for_problem}")
                 
                 result = inference_engine.solve_equation(
                     input_eq,

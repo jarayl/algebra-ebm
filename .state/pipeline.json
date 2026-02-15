@@ -1,11 +1,11 @@
 {
   "project_slug": "algebra-ebm",
-  "phase": "EVALUATION",
+  "phase": "IMPLEMENT",
   "description": "Algebra EBM - Compositional vs Monolithic Energy-Based Models for Algebraic Equation Solving",
   "created_at": "2026-02-11T00:00:00Z",
   "started_at": "2026-02-11T00:00:00Z",
-  "last_updated": "2026-02-13T04:45:00Z",
-  "fix_applied": {
+  "last_updated": "2026-02-15T12:00:00Z",
+  "previous_fix_applied": {
     "date": "2026-02-13T04:30:00Z",
     "type": "Option 1 - Energy Normalization Revert",
     "changes": [
@@ -16,6 +16,43 @@
     ],
     "rationale": "Tests if compositional approach works without compensatory fixes that masked training/inference energy scale mismatch",
     "validation_plan": "Submit exp_002 (2-rule) test job to validate fix, then full evaluation suite if successful"
+  },
+  "audit_fixes_applied": {
+    "date": "2026-02-15T12:00:00Z",
+    "description": "Comprehensive audit identified 4 issues; 2 code fixes applied, 1 diagnosed, 1 no-action",
+    "fixes": [
+      {
+        "id": "AUDIT-001",
+        "title": "Fix rule selection in evaluation",
+        "status": "APPLIED",
+        "file": "src/algebra/algebra_evaluation.py",
+        "description": "evaluate_model() now extracts rules_applied per problem and builds rule_weights (1.0 for relevant, 0.0 for irrelevant). Previously all 4 energies were always summed for multi-rule problems."
+      },
+      {
+        "id": "AUDIT-002",
+        "title": "Fix inference hyperparameter mismatch",
+        "status": "APPLIED",
+        "file": "src/algebra/algebra_evaluation.py",
+        "description": "Removed hardcoded T=20/step_size=0.1 defaults from evaluate_model(). Now uses InferenceConfig defaults (max_iterations=50, step_size=0.01) which are 10x smaller step and 2.5x more iterations."
+      },
+      {
+        "id": "AUDIT-003",
+        "title": "Single-rule accuracy investigation",
+        "status": "DIAGNOSED",
+        "description": "Training converged for all 4 rules with 9-10 unit energy gaps. Root cause of low accuracy (distribute=2.1%, isolate=7.0%, divide=5.7%) is IRED inference converging to local minima in embedding space. combine works (100%) because output≈input. Requires inference strategy improvements (multi-start, momentum, more landscapes)."
+      },
+      {
+        "id": "AUDIT-004",
+        "title": "evaluate_with_composition dead code",
+        "status": "NO_ACTION",
+        "description": "Function is actually called in comparison eval path. Issue 1 fix covers standard eval paths. No changes needed."
+      }
+    ],
+    "next_steps": [
+      "Push code fixes to GitHub so cluster jobs use updated code",
+      "Resubmit evaluation suite (exp_001 through exp_005) with AUDIT-001 and AUDIT-002 fixes",
+      "If multi-rule accuracy improves but single-rule remains low, investigate IRED inference improvements for AUDIT-003"
+    ]
   },
   "model_storage": {
     "location": "Cluster (/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/)",
@@ -84,7 +121,8 @@
       }
     ]
   },
-  "active_runs": [
+  "active_runs": [],
+  "completed_runs": [
     {
       "experiment_id": "exp_002_multi_rule_2",
       "job_id": "60283602",
@@ -92,11 +130,20 @@
       "partition": "gpu_test",
       "gpu": 1,
       "time": "04:00:00",
-      "status": "RUNNING",
+      "status": "completed",
       "submitted_at": "2026-02-13T15:00:00Z",
+      "completed_at": "2026-02-14T00:30:00Z",
       "resubmitted": true,
       "previous_job_ids": ["60169358", "60241715", "60265851"],
-      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)",
+      "results": {
+        "num_rules": 2,
+        "accuracy": "0.000",
+        "accuracy_pct": "0.0%",
+        "invalid_rate": "0.000",
+        "invalid_pct": "0.0%",
+        "git_sha": "698070e"
+      }
     },
     {
       "experiment_id": "exp_004_multi_rule_4",
@@ -105,11 +152,20 @@
       "partition": "gpu",
       "gpu": 1,
       "time": "04:00:00",
-      "status": "RUNNING",
+      "status": "completed",
       "submitted_at": "2026-02-13T15:00:00Z",
+      "completed_at": "2026-02-14T00:30:00Z",
       "resubmitted": true,
       "previous_job_ids": ["60184225", "60241733", "60265871"],
-      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)",
+      "results": {
+        "num_rules": 4,
+        "accuracy": "0.000",
+        "accuracy_pct": "0.0%",
+        "invalid_rate": "0.000",
+        "invalid_pct": "0.0%",
+        "git_sha": "698070e"
+      }
     },
     {
       "experiment_id": "exp_005_constrained",
@@ -118,14 +174,28 @@
       "partition": "gpu_test",
       "gpu": 1,
       "time": "04:00:00",
-      "status": "RUNNING",
+      "status": "completed",
       "submitted_at": "2026-02-13T15:00:00Z",
+      "completed_at": "2026-02-14T00:30:00Z",
       "resubmitted": true,
       "previous_job_ids": ["60150011", "60241251", "60265872"],
-      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)"
-    }
-  ],
-  "completed_runs": [
+      "note": "Resubmitted with pushed commits (GitHub now has Option 1 fix at 698070e)",
+      "results": {
+        "positive_constraint": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%"
+        },
+        "integer_constraint": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%"
+        },
+        "both_constraints": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%"
+        },
+        "git_sha": "698070e"
+      }
+    },
     {
       "experiment_id": "exp_001_single_rule_baseline",
       "job_id": "60189563",
@@ -444,8 +514,6 @@
       "error": "Timeout after 3h27m due to flat landscape (old code, submodule at cc18b1d). Final energies 5000-10000 (should be 15-200), 100% acceptance rate, 0 valid decodings"
     }
   ],
-  "queued_for_resubmission": [],
-  "next_poll_after": "2026-02-13T15:01:00Z",
   "pending_experiments": [
     {
       "experiment_id": "exp_001_single_rule_baseline",
@@ -468,9 +536,9 @@
       "experiment_id": "exp_002_multi_rule_2",
       "name": "Multi-Rule Evaluation (2 rules)",
       "description": "Evaluate compositional model on 2-rule problems (require 2 sequential rules)",
-      "status": "RESUBMITTED",
-      "job_id": "60265851",
-      "previous_job_id": "60241715",
+      "status": "COMPLETED",
+      "job_id": "60283602",
+      "previous_job_id": "60265851",
       "blocks_on": [],
       "type": "evaluation",
       "config": {
@@ -502,9 +570,9 @@
       "experiment_id": "exp_004_multi_rule_4",
       "name": "Multi-Rule Evaluation (4 rules)",
       "description": "Evaluate compositional model on 4-rule problems (require all 4 rules)",
-      "status": "RESUBMITTED",
-      "job_id": "60265871",
-      "previous_job_id": "60241733",
+      "status": "COMPLETED",
+      "job_id": "60283603",
+      "previous_job_id": "60265871",
       "blocks_on": [],
       "type": "evaluation",
       "config": {
@@ -519,9 +587,9 @@
       "experiment_id": "exp_005_constrained",
       "name": "Constrained Evaluation",
       "description": "Evaluate compositional model with positivity and integerness constraints",
-      "status": "RESUBMITTED",
-      "job_id": "60265872",
-      "previous_job_id": "60241251",
+      "status": "COMPLETED",
+      "job_id": "60283604",
+      "previous_job_id": "60265872",
       "blocks_on": [],
       "type": "evaluation",
       "config": {
@@ -551,5 +619,6 @@
   "needs_user_input": {
     "value": false,
     "prompt": null
-  }
+  },
+  "next_action": "Push fixes to GitHub and resubmit evaluation suite"
 }
