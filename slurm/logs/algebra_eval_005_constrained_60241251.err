@@ -1,0 +1,131 @@
+Cloning into '/tmp/algebra-eval-60241251'...
+Note: switching to 'ea279044079aa336937afb78b58d39a5fa394899'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at ea27904 Update algebra-ebm: fix gradient explosions in multi-rule IRED inference
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60241251/projects/algebra-ebm'...
+INFO:__main__:Using device: cuda
+INFO:__main__:Created character encoder
+INFO:__main__:Created decoder with 49 default candidates - will be rebuilt from test dataset in evaluate_model
+INFO:__main__:Loading models from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results
+INFO:src.algebra.algebra_inference:Loading checkpoint for distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for distribute
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for combine
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for isolate
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for divide
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:__main__:Loaded 4 rule models: ['distribute', 'combine', 'isolate', 'divide']
+INFO:__main__:Creating constrained datasets with 1000 problems each
+INFO:__main__:Created positive constrained dataset: 1000 problems
+INFO:__main__:Created integer constrained dataset: 1000 problems
+INFO:__main__:Created both constrained dataset: 1000 problems
+INFO:src.algebra.algebra_evaluation:Evaluating model suite on 3 test sets
+INFO:src.algebra.algebra_evaluation:Evaluating on constrained_positive...
+INFO:src.algebra.algebra_evaluation:Starting evaluation on ConstrainedDataset with 1000 samples
+INFO:src.algebra.algebra_evaluation:Decoder before rebuild: 49 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates before: ['x=0', 'x=1', 'x=2']
+INFO:src.algebra.algebra_evaluation:Building decoder candidate set from test dataset...
+INFO:src.algebra.algebra_evaluation:Decoder after build: 384 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates after: ['2*x + 1 = 11', '2*x + 1 = 15', '2*x + 1 = 17']
+INFO:src.algebra.algebra_inference:Initialized AlgebraInference with 4 rule models on cuda
+INFO:src.algebra.algebra_evaluation:Evaluating 1000 samples...
+INFO:src.algebra.algebra_inference:Solving equation: '2*x + 5 = 15'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 9661.041992, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 53.8474
+INFO:src.algebra.algebra_inference:Solving equation: '2*x + 1 = 19'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 7443.635254, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 48.0792
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 8 = 18'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 9535.412109, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 52.4151
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 10 = 30'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 9292.986328, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 52.0450
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 8 = 33'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 7430.243164, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 47.7039
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 10 = 35'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 9047.601562, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 51.7637
+INFO:src.algebra.algebra_inference:Solving equation: '4*x + 6 = 10'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 9177.444336, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 51.6924
+INFO:src.algebra.algebra_inference:Solving equation: '4*x + 2 = 34'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 8419.228516, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 49.9946
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 10 = 20'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 8326.707031, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 49.8979
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 3 = 38'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 5897.219238, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 44.4403
+INFO:src.algebra.algebra_inference:Solving equation: '2*x + 3 = 15'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 7317.962891, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 47.8215
+INFO:src.algebra.algebra_inference:Solving equation: '2*x + 3 = 7'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 8095.235352, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 50.2039
+INFO:src.algebra.algebra_inference:Solving equation: '3*x + 4 = 34'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 8141.166504, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 49.4408
+INFO:src.algebra.algebra_inference:Solving equation: '3*x + 8 = 23'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 7167.887207, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 47.7559
+INFO:src.algebra.algebra_inference:Solving equation: '3*x + 7 = 16'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 5563.134766, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 43.9032
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 9 = 14'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 8901.168945, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 52.0542
+INFO:src.algebra.algebra_inference:Solving equation: '3*x + 1 = 16'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 7666.258789, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 48.8497
+INFO:src.algebra.algebra_inference:Solving equation: '3*x + 6 = 12'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 4302.071289, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 40.2721
+INFO:src.algebra.algebra_inference:Solving equation: '5*x + 9 = 49'

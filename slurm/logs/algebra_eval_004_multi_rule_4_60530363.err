@@ -1,0 +1,21 @@
+Cloning into '/tmp/algebra-eval-60530363'...
+Note: switching to '3e947617409028361daae734fb42968116a14a6d'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 3e94761 Update algebra-ebm submodule: audit fixes for evaluation pipeline
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60530363/projects/algebra-ebm'...

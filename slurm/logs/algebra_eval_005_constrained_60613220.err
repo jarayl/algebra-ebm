@@ -1,0 +1,21 @@
+Cloning into '/tmp/algebra-eval-60613220'...
+Note: switching to '4dc7798c5f3c29666c3116f8ab74d87594d3d38c'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 4dc7798 Update algebra-ebm: fix dataset generation (DATAGEN-001 through 005)
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60613220/projects/algebra-ebm'...

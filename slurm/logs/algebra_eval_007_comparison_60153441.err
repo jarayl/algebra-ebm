@@ -1,0 +1,76 @@
+Cloning into '/tmp/algebra-eval-60153441'...
+Note: switching to '9c27072f90b6a2a7e7ecb5c10e14dcb9a6259908'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 9c27072 Update algebra-ebm: all jobs on gpu partition
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60153441/projects/algebra-ebm'...
+INFO:__main__:Using device: cuda
+INFO:__main__:Created character encoder
+INFO:__main__:Created decoder with 49 default candidates - will be rebuilt from test dataset in evaluate_model
+INFO:__main__:Loading models from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results
+INFO:src.algebra.algebra_inference:Loading checkpoint for distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for distribute
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for combine
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for isolate
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for divide
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:__main__:Loaded 4 rule models: ['distribute', 'combine', 'isolate', 'divide']
+ERROR:__main__:CRITICAL: Evaluation failed: Comparison evaluation requires --use_real_diffusion. Please add --use_real_diffusion to enable monolithic vs compositional comparison.
+ERROR:__main__:Main evaluation traceback:
+Traceback (most recent call last):
+  File "/tmp/algebra-eval-60153441/projects/algebra-ebm/eval_algebra.py", line 1148, in main
+    raise ValueError(
+ValueError: Comparison evaluation requires --use_real_diffusion. Please add --use_real_diffusion to enable monolithic vs compositional comparison.
+
+ERROR:__main__:Fast fail: Evaluation cannot continue due to critical error
+Traceback (most recent call last):
+  File "/tmp/algebra-eval-60153441/projects/algebra-ebm/eval_algebra.py", line 1177, in <module>
+    main()
+  File "/tmp/algebra-eval-60153441/projects/algebra-ebm/eval_algebra.py", line 1148, in main
+    raise ValueError(
+ValueError: Comparison evaluation requires --use_real_diffusion. Please add --use_real_diffusion to enable monolithic vs compositional comparison.

@@ -1,0 +1,325 @@
+Cloning into '/tmp/algebra-eval-60169358'...
+Note: switching to '9c27072f90b6a2a7e7ecb5c10e14dcb9a6259908'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 9c27072 Update algebra-ebm: all jobs on gpu partition
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60169358/projects/algebra-ebm'...
+INFO:__main__:Using device: cuda
+INFO:__main__:Created character encoder
+INFO:__main__:Created decoder with 49 default candidates - will be rebuilt from test dataset in evaluate_model
+INFO:__main__:Loading models from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results
+INFO:src.algebra.algebra_inference:Loading checkpoint for distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for distribute
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for combine
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for isolate
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for divide
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:__main__:Loaded 4 rule models: ['distribute', 'combine', 'isolate', 'divide']
+INFO:__main__:Creating multi-rule datasets with 1000 problems each
+INFO:__main__:Created 2-rule dataset: 1000 problems
+INFO:src.algebra.algebra_evaluation:Evaluating model suite on 1 test sets
+INFO:src.algebra.algebra_evaluation:Evaluating on multi_rule_2...
+INFO:src.algebra.algebra_evaluation:Starting evaluation on MultiRuleDataset with 1000 samples
+INFO:src.algebra.algebra_evaluation:Decoder before rebuild: 49 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates before: ['x=0', 'x=1', 'x=2']
+INFO:src.algebra.algebra_evaluation:Building decoder candidate set from test dataset...
+INFO:src.algebra.algebra_evaluation:Decoder after build: 1721 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates after: ['10*(10*x + 10) + 2*x', '10*(10*x + 10) + 4*x', '10*(10*x + 2) + 2*x']
+INFO:src.algebra.algebra_inference:Initialized AlgebraInference with 4 rule models on cuda
+INFO:src.algebra.algebra_evaluation:Evaluating 1000 samples...
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 7) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.67e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 499.901917, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3986
+INFO:src.algebra.algebra_inference:Solving equation: '2*(5*x + 5) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.73e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 529.555359, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6891
+INFO:src.algebra.algebra_inference:Solving equation: '4*(5*x + 5) + 9*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.68e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 503.005981, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3596
+INFO:src.algebra.algebra_inference:Solving equation: '10*(6*x + 8) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.81e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 566.527771, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7788
+INFO:src.algebra.algebra_inference:Solving equation: '3*(8*x + 8) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.67e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 499.375000, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3902
+INFO:src.algebra.algebra_inference:Solving equation: '5*(10*x + 2) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.80e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 565.607117, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9861
+INFO:src.algebra.algebra_inference:Solving equation: '10*(7*x + 5) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.79e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 553.478882, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7242
+INFO:src.algebra.algebra_inference:Solving equation: '6*(8*x + 6) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.85e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 585.811462, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9392
+INFO:src.algebra.algebra_inference:Solving equation: '6*(8*x + 5) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.69e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 510.295715, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4216
+INFO:src.algebra.algebra_inference:Solving equation: '4*(5*x + 8) + 7*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.65e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 496.586212, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4094
+INFO:src.algebra.algebra_inference:Solving equation: '5*(5*x + 7) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.79e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 567.687744, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0080
+INFO:src.algebra.algebra_inference:Solving equation: '2*(5*x + 6) + 10*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.83e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 573.528687, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8731
+INFO:src.algebra.algebra_inference:Solving equation: '9*(10*x + 7) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.68e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 508.974915, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6003
+INFO:src.algebra.algebra_inference:Solving equation: '2*(2*x + 9) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.69e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 518.560547, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6568
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 5) + 9*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.85e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 572.018555, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6868
+INFO:src.algebra.algebra_inference:Solving equation: '6*(10*x + 10) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.78e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 552.588745, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6927
+INFO:src.algebra.algebra_inference:Solving equation: '8*(10*x + 5) + 7*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.87e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 594.903809, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0899
+INFO:src.algebra.algebra_inference:Solving equation: '5*(4*x + 2) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.93e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 617.902039, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1074
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 3) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.88e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 590.351440, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0302
+INFO:src.algebra.algebra_inference:Solving equation: '6*(5*x + 8) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.82e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 564.656433, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7861
+INFO:src.algebra.algebra_inference:Solving equation: '6*(7*x + 3) + 10*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.99e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 648.177063, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2391
+INFO:src.algebra.algebra_inference:Solving equation: '7*(9*x + 9) + 2*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.70e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 520.171265, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7557
+INFO:src.algebra.algebra_inference:Solving equation: '9*(6*x + 3) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.78e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 539.556641, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5569
+INFO:src.algebra.algebra_inference:Solving equation: '7*(4*x + 10) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.81e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 563.778198, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7211
+INFO:src.algebra.algebra_inference:Solving equation: '3*(5*x + 6) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.80e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 563.323059, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8058
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 2) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.77e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 545.649048, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7484
+INFO:src.algebra.algebra_inference:Solving equation: '9*(4*x + 3) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.73e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 527.145020, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6673
+INFO:src.algebra.algebra_inference:Solving equation: '9*(10*x + 9) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.96e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 635.095337, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2454
+INFO:src.algebra.algebra_inference:Solving equation: '7*(10*x + 5) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.84e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 573.003601, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8297
+INFO:src.algebra.algebra_inference:Solving equation: '10*(4*x + 8) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.83e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 583.641724, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9301
+INFO:src.algebra.algebra_inference:Solving equation: '6*(9*x + 9) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.69e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 518.658569, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7943
+INFO:src.algebra.algebra_inference:Solving equation: '4*(8*x + 3) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.71e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 519.160217, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6088
+INFO:src.algebra.algebra_inference:Solving equation: '8*(2*x + 9) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.77e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 551.317932, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8273
+INFO:src.algebra.algebra_inference:Solving equation: '6*(3*x + 9) + 2*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.72e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 530.499878, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7810
+INFO:src.algebra.algebra_inference:Solving equation: '10*(8*x + 6) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.69e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 526.055908, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7563
+INFO:src.algebra.algebra_inference:Solving equation: '2*(5*x + 10) + 7*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.86e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 594.844971, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0316
+INFO:src.algebra.algebra_inference:Solving equation: '2*(5*x + 7) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.58e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 474.330170, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2158
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 2) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.86e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 588.573059, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8704
+INFO:src.algebra.algebra_inference:Solving equation: '10*(8*x + 4) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.88e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 608.891907, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1152
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 5) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.63e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 494.658203, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3740
+INFO:src.algebra.algebra_inference:Solving equation: '6*(2*x + 3) + 8*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.93e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 617.638428, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0445
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 4) + 2*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.90e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 610.544373, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1765
+INFO:src.algebra.algebra_inference:Solving equation: '10*(6*x + 7) + 3*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.76e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 548.752441, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7824
+INFO:src.algebra.algebra_inference:Solving equation: '3*(6*x + 6) + 2*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.83e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 568.626953, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8988
+INFO:src.algebra.algebra_inference:Solving equation: '7*(2*x + 7) + 9*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.74e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 539.642212, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8266
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 9) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.98e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 644.921509, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.3759
+INFO:src.algebra.algebra_inference:Solving equation: '4*(3*x + 10) + 4*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.77e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 551.220947, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8216
+INFO:src.algebra.algebra_inference:Solving equation: '4*(7*x + 2) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.70e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 514.152954, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5193
+INFO:src.algebra.algebra_inference:Solving equation: '3*(6*x + 9) + 5*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.58e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 467.481079, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2435
+INFO:src.algebra.algebra_inference:Solving equation: '3*(10*x + 9) + 6*x'
+WARNING:src.algebra.algebra_inference:Gradient explosion detected at landscape 9, step 0: grad_norm=1.85e+02. Stopping optimization.
+INFO:src.algebra.algebra_inference:Early exit from outer loop due to: gradient_explosion_k9_t0
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 586.271362, Acceptance rate: 1.000, Cache hit rate: 0.978, Convergence: gradient_explosion_k9_t0
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9236
+INFO:src.algebra.algebra_inference:Solving equation: '3*(10*x + 4) + 7*x'

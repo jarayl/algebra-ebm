@@ -1,0 +1,37 @@
+Cloning into '/tmp/algebra-eval-60189160'...
+Note: switching to 'b4d9c237a8506f54f093ab9e368c5b1322eafe81'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at b4d9c23 Update algebra-ebm submodule: normalize composed energy to fix gradient explosions
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60189160/projects/algebra-ebm'...
+usage: eval_algebra.py [-h] [--model_dir MODEL_DIR]
+                       [--eval_type {single_rule,multi_rule,monolithic,comparison,constrained,full}]
+                       [--rule {distribute,combine,isolate,divide}]
+                       [--num_rules {2,3,4}]
+                       [--single_rule_problems SINGLE_RULE_PROBLEMS]
+                       [--multi_rule_problems MULTI_RULE_PROBLEMS]
+                       [--constrained_problems CONSTRAINED_PROBLEMS]
+                       [--quick_test] [--max_samples MAX_SAMPLES]
+                       [--output_dir OUTPUT_DIR] [--save_detailed]
+                       [--encoder_type {character,ast}] [--device DEVICE]
+                       [--inference_T INFERENCE_T]
+                       [--inference_step_size INFERENCE_STEP_SIZE]
+                       [--use_real_diffusion] [--checkpoint CHECKPOINT]
+                       [--monolithic_checkpoint MONOLITHIC_CHECKPOINT]
+                       [--seed SEED] [--verbose]
+eval_algebra.py: error: --checkpoint is required when using --use_real_diffusion (except for comparison mode)

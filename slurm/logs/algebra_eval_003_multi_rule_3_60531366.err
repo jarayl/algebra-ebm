@@ -1,0 +1,601 @@
+Cloning into '/tmp/algebra-eval-60531366'...
+Note: switching to '3e947617409028361daae734fb42968116a14a6d'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 3e94761 Update algebra-ebm submodule: audit fixes for evaluation pipeline
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-eval-60531366/projects/algebra-ebm'...
+INFO:__main__:Using device: cuda
+INFO:__main__:Created character encoder
+INFO:__main__:Created decoder with 49 default candidates - will be rebuilt from test dataset in evaluate_model
+INFO:__main__:Loading models from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results
+INFO:src.algebra.algebra_inference:Loading checkpoint for distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for distribute
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: distribute from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for combine
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: combine from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/combine/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for isolate
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: isolate from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/isolate/model.pt
+INFO:src.algebra.algebra_inference:Loading checkpoint for divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for divide
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: divide from /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/divide/model.pt
+INFO:__main__:Loaded 4 rule models: ['distribute', 'combine', 'isolate', 'divide']
+INFO:__main__:Creating multi-rule datasets with 1000 problems each
+INFO:__main__:Created 3-rule dataset: 1000 problems
+INFO:src.algebra.algebra_evaluation:Evaluating model suite on 1 test sets
+INFO:src.algebra.algebra_evaluation:Evaluating on multi_rule_3...
+INFO:src.algebra.algebra_evaluation:Starting evaluation on MultiRuleDataset with 1000 samples
+INFO:src.algebra.algebra_evaluation:Decoder before rebuild: 49 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates before: ['x=0', 'x=1', 'x=2']
+INFO:src.algebra.algebra_evaluation:Building decoder candidate set from test dataset...
+INFO:src.algebra.algebra_evaluation:Decoder after build: 970 candidates (threshold=2.0)
+INFO:src.algebra.algebra_evaluation:Sample candidates after: ['10*(10*x + 10) = 400', '10*(10*x + 10) = 500', '10*(10*x + 2) = 1420']
+INFO:src.algebra.algebra_inference:Initialized AlgebraInference with 4 rule models on cuda
+INFO:src.algebra.algebra_evaluation:Evaluating 1000 samples...
+INFO:src.algebra.algebra_inference:Solving equation: '4*(6*x + 2) = 128'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 441.815491, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1876
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 8) = 546'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 572.779236, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7905
+INFO:src.algebra.algebra_inference:Solving equation: '6*(5*x + 8) = 498'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 344.122925, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.3987
+INFO:src.algebra.algebra_inference:Solving equation: '9*(9*x + 4) = 765'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 465.301575, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3049
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 2) = 651'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 673.267456, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.4852
+INFO:src.algebra.algebra_inference:Solving equation: '4*(9*x + 3) = 336'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 537.791016, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.8538
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 9) = 648'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 444.423920, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1466
+INFO:src.algebra.algebra_inference:Solving equation: '3*(2*x + 8) = 96'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 450.197845, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2096
+INFO:src.algebra.algebra_inference:Solving equation: '6*(8*x + 10) = 444'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 541.170288, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6683
+INFO:src.algebra.algebra_inference:Solving equation: '2*(2*x + 3) = 18'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 493.812286, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4478
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 5) = 488'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 408.124481, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7639
+INFO:src.algebra.algebra_inference:Solving equation: '4*(9*x + 6) = 96'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 414.675568, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9141
+INFO:src.algebra.algebra_inference:Solving equation: '5*(9*x + 9) = 360'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 402.664551, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8536
+INFO:src.algebra.algebra_inference:Solving equation: '2*(6*x + 5) = 94'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 293.539032, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.9882
+INFO:src.algebra.algebra_inference:Solving equation: '4*(3*x + 6) = 96'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 881.338501, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.5801
+INFO:src.algebra.algebra_inference:Solving equation: '10*(6*x + 4) = 460'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 248.983032, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.5778
+INFO:src.algebra.algebra_inference:Solving equation: '6*(8*x + 2) = 108'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 574.851685, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9099
+INFO:src.algebra.algebra_inference:Solving equation: '8*(3*x + 8) = 256'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 598.600586, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1115
+INFO:src.algebra.algebra_inference:Solving equation: '10*(5*x + 9) = 340'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 854.425659, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.3267
+INFO:src.algebra.algebra_inference:Solving equation: '2*(4*x + 7) = 134'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 445.787994, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2694
+INFO:src.algebra.algebra_inference:Solving equation: '9*(3*x + 3) = 324'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 452.881073, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2588
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 3) = 51'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 480.768616, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4551
+INFO:src.algebra.algebra_inference:Solving equation: '6*(9*x + 2) = 282'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 707.177124, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.5047
+INFO:src.algebra.algebra_inference:Solving equation: '8*(5*x + 5) = 600'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 196.645020, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 14.9494
+INFO:src.algebra.algebra_inference:Solving equation: '4*(10*x + 5) = 540'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 445.057281, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2648
+INFO:src.algebra.algebra_inference:Solving equation: '7*(10*x + 8) = 1106'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 424.613037, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9972
+INFO:src.algebra.algebra_inference:Solving equation: '5*(7*x + 10) = 365'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 265.572144, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8056
+INFO:src.algebra.algebra_inference:Solving equation: '10*(7*x + 7) = 630'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 478.972534, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2818
+INFO:src.algebra.algebra_inference:Solving equation: '7*(6*x + 3) = 651'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 505.235352, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6805
+INFO:src.algebra.algebra_inference:Solving equation: '8*(10*x + 6) = 208'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 620.085632, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.3397
+INFO:src.algebra.algebra_inference:Solving equation: '7*(8*x + 3) = 469'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 308.342255, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.1450
+INFO:src.algebra.algebra_inference:Solving equation: '5*(3*x + 8) = 190'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 780.718262, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.1082
+INFO:src.algebra.algebra_inference:Solving equation: '5*(8*x + 7) = 195'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 378.642365, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8088
+INFO:src.algebra.algebra_inference:Solving equation: '7*(3*x + 6) = 315'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 279.233551, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.7198
+INFO:src.algebra.algebra_inference:Solving equation: '4*(4*x + 10) = 104'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 208.288559, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.0965
+INFO:src.algebra.algebra_inference:Solving equation: '10*(3*x + 4) = 190'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 372.869110, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6813
+INFO:src.algebra.algebra_inference:Solving equation: '10*(8*x + 4) = 680'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 229.019028, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.3026
+INFO:src.algebra.algebra_inference:Solving equation: '9*(4*x + 5) = 261'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 267.670990, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.6043
+INFO:src.algebra.algebra_inference:Solving equation: '2*(10*x + 9) = 278'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 342.213226, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.5385
+INFO:src.algebra.algebra_inference:Solving equation: '9*(7*x + 9) = 396'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 455.553864, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2487
+INFO:src.algebra.algebra_inference:Solving equation: '2*(9*x + 6) = 102'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 266.415771, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.6781
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 10) = 756'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 353.888245, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4276
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 10) = 130'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 318.433289, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2538
+INFO:src.algebra.algebra_inference:Solving equation: '8*(10*x + 3) = 504'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 523.624573, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6866
+INFO:src.algebra.algebra_inference:Solving equation: '5*(4*x + 7) = 135'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 350.582031, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4898
+INFO:src.algebra.algebra_inference:Solving equation: '9*(10*x + 5) = 225'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 345.563293, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.3148
+INFO:src.algebra.algebra_inference:Solving equation: '8*(4*x + 6) = 400'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 380.795929, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8199
+INFO:src.algebra.algebra_inference:Solving equation: '7*(7*x + 10) = 609'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 468.718079, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3876
+INFO:src.algebra.algebra_inference:Solving equation: '6*(7*x + 2) = 222'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 529.113525, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7917
+INFO:src.algebra.algebra_inference:Solving equation: '3*(5*x + 10) = 60'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 371.995300, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7007
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 3) = 75'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 294.943237, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.0042
+INFO:src.algebra.algebra_inference:Solving equation: '9*(8*x + 4) = 180'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 425.472595, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.0091
+INFO:src.algebra.algebra_inference:Solving equation: '7*(8*x + 5) = 539'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 633.234680, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.3957
+INFO:src.algebra.algebra_inference:Solving equation: '2*(10*x + 10) = 260'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 268.168243, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8971
+INFO:src.algebra.algebra_inference:Solving equation: '8*(5*x + 2) = 496'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 554.721130, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7939
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 6) = 291'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 346.162476, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4535
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 2) = 576'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 408.774902, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8986
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 5) = 57'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 314.507141, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.1702
+INFO:src.algebra.algebra_inference:Solving equation: '7*(4*x + 2) = 350'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 500.106934, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5898
+INFO:src.algebra.algebra_inference:Solving equation: '9*(6*x + 6) = 540'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 421.144440, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.0334
+INFO:src.algebra.algebra_inference:Solving equation: '4*(5*x + 4) = 296'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 755.491577, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.8481
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 8) = 130'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 368.185944, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6406
+INFO:src.algebra.algebra_inference:Solving equation: '2*(4*x + 9) = 58'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 257.838715, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.4166
+INFO:src.algebra.algebra_inference:Solving equation: '3*(3*x + 10) = 57'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 205.588974, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 14.9735
+INFO:src.algebra.algebra_inference:Solving equation: '6*(3*x + 6) = 252'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 433.118713, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9640
+INFO:src.algebra.algebra_inference:Solving equation: '5*(7*x + 2) = 535'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 317.438263, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.1736
+INFO:src.algebra.algebra_inference:Solving equation: '5*(9*x + 10) = 320'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 574.063049, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9281
+INFO:src.algebra.algebra_inference:Solving equation: '3*(9*x + 9) = 216'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 308.109497, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2512
+INFO:src.algebra.algebra_inference:Solving equation: '4*(8*x + 7) = 220'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 230.126404, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.3074
+INFO:src.algebra.algebra_inference:Solving equation: '4*(3*x + 9) = 144'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 289.804199, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.9764
+INFO:src.algebra.algebra_inference:Solving equation: '3*(4*x + 10) = 54'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 258.954498, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.5984
+INFO:src.algebra.algebra_inference:Solving equation: '7*(10*x + 8) = 686'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 534.375977, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7929
+INFO:src.algebra.algebra_inference:Solving equation: '2*(8*x + 6) = 108'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 488.639893, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4647
+INFO:src.algebra.algebra_inference:Solving equation: '2*(9*x + 5) = 100'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 264.972046, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.6337
+INFO:src.algebra.algebra_inference:Solving equation: '7*(6*x + 6) = 336'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 250.633804, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.5638
+INFO:src.algebra.algebra_inference:Solving equation: '3*(9*x + 7) = 291'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 495.150452, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5879
+INFO:src.algebra.algebra_inference:Solving equation: '3*(10*x + 5) = 285'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 361.823883, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.5112
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 4) = 400'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 379.945251, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7050
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 4) = 96'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 569.976257, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.0681
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 3) = 640'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 293.095703, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.9367
+INFO:src.algebra.algebra_inference:Solving equation: '10*(10*x + 3) = 230'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 289.568726, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.0314
+INFO:src.algebra.algebra_inference:Solving equation: '7*(2*x + 4) = 84'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 280.349121, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8226
+INFO:src.algebra.algebra_inference:Solving equation: '5*(7*x + 7) = 280'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 420.788361, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9749
+INFO:src.algebra.algebra_inference:Solving equation: '3*(9*x + 8) = 213'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 412.459595, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9440
+INFO:src.algebra.algebra_inference:Solving equation: '5*(4*x + 8) = 200'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 321.816315, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2778
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 6) = 832'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 271.598785, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.6997
+INFO:src.algebra.algebra_inference:Solving equation: '9*(6*x + 7) = 387'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 278.683075, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.7293
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 6) = 64'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 307.152496, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2153
+INFO:src.algebra.algebra_inference:Solving equation: '7*(10*x + 5) = 315'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 390.176636, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8618
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 8) = 350'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 335.144745, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4139
+INFO:src.algebra.algebra_inference:Solving equation: '4*(8*x + 6) = 472'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 551.322571, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9266
+INFO:src.algebra.algebra_inference:Solving equation: '4*(7*x + 6) = 108'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 396.678345, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7985
+INFO:src.algebra.algebra_inference:Solving equation: '9*(4*x + 9) = 549'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 512.382385, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7381
+INFO:src.algebra.algebra_inference:Solving equation: '10*(10*x + 5) = 950'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 335.189331, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2981
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 8) = 144'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 424.644348, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1181
+INFO:src.algebra.algebra_inference:Solving equation: '8*(5*x + 3) = 544'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 519.912354, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5088
+INFO:src.algebra.algebra_inference:Solving equation: '9*(5*x + 8) = 657'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 430.675262, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1952
+INFO:src.algebra.algebra_inference:Solving equation: '3*(2*x + 4) = 30'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 514.758362, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5648
+INFO:src.algebra.algebra_inference:Solving equation: '3*(9*x + 7) = 291'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 851.315674, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.2051
+INFO:src.algebra.algebra_inference:Solving equation: '4*(7*x + 9) = 316'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 370.078949, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7683
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 4) = 117'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 400.056976, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7557
+INFO:src.algebra.algebra_inference:Solving equation: '5*(8*x + 3) = 495'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 381.295380, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8667
+INFO:src.algebra.algebra_inference:Solving equation: '4*(7*x + 4) = 408'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 463.964905, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2932
+INFO:src.algebra.algebra_inference:Solving equation: '9*(3*x + 4) = 252'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 602.146179, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2267
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 9) = 240'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 670.088379, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.6424
+INFO:src.algebra.algebra_inference:Solving equation: '5*(5*x + 3) = 215'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 480.059723, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3411
+INFO:src.algebra.algebra_inference:Solving equation: '7*(2*x + 5) = 147'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 298.985046, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.0632
+INFO:src.algebra.algebra_inference:Solving equation: '6*(10*x + 10) = 240'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 775.004395, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.0981
+INFO:src.algebra.algebra_inference:Solving equation: '8*(4*x + 5) = 104'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 379.819733, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8498
+INFO:src.algebra.algebra_inference:Solving equation: '9*(8*x + 4) = 252'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 519.182678, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6588
+INFO:src.algebra.algebra_inference:Solving equation: '5*(7*x + 9) = 570'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 362.249481, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7297
+INFO:src.algebra.algebra_inference:Solving equation: '7*(9*x + 3) = 210'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 518.824219, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5721
+INFO:src.algebra.algebra_inference:Solving equation: '7*(3*x + 2) = 182'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 490.781982, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2355
+INFO:src.algebra.algebra_inference:Solving equation: '4*(8*x + 5) = 212'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 379.100708, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6586
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 9) = 75'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 436.446503, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1799
+INFO:src.algebra.algebra_inference:Solving equation: '8*(10*x + 4) = 432'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 544.172852, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6954
+INFO:src.algebra.algebra_inference:Solving equation: '9*(8*x + 7) = 567'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 402.109253, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8717
+INFO:src.algebra.algebra_inference:Solving equation: '4*(3*x + 8) = 68'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 507.548706, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6917
+INFO:src.algebra.algebra_inference:Solving equation: '6*(5*x + 3) = 78'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 589.430481, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2006
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 4) = 220'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 432.977448, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1046
+INFO:src.algebra.algebra_inference:Solving equation: '2*(4*x + 4) = 96'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 476.378113, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3198
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 9) = 630'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 494.337646, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4844
+INFO:src.algebra.algebra_inference:Solving equation: '6*(4*x + 5) = 270'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 601.933594, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2597
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 7) = 115'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 390.484436, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8496
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 2) = 304'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 514.907104, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4532
+INFO:src.algebra.algebra_inference:Solving equation: '7*(4*x + 5) = 315'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 441.698547, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.0952
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 8) = 890'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 213.560226, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.0785
+INFO:src.algebra.algebra_inference:Solving equation: '10*(10*x + 10) = 500'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 473.779175, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3439
+INFO:src.algebra.algebra_inference:Solving equation: '5*(10*x + 5) = 725'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 439.301331, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.1683
+INFO:src.algebra.algebra_inference:Solving equation: '10*(10*x + 6) = 860'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 458.494812, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3777
+INFO:src.algebra.algebra_inference:Solving equation: '7*(3*x + 10) = 364'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 278.364868, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8991
+INFO:src.algebra.algebra_inference:Solving equation: '5*(6*x + 3) = 315'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 276.829926, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8224
+INFO:src.algebra.algebra_inference:Solving equation: '7*(3*x + 4) = 301'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 613.805908, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1934
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 2) = 258'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 243.122849, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.4901
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 2) = 208'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 422.759552, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.0744
+INFO:src.algebra.algebra_inference:Solving equation: '7*(9*x + 5) = 791'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 377.685181, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.7876
+INFO:src.algebra.algebra_inference:Solving equation: '5*(3*x + 3) = 180'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 464.718079, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2648
+INFO:src.algebra.algebra_inference:Solving equation: '6*(10*x + 2) = 912'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 451.869354, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2009
+INFO:src.algebra.algebra_inference:Solving equation: '9*(3*x + 3) = 432'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 424.642181, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.9318
+INFO:src.algebra.algebra_inference:Solving equation: '10*(3*x + 9) = 540'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 565.784363, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7711
+INFO:src.algebra.algebra_inference:Solving equation: '3*(10*x + 4) = 252'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 386.767242, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6873
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 6) = 136'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 564.912842, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9057
+INFO:src.algebra.algebra_inference:Solving equation: '7*(6*x + 10) = 574'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 405.063873, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8904
+INFO:src.algebra.algebra_inference:Solving equation: '2*(9*x + 8) = 160'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 597.025269, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.1624
+INFO:src.algebra.algebra_inference:Solving equation: '9*(4*x + 4) = 396'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 530.518799, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6892
+INFO:src.algebra.algebra_inference:Solving equation: '5*(3*x + 6) = 135'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 563.217957, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.9018
+INFO:src.algebra.algebra_inference:Solving equation: '9*(9*x + 6) = 1107'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 680.622131, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.5669
+INFO:src.algebra.algebra_inference:Solving equation: '5*(2*x + 9) = 125'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 521.265259, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.7549
+INFO:src.algebra.algebra_inference:Solving equation: '6*(10*x + 6) = 336'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 428.681763, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.0450
+INFO:src.algebra.algebra_inference:Solving equation: '9*(5*x + 10) = 450'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 489.826141, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4799
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 10) = 1180'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 356.399292, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.5618
+INFO:src.algebra.algebra_inference:Solving equation: '4*(9*x + 5) = 524'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 608.947388, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.2067
+INFO:src.algebra.algebra_inference:Solving equation: '9*(9*x + 8) = 801'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 355.864197, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4981
+INFO:src.algebra.algebra_inference:Solving equation: '5*(7*x + 5) = 375'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 268.052490, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.7413
+INFO:src.algebra.algebra_inference:Solving equation: '7*(6*x + 5) = 455'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 502.518585, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.5694
+INFO:src.algebra.algebra_inference:Solving equation: '6*(3*x + 3) = 90'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 285.343750, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.8687
+INFO:src.algebra.algebra_inference:Solving equation: '9*(8*x + 5) = 549'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 180.507385, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 14.4171
+INFO:src.algebra.algebra_inference:Solving equation: '2*(2*x + 4) = 60'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 406.363770, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.8684
+INFO:src.algebra.algebra_inference:Solving equation: '10*(3*x + 2) = 470'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 288.790100, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.9390
+INFO:src.algebra.algebra_inference:Solving equation: '3*(7*x + 6) = 270'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 349.843018, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6065
+INFO:src.algebra.algebra_inference:Solving equation: '4*(9*x + 6) = 240'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 367.073761, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.4670
+INFO:src.algebra.algebra_inference:Solving equation: '4*(2*x + 10) = 56'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 301.838348, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.9350
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 9) = 1080'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 368.272461, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.5367
+INFO:src.algebra.algebra_inference:Solving equation: '9*(3*x + 4) = 90'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 363.637024, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6730
+INFO:src.algebra.algebra_inference:Solving equation: '7*(8*x + 2) = 462'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 476.283875, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.3216
+INFO:src.algebra.algebra_inference:Solving equation: '9*(4*x + 3) = 567'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 512.554565, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6053
+INFO:src.algebra.algebra_inference:Solving equation: '4*(8*x + 9) = 196'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 446.413269, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2734
+INFO:src.algebra.algebra_inference:Solving equation: '8*(7*x + 5) = 152'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 471.116272, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.4268
+INFO:src.algebra.algebra_inference:Solving equation: '2*(3*x + 10) = 62'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 249.762222, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 15.3836
+INFO:src.algebra.algebra_inference:Solving equation: '6*(3*x + 2) = 102'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 314.182007, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.2309
+INFO:src.algebra.algebra_inference:Solving equation: '10*(9*x + 2) = 1190'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 814.017456, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 19.2207
+INFO:src.algebra.algebra_inference:Solving equation: '3*(10*x + 8) = 444'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 475.830505, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.2973
+INFO:src.algebra.algebra_inference:Solving equation: '8*(6*x + 10) = 224'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 785.979919, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 18.9713
+INFO:src.algebra.algebra_inference:Solving equation: '4*(6*x + 9) = 204'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 531.807007, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 17.6927
+INFO:src.algebra.algebra_inference:Solving equation: '10*(10*x + 2) = 620'
+INFO:src.algebra.algebra_inference:Inference completed. Final energy: 378.262360, Acceptance rate: 1.000, Cache hit rate: 0.980, Convergence: completed_all_landscapes
+WARNING:src.algebra.algebra_inference:No valid decoding found. Best distance: 16.6717
+INFO:src.algebra.algebra_inference:Solving equation: '10*(5*x + 4) = 140'
+[2026-02-15T15:41:21.455] error: *** JOB 60531366 ON holygpu8a22206 CANCELLED AT 2026-02-15T15:41:21 DUE to SIGNAL Terminated ***

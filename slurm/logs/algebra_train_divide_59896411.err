@@ -1,0 +1,56 @@
+Cloning into '/tmp/algebra-train-59896411'...
+Note: switching to 'd7c3ab3d30d920117423d043a519f8dd461a509b'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at d7c3ab3 Add .gitmodules to properly configure algebra-ebm as git submodule
+Submodule 'projects/algebra-ebm' (https://github.com/mdkrasnow/algebra-ebm.git) registered for path 'projects/algebra-ebm'
+Cloning into '/tmp/algebra-train-59896411/projects/algebra-ebm'...
+usage: train_algebra.py [-h] --rule {distribute,combine,isolate,divide}
+                        [--split {train,val,test}] [--batch_size BATCH_SIZE]
+                        [--validation_batch_size VALIDATION_BATCH_SIZE]
+                        [--timesteps TIMESTEPS] [--train_steps TRAIN_STEPS]
+                        [--train_lr TRAIN_LR] [--ema_decay EMA_DECAY]
+                        [--gradient_accumulate_every GRADIENT_ACCUMULATE_EVERY]
+                        [--step_size_multiplier STEP_SIZE_MULTIPLIER]
+                        [--num_problems NUM_PROBLEMS] [--d_model D_MODEL]
+                        [--use_curriculum USE_CURRICULUM]
+                        [--curriculum_depth CURRICULUM_DEPTH]
+                        [--enable_stratified_sampling ENABLE_STRATIFIED_SAMPLING]
+                        [--stratified_basic_range STRATIFIED_BASIC_RANGE]
+                        [--stratified_extended_range STRATIFIED_EXTENDED_RANGE]
+                        [--stratified_challenge_range STRATIFIED_CHALLENGE_RANGE]
+                        [--stratified_distribution STRATIFIED_DISTRIBUTION]
+                        [--enable_solution_first ENABLE_SOLUTION_FIRST]
+                        [--solution_small_range SOLUTION_SMALL_RANGE]
+                        [--solution_medium_range SOLUTION_MEDIUM_RANGE]
+                        [--solution_large_range SOLUTION_LARGE_RANGE]
+                        [--solution_range_distribution SOLUTION_RANGE_DISTRIBUTION]
+                        [--supervise-energy-landscape SUPERVISE_ENERGY_LANDSCAPE]
+                        [--use-contrastive-energy-loss USE_CONTRASTIVE_ENERGY_LOSS]
+                        [--composition-aware-loss COMPOSITION_AWARE_LOSS]
+                        [--use-innerloop-opt USE_INNERLOOP_OPT]
+                        [--enable-semantic-corruption ENABLE_SEMANTIC_CORRUPTION]
+                        [--corruption-strategy-probs CORRUPTION_STRATEGY_PROBS]
+                        [--amp AMP] [--fp16 FP16] [--pin_memory PIN_MEMORY]
+                        [--persistent_workers PERSISTENT_WORKERS]
+                        [--compile_model COMPILE_MODEL]
+                        [--compile_backend {inductor,eager,disable}]
+                        [--results_folder RESULTS_FOLDER]
+                        [--save_and_sample_every SAVE_AND_SAMPLE_EVERY]
+                        [--data_workers DATA_WORKERS] [--evaluate]
+                        [--load_milestone LOAD_MILESTONE]
+train_algebra.py: error: unrecognized arguments: --epochs 50 --learning_rate 0.001 --device cuda
