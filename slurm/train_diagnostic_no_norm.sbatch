@@ -120,13 +120,12 @@ python train_algebra.py \
     --train_steps "$TRAIN_STEPS" \
     --batch_size "$BATCH_SIZE" \
     --timesteps "$TIMESTEPS" \
-    --output_dir "$OUTPUT_DIR" \
+    --results_folder "$OUTPUT_DIR" \
     --supervise-energy-landscape True \
     --use-contrastive-energy-loss True \
     --use-innerloop-opt True \
     --step_size_multiplier 0.1 \
-    --save-interval 2000 \
-    --validation-interval 1000
+    --save_and_sample_every 2000
 
 TRAIN_EXIT=$?
 
