@@ -777,12 +777,32 @@ def main():
         default=50,
         help='Number of gradient steps per landscape (default: 50)'
     )
-    
+
     parser.add_argument(
         '--inference_step_size',
         type=float,
         default=0.05,
         help='Step size for gradient descent (default: 0.05)'
+    )
+
+    parser.add_argument(
+        '--num_inference_starts',
+        type=int,
+        default=1,
+        help='Number of random starts for multi-start inference (default: 1)'
+    )
+
+    parser.add_argument(
+        '--enable_diagnostics',
+        action='store_true',
+        help='Enable detailed per-iteration diagnostic logging'
+    )
+
+    parser.add_argument(
+        '--diagnostics_dir',
+        type=str,
+        default=None,
+        help='Directory to save diagnostic trajectory files (required if --enable_diagnostics)'
     )
     
     # Real diffusion inference (recommended)
@@ -822,12 +842,16 @@ def main():
     )
     
     args = parser.parse_args()
-    
+
     # Validate real diffusion arguments
     if args.use_real_diffusion and not args.checkpoint:
         # For comparison mode, checkpoints are loaded from model_dir, so --checkpoint is not required
         if args.eval_type != 'comparison':
             parser.error("--checkpoint is required when using --use_real_diffusion (except for comparison mode)")
+
+    # Validate diagnostics arguments
+    if args.enable_diagnostics and args.diagnostics_dir is None:
+        parser.error("--diagnostics_dir is required when --enable_diagnostics is specified")
     
     # Set logging level
     if args.verbose:
@@ -899,9 +923,12 @@ def main():
                 'T': args.inference_T,
                 'step_size': args.inference_step_size
             },
-            'store_detailed_results': args.save_detailed
+            'store_detailed_results': args.save_detailed,
+            'num_inference_starts': args.num_inference_starts,
+            'enable_diagnostics': args.enable_diagnostics,
+            'diagnostics_dir': args.diagnostics_dir
         }
-        
+
         if args.max_samples:
             eval_params['max_samples'] = args.max_samples
         

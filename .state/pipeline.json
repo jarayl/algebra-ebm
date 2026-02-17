@@ -1,16 +1,16 @@
 {
   "project_slug": "algebra-ebm",
-  "phase": "WAIT_SLURM",
+  "phase": "DEBUG",
   "description": "Algebra EBM - Compositional vs Monolithic Energy-Based Models for Algebraic Equation Solving",
   "created_at": "2026-02-11T00:00:00Z",
   "started_at": "2026-02-11T00:00:00Z",
-  "last_updated": "2026-02-16T20:41:22Z",
-  "next_poll_after": "2026-02-16T20:56:22Z",
+  "last_updated": "2026-02-16T23:30:00Z",
+  "next_poll_after": "2026-02-16T23:30:00Z",
   "slurm_wait": {
-    "next_poll_after": "2026-02-16T20:56:22Z",
+    "next_poll_after": "2026-02-16T22:45:00Z",
     "poll_interval_seconds": 900,
-    "last_polled_at": "2026-02-16T20:41:22Z",
-    "note": "5 of 6 eval jobs completed. exp_005 (constrained) still running (1h28m, healthy). Next poll in 15min."
+    "last_polled_at": "2026-02-16T22:45:00Z",
+    "note": "All 6 evaluation jobs completed. exp_005 failed with 0.0% accuracy on all constraint types."
   },
   "previous_fix_applied": {
     "date": "2026-02-13T04:30:00Z",
@@ -192,7 +192,8 @@
       }
     ]
   },
-  "active_runs": [
+  "active_runs": [],
+  "completed_runs": [
     {
       "type": "evaluation",
       "experiment_id": "exp_005_constrained",
@@ -201,13 +202,35 @@
       "partition": "gpu",
       "gpu": 1,
       "time": "04:00:00",
-      "status": "running",
+      "status": "failed",
       "submitted_at": "2026-02-16T19:13:00Z",
+      "failed_at": "2026-02-16T22:38:30Z",
+      "runtime_seconds": 12330,
       "git_sha": "4dc7798",
-      "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/evaluation/exp_005_constrained"
-    }
-  ],
-  "completed_runs": [
+      "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/evaluation/exp_005_constrained",
+      "error": "Exit code 120:0 after 3h 25m 30s. Job completed but produced 0.0% accuracy on all three constraint types (positive, integer, both). Dataset generation succeeded (1000 problems per type), but models failed to solve any constrained problems correctly.",
+      "results": {
+        "positive_constraint": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%",
+          "invalid_rate": "0.000",
+          "invalid_pct": "0.0%"
+        },
+        "integer_constraint": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%",
+          "invalid_rate": "0.000",
+          "invalid_pct": "0.0%"
+        },
+        "both_constraints": {
+          "accuracy": "0.000",
+          "accuracy_pct": "0.0%",
+          "invalid_rate": "0.000",
+          "invalid_pct": "0.0%"
+        }
+      },
+      "note": "Constrained evaluation completed with all datasets generated successfully but 0% accuracy across all constraint types. Consistent with other evaluation results showing fundamental model performance issues."
+    },
     {
       "type": "evaluation",
       "experiment_id": "exp_001_single_rule_baseline",
@@ -316,13 +339,14 @@
       "partition": "gpu",
       "gpu": 1,
       "time": "06:00:00",
-      "status": "completed",
+      "status": "completed_no_results",
       "submitted_at": "2026-02-16T19:13:00Z",
       "completed_at": "2026-02-16T20:41:22Z",
       "runtime_seconds": 2351,
       "git_sha": "4dc7798",
       "output_path": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/evaluation/exp_007_comparison",
-      "note": "Job completed but produced no evaluation results output. Evaluation report section empty. May require investigation."
+      "note": "Job completed but produced no evaluation results output. Evaluation report section empty. Logs show 150,000 training steps executed and 'ALGEBRA EBM EVALUATION REPORT' header printed but no metrics. Requires investigation of evaluation script.",
+      "action_required": "Debug why comparison evaluation produces no results output"
     },
     {
       "experiment_id": "exp_001_single_rule_baseline",
@@ -1015,7 +1039,28 @@
     "value": false,
     "prompt": null
   },
-  "next_action": "poll_evaluation_jobs",
+  "next_action": "inference_diagnostics_and_investigation",
+  "analysis_completed": {
+    "date": "2026-02-16T23:30:00Z",
+    "document": "documentation/evaluation-analysis.md",
+    "summary": "Complete failure of compositional approach: single-rule 6.3% accuracy (expected 85%), multi-rule 0%, constrained 0%. Training converged successfully (9-10 unit energy gaps) but IRED inference fails due to local minima. Root cause: inference architecture, not training. Recommend focused debugging of inference behavior before proceeding.",
+    "critical_findings": [
+      "Single-rule accuracy 6.3% vs expected 85% (78.7 point gap)",
+      "Multi-rule 0% across all configurations (2, 3, 4 rules)",
+      "Constrained 0% across all constraint types",
+      "Training successful: all models converged with 9-10 unit energy gaps",
+      "IRED inference stuck in local minima (AUDIT-003)",
+      "combine dropped from 100% to 6.3% after DATAGEN-002 format change",
+      "exp_007 completed but produced no results output"
+    ],
+    "recommended_next_steps": [
+      "Add detailed inference logging (energy trajectory, gradients, embeddings)",
+      "Run diagnostic on 10-50 problems with full logging",
+      "Investigate exp_007 missing results",
+      "Manually verify test dataset correctness (10-20 problems)",
+      "Consider inference improvements: multi-start, more iterations, better initialization"
+    ]
+  },
   "retraining_required": {
     "value": false,
     "reason": "Retraining completed on 2026-02-16. All 5 models trained with DATAGEN-001 through 005 fixes.",

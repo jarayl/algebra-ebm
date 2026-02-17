@@ -1,0 +1,14 @@
+{
+  "experiment_id": "exp_diag_combined",
+  "name": "Inference Diagnostics - Combined",
+  "description": "Best of both: 10 starts, 100 iterations each. Comprehensive search.",
+  "eval_type": "single_rule",
+  "rule": "distribute",
+  "num_problems": 100,
+  "seed": 42,
+  "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results",
+  "num_inference_starts": 10,
+  "max_inference_iterations": 100,
+  "enable_diagnostics": true,
+  "diagnostics_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/combined"
+}

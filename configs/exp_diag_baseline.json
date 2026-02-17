@@ -1,0 +1,14 @@
+{
+  "experiment_id": "exp_diag_baseline",
+  "name": "Inference Diagnostics - Baseline",
+  "description": "Current inference settings: 1 start, 50 iterations. Baseline for comparison.",
+  "eval_type": "single_rule",
+  "rule": "distribute",
+  "num_problems": 100,
+  "seed": 42,
+  "model_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results",
+  "num_inference_starts": 1,
+  "max_inference_iterations": 50,
+  "enable_diagnostics": true,
+  "diagnostics_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/baseline"
+}

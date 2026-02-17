@@ -741,11 +741,14 @@ def evaluate_model(
     batch_size: int = 32,
     inference_params: Optional[Dict[str, Any]] = None,
     max_samples: Optional[int] = None,
-    store_detailed_results: bool = True
+    store_detailed_results: bool = True,
+    num_inference_starts: int = 1,
+    enable_diagnostics: bool = False,
+    diagnostics_dir: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Comprehensive evaluation of algebra EBM model(s).
-    
+
     Args:
         rule_models: Dictionary mapping rule names to trained EBM models
         test_dataset: Test dataset to evaluate on
@@ -755,7 +758,10 @@ def evaluate_model(
         inference_params: Optional parameters for inference (T, step_size, etc.)
         max_samples: Maximum number of samples to evaluate (for quick testing)
         store_detailed_results: Whether to store detailed per-sample results (default: True)
-        
+        num_inference_starts: Number of random starts for inference (default 1)
+        enable_diagnostics: If True, collect detailed per-iteration diagnostics
+        diagnostics_dir: Directory to save diagnostic trajectory files (required if enable_diagnostics=True)
+
     Returns:
         Comprehensive evaluation results dictionary
     """
@@ -764,8 +770,19 @@ def evaluate_model(
         raise ValueError("rule_models dictionary cannot be empty")
     if len(test_dataset) == 0:
         raise ValueError("test_dataset cannot be empty")
-        
+
+    # Diagnostic validation
+    if enable_diagnostics and diagnostics_dir is None:
+        raise ValueError("diagnostics_dir must be specified when enable_diagnostics=True")
+
+    if enable_diagnostics:
+        import os
+        os.makedirs(diagnostics_dir, exist_ok=True)
+        logger.info(f"Diagnostics enabled: saving trajectories to {diagnostics_dir}")
+
     logger.info(f"Starting evaluation on {type(test_dataset).__name__} with {len(test_dataset)} samples")
+    if num_inference_starts > 1:
+        logger.info(f"Multi-start inference enabled: {num_inference_starts} starts per problem")
     
     # CRITICAL: Build/rebuild decoder with candidates from the actual test dataset
     # The default decoder only has ~49 hardcoded equations which cannot match
@@ -882,14 +899,111 @@ def evaluate_model(
                         else:
                             rule_weights[rule] = 0.0
                     logger.debug(f"Sample {idx}: Using rule_weights {rule_weights} for rules {rules_for_problem}")
-                
-                result = inference_engine.solve_equation(
-                    input_eq,
-                    config=inference_config,
-                    rule_weights=rule_weights,
-                    distance_threshold=decoder.distance_threshold if decoder else 6.0
-                )
-                
+
+                # MULTI-START INFERENCE: Run inference multiple times and select best result
+                if num_inference_starts > 1:
+                    best_result = None
+                    best_energy = float('inf')
+                    best_start_idx = -1
+
+                    for start_idx in range(num_inference_starts):
+                        # Use different random seed for each start
+                        import random
+                        seed_offset = idx * 1000 + start_idx
+                        random.seed(seed_offset)
+                        torch.manual_seed(seed_offset)
+
+                        result = inference_engine.solve_equation(
+                            input_eq,
+                            config=inference_config,
+                            rule_weights=rule_weights,
+                            distance_threshold=decoder.distance_threshold if decoder else 6.0,
+                            enable_diagnostics=False  # Don't collect diagnostics for non-winning starts
+                        )
+
+                        final_energy = result.get('inference_info', {}).get('final_energy', float('inf'))
+
+                        if final_energy < best_energy:
+                            best_energy = final_energy
+                            best_result = result
+                            best_start_idx = start_idx
+
+                    # Use best result and add multi-start metadata
+                    result = best_result
+                    result['multi_start_info'] = {
+                        'num_starts': num_inference_starts,
+                        'winning_start_idx': best_start_idx,
+                        'best_energy': best_energy
+                    }
+
+                    # If diagnostics enabled, re-run winning start with diagnostics
+                    if enable_diagnostics:
+                        seed_offset = idx * 1000 + best_start_idx
+                        random.seed(seed_offset)
+                        torch.manual_seed(seed_offset)
+
+                        result_with_diag = inference_engine.solve_equation(
+                            input_eq,
+                            config=inference_config,
+                            rule_weights=rule_weights,
+                            distance_threshold=decoder.distance_threshold if decoder else 6.0,
+                            enable_diagnostics=True
+                        )
+
+                        # Save diagnostic trajectory
+                        trajectory = {
+                            "problem_id": idx,
+                            "input_equation": input_eq,
+                            "target_equation": target_eq,
+                            "predicted_equation": result.get('output_equation'),
+                            "correct": None,  # Will be filled in later
+                            "iterations": result_with_diag.get('inference_info', {}).get('trajectory', []),
+                            "final_energy": result.get('inference_info', {}).get('final_energy'),
+                            "inference_config": {
+                                "max_iterations": config_params.get('max_iterations', 50),
+                                "step_size": config_params.get('step_size', 0.01),
+                                "num_starts": num_inference_starts,
+                                "winning_start_idx": best_start_idx
+                            }
+                        }
+
+                        import json
+                        diag_file = Path(diagnostics_dir) / f"problem_{idx:04d}_trajectory.json"
+                        with open(diag_file, 'w') as f:
+                            json.dump(trajectory, f, indent=2)
+
+                else:
+                    # Single-start inference
+                    result = inference_engine.solve_equation(
+                        input_eq,
+                        config=inference_config,
+                        rule_weights=rule_weights,
+                        distance_threshold=decoder.distance_threshold if decoder else 6.0,
+                        enable_diagnostics=enable_diagnostics
+                    )
+
+                    # Save diagnostic trajectory if enabled
+                    if enable_diagnostics:
+                        trajectory = {
+                            "problem_id": idx,
+                            "input_equation": input_eq,
+                            "target_equation": target_eq,
+                            "predicted_equation": result.get('output_equation'),
+                            "correct": None,  # Will be filled in later
+                            "iterations": result.get('inference_info', {}).get('trajectory', []),
+                            "final_energy": result.get('inference_info', {}).get('final_energy'),
+                            "inference_config": {
+                                "max_iterations": config_params.get('max_iterations', 50),
+                                "step_size": config_params.get('step_size', 0.01),
+                                "num_starts": 1
+                            }
+                        }
+
+                        import json
+                        diag_file = Path(diagnostics_dir) / f"problem_{idx:04d}_trajectory.json"
+                        with open(diag_file, 'w') as f:
+                            json.dump(trajectory, f, indent=2)
+
                 # Extract results
                 pred_eq = result.get('output_equation', None)
                 predicted_equations.append(pred_eq)

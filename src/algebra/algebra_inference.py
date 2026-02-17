@@ -377,19 +377,21 @@ class AlgebraInference:
         self,
         inp_embedding: torch.Tensor,
         config: Optional[InferenceConfig] = None,
-        rule_weights: Optional[Dict[str, float]] = None
+        rule_weights: Optional[Dict[str, float]] = None,
+        enable_diagnostics: bool = False
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """
         Core IRED inference algorithm with annealed gradient descent.
-        
+
         Args:
-            inp_embedding: Input equation embedding (B, 128)  
+            inp_embedding: Input equation embedding (B, 128)
             config: InferenceConfig with optimization parameters (uses self.config if None)
             rule_weights: Optional weights for rule composition
-            
+            enable_diagnostics: If True, collect detailed per-iteration diagnostics
+
         Returns:
             out_embedding: Final optimized embedding (B, 128)
-            info: Dictionary with optimization statistics
+            info: Dictionary with optimization statistics (includes 'trajectory' if enable_diagnostics=True)
         """
         # Use provided config or fall back to instance config
         if config is None:
@@ -432,6 +434,10 @@ class AlgebraInference:
             # config_used removed to eliminate unnecessary overhead
             # If needed for debugging, can be added behind a config.include_debug_info flag
         }
+
+        # DIAGNOSTIC: Detailed per-iteration trajectory logging
+        if enable_diagnostics:
+            info['trajectory'] = []  # List of per-iteration diagnostic data
         
         # OPTIMIZATION: Initialize energy caching variables
         have_cached_energy = False
@@ -501,7 +507,11 @@ class AlgebraInference:
                 
                 # Gradient descent step
                 out_new = out - current_step_size * grad
-                
+
+                # DIAGNOSTIC: Compute embedding distance from initial state if diagnostics enabled
+                if enable_diagnostics:
+                    embedding_distance = torch.norm(out - out_new).item()
+
                 # Metropolis acceptance criteria with temperature schedule
                 energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights, timestep_tensor)
                 # Handle batched energy tensors: take mean across batch for comparison
@@ -551,13 +561,25 @@ class AlgebraInference:
                 if accepted:
                     # Update with gradient tracking preserved (detach to avoid graph accumulation)
                     out = out_new.detach().requires_grad_(True)
-                    
+
                     # OPTIMIZATION: Cache energy for next iteration - KEY OPTIMIZATION
                     # Since out = out_new, the energy of 'out' in next iteration is energy_after_val
                     have_cached_energy = True
                     cached_energy_val = energy_after_val  # Cache the scalar value
                     info['accepted_steps'] += 1
-                    
+
+                    # DIAGNOSTIC: Record trajectory data
+                    if enable_diagnostics:
+                        info['trajectory'].append({
+                            'landscape': k,
+                            'iteration': t,
+                            'energy': energy_after_val,
+                            'gradient_norm': grad_norm,
+                            'embedding_distance': embedding_distance,
+                            'step_size': current_step_size,
+                            'accepted': True
+                        })
+
                     # Early stopping using config threshold
                     if config.should_early_stop(energy_after_val):
                         logger.debug(f"Early stopping at landscape {k}, step {t}, energy={energy_after_val:.6f}")
@@ -567,7 +589,19 @@ class AlgebraInference:
                     # The current energy (energy_before_val) is still valid for next iteration
                     have_cached_energy = True
                     cached_energy_val = energy_before_val
-                
+
+                    # DIAGNOSTIC: Record trajectory data
+                    if enable_diagnostics:
+                        info['trajectory'].append({
+                            'landscape': k,
+                            'iteration': t,
+                            'energy': energy_before_val,
+                            'gradient_norm': grad_norm,
+                            'embedding_distance': 0.0,  # No step taken
+                            'step_size': current_step_size,
+                            'accepted': False
+                        })
+
                 info['total_steps'] += 1
             
             info['landscape_transitions'].append(k)
@@ -676,22 +710,25 @@ class AlgebraInference:
         config: Optional[InferenceConfig] = None,
         rule_weights: Optional[Dict[str, float]] = None,
         distance_threshold: float = 6.0,  # Standard distance threshold for valid decoding
-        collect_distance_data: bool = False  # Phase 2: Enable distance data collection for optimization
+        collect_distance_data: bool = False,  # Phase 2: Enable distance data collection for optimization
+        enable_diagnostics: bool = False  # Enable detailed per-iteration diagnostics
     ) -> Dict[str, Any]:
         """
         Solve an algebraic equation using IRED inference.
-        
+
         Args:
             input_equation: Input equation string (e.g., "2*(x+3)+4=10")
             config: InferenceConfig with optimization parameters (uses self.config if None)
-            rule_weights: Optional weights for rule composition  
+            rule_weights: Optional weights for rule composition
             distance_threshold: Maximum distance for valid decoding
                               Standard value: 2.0 provides good balance between precision and recall.
             collect_distance_data: If True, collect distance data for statistical analysis (Phase 2)
-            
+            enable_diagnostics: If True, collect detailed per-iteration trajectory data
+
         Returns:
             result: Dictionary containing solution and metadata
                    If collect_distance_data=True, includes 'distance_data' field with analysis info
+                   If enable_diagnostics=True, inference_info includes 'trajectory' field
         """
         # Input validation
         if not isinstance(input_equation, str):
@@ -727,7 +764,7 @@ class AlgebraInference:
             
             # Run IRED inference
             out_embedding, info = self.ired_inference(
-                inp_embedding, config=config, rule_weights=rule_weights
+                inp_embedding, config=config, rule_weights=rule_weights, enable_diagnostics=enable_diagnostics
             )
             
             # Decode output embedding

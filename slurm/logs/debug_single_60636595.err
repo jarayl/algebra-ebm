@@ -1,0 +1,4 @@
+fatal: not a git repository (or any parent up to mount point /n)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+/var/slurmd/spool/slurmd/job60636595/slurm_script: line 25: cd: projects/algebra-ebm: No such file or directory
+[2026-02-16T17:30:14.685] error: *** JOB 60636595 ON holygpu7c26305 CANCELLED AT 2026-02-16T17:30:14 DUE to SIGNAL Terminated ***

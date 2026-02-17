@@ -9,7 +9,12 @@ import torch.nn.functional as F
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+# Also add current directory in case we're being called from elsewhere
+import os
+sys.path.insert(0, os.getcwd())
 
 from src.algebra.algebra_encoder import create_character_encoder
 from src.algebra.algebra_dataset import AlgebraDataset
@@ -65,9 +70,27 @@ def main():
 
     # Check energies
     print(f"\n4. Checking energy landscape...")
+
+    # Model may be wrapped - try to get the EBM
+    ebm_model = model
+    if hasattr(model, 'model') and hasattr(model.model, 'ebm'):
+        ebm_model = model.model.ebm
+        print(f"Extracted EBM from wrapper")
+    elif hasattr(model, 'ebm'):
+        ebm_model = model.ebm
+        print(f"Extracted EBM from model")
+
+    # AlgebraEBM expects (inp, out, t) where:
+    # - inp: input equation embedding (fixed)
+    # - out: candidate output embedding (variable)
+    # - t: timestep (0 = final landscape)
+    timestep = torch.tensor([0.0], device=device)  # Final landscape
+
     with torch.no_grad():
-        energy_input = model(input_emb.unsqueeze(0)).item()
-        energy_target = model(target_emb.unsqueeze(0)).item()
+        # Energy when starting point equals input (should this be high or low?)
+        energy_input = ebm_model(input_emb.unsqueeze(0), input_emb.unsqueeze(0), timestep).item()
+        # Energy when output equals target (should be LOW - this is the goal)
+        energy_target = ebm_model(input_emb.unsqueeze(0), target_emb.unsqueeze(0), timestep).item()
 
     print(f"Energy(input):  {energy_input:.4f}")
     print(f"Energy(target): {energy_target:.4f}")
@@ -81,11 +104,13 @@ def main():
 
     # Check gradient direction
     print(f"\n5. Checking gradient direction...")
-    input_emb_grad = input_emb.clone().detach().requires_grad_(True)
-    energy = model(input_emb_grad.unsqueeze(0))
+    # Gradient w.r.t. output embedding (the variable being optimized)
+    output_var = input_emb.clone().detach().requires_grad_(True)
+    timestep_grad = torch.tensor([0.0], device=device)
+    energy = ebm_model(input_emb.unsqueeze(0), output_var.unsqueeze(0), timestep_grad)
     energy.backward()
 
-    gradient = input_emb_grad.grad
+    gradient = output_var.grad
     gradient_norm = gradient.norm().item()
 
     # Direction to target
@@ -129,7 +154,7 @@ def main():
 
     # Energy after step
     with torch.no_grad():
-        energy_next = model(next_emb.unsqueeze(0)).item()
+        energy_next = ebm_model(input_emb.unsqueeze(0), next_emb.unsqueeze(0), timestep).item()
 
     print(f"\nEnergy after step: {energy_next:.4f}")
     print(f"Energy change:     {energy_next - energy_input:+.4f}")

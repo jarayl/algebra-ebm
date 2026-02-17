@@ -103,9 +103,11 @@ class AlgebraEBM(nn.Module):
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 if name == 'fc4':
-                    # Smaller init for output layer to keep raw energies bounded
-                    # Want ||fc4(h)||^2 ~ 1-5 initially, so ||fc4(h)|| ~ 1-2
-                    nn.init.xavier_uniform_(module.weight, gain=0.5)
+                    # CRITICAL FIX: Much smaller init for output layer to achieve target energies
+                    # Current training shows raw_energy ~ 11, but need ~ 6 for E=1.0 target
+                    # Reducing gain from 0.5 -> 0.1 should reduce ||fc4(h)|| by factor of 5
+                    # This enables energy_scale/bias to reach pos_target=1.0 successfully
+                    nn.init.xavier_uniform_(module.weight, gain=0.1)
                     if module.bias is not None:
                         nn.init.zeros_(module.bias)
                 elif name in ['fc1', 'fc2', 'fc3']:

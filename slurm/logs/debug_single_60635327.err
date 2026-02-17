@@ -1,0 +1,12 @@
+fatal: not a git repository (or any parent up to mount point /n)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+/var/slurmd/spool/slurmd/job60635327/slurm_script: line 25: cd: projects/algebra-ebm: No such file or directory
+INFO:src.algebra.algebra_inference:Loading checkpoint for distribute from results/distribute/model.pt
+INFO:src.algebra.algebra_inference:Checkpoint keys: ['step', 'model', 'opt', 'ema', 'scaler']
+INFO:src.algebra.algebra_inference:Found nested 'model' dict with 32 keys
+INFO:src.algebra.algebra_inference:Sample model keys: ['betas', 'alphas_cumprod', 'alphas_cumprod_prev', 'sqrt_alphas_cumprod', 'sqrt_one_minus_alphas_cumprod']...
+INFO:src.algebra.algebra_inference:Loading from Trainer1D checkpoint format for distribute
+INFO:src.algebra.algebra_inference:Model state has 32 parameters
+INFO:src.algebra.algebra_inference:Detected diffusion-style state dict with nested 'model.ebm.' keys; extracting EBM params
+INFO:src.algebra.algebra_inference:EBM state has 18 parameters (missing: 0, extra: 0)
+INFO:src.algebra.algebra_inference:Successfully loaded model for rule: distribute from results/distribute/model.pt
