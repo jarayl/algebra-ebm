@@ -2,7 +2,7 @@
 #SBATCH --job-name=alg_diag_train
 #SBATCH --output=slurm/logs/algebra_diagnostic_train_%j.out
 #SBATCH --error=slurm/logs/algebra_diagnostic_train_%j.err
-#SBATCH --partition=gpu_test
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
