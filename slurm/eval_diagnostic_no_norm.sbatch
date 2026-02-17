@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=alg_diag_eval
-#SBATCH --output=slurm/logs/algebra_diagnostic_eval_%j.out
-#SBATCH --error=slurm/logs/algebra_diagnostic_eval_%j.err
+#SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diagnostic_eval_%j.out
+#SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diagnostic_eval_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2
