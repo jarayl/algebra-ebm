@@ -23,6 +23,7 @@ Models are saved to ./results/{rule_name}/
 import os
 import os.path as osp
 import argparse
+import logging
 import torch
 
 # PyTorch dynamo configuration to handle .item() calls in compiled graphs
@@ -687,7 +688,6 @@ def main():
     # Apply PyTorch compilation to diffusion model (actual hot path)
     if args.compile_model and args.compile_backend != 'disable':
         try:
-            import logging
             logger = logging.getLogger(__name__)
             
             if hasattr(torch, 'compile'):
