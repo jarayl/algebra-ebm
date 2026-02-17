@@ -419,9 +419,13 @@ class AlgebraInference:
             raise ValueError("inp_embedding contains Inf values")
         
         batch_size = inp_embedding.shape[0]
-        
-        # Initialize from noise  
-        out = torch.randn(batch_size, 128, device=self.device, requires_grad=True)
+
+        # Initialize from noise
+        # CRITICAL FIX (AUDIT-005): Normalize to unit sphere to match training embeddings
+        # Models trained on unit-norm embeddings (||z|| = 1.0), must initialize on same space
+        out = torch.randn(batch_size, 128, device=self.device)
+        out = torch.nn.functional.normalize(out, p=2, dim=-1)  # Project to unit sphere
+        out = out.requires_grad_(True)
         
         # Track optimization statistics (bounded by config parameters)
         info = {
@@ -507,6 +511,10 @@ class AlgebraInference:
                 
                 # Gradient descent step
                 out_new = out - current_step_size * grad
+
+                # CRITICAL FIX (AUDIT-005): Re-normalize after gradient step to stay on unit sphere
+                # Without this, optimization drifts into unbounded space where energy landscapes are wrong
+                out_new = torch.nn.functional.normalize(out_new, p=2, dim=-1)
 
                 # DIAGNOSTIC: Compute embedding distance from initial state if diagnostics enabled
                 if enable_diagnostics:

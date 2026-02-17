@@ -103,11 +103,11 @@ class AlgebraEBM(nn.Module):
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 if name == 'fc4':
-                    # CRITICAL FIX: Much smaller init for output layer to achieve target energies
-                    # Current training shows raw_energy ~ 11, but need ~ 6 for E=1.0 target
-                    # Reducing gain from 0.5 -> 0.1 should reduce ||fc4(h)|| by factor of 5
-                    # This enables energy_scale/bias to reach pos_target=1.0 successfully
-                    nn.init.xavier_uniform_(module.weight, gain=0.1)
+                    # FIXED: Increased gain from 0.1 to 0.5 for better expressiveness
+                    # Previous small gain (0.1) was a symptom fix for energy scale issues
+                    # With widened energy_scale clamp, network can now learn proper features
+                    # gain=0.5 provides good balance between stability and expressiveness
+                    nn.init.xavier_uniform_(module.weight, gain=0.5)
                     if module.bias is not None:
                         nn.init.zeros_(module.bias)
                 elif name in ['fc1', 'fc2', 'fc3']:
@@ -209,8 +209,9 @@ class AlgebraEBM(nn.Module):
         
         # Apply learnable scaling to match contrastive loss target range (~1 to ~15)
         # This is critical: without scaling, energies are stuck at ~0.2 with normalized inputs
-        # Clamp energy_scale to prevent unbounded growth that causes gradient explosions
-        clamped_energy_scale = torch.clamp(self.energy_scale, min=0.1, max=10.0)
+        # FIXED: Widened clamp range from [0.1, 10.0] to [0.001, 1000.0] to allow model to learn correct scale
+        # Previous tight bounds prevented learning and forced energy_scale to hit upper limit
+        clamped_energy_scale = torch.clamp(self.energy_scale, min=0.001, max=1000.0)
         energy = clamped_energy_scale * raw_energy + self.energy_bias
         
         # Energy statistics monitoring for debugging and analysis (only in DEBUG mode)
