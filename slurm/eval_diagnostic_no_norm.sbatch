@@ -54,7 +54,7 @@ cd "$WORK_DIR"
 # Clone the repo
 GIT_SHA="${GIT_SHA:-HEAD}"
 echo "Cloning repository at commit $GIT_SHA..."
-git clone /n/home03/mkrasnow/research-repo .
+git clone "$GIT_URL" .
 git checkout "$GIT_SHA"
 git submodule update --init --recursive
 
