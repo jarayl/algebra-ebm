@@ -1,12 +1,102 @@
 # Action Queue - Algebra EBM
 
-**Last Updated**: 2026-02-16
+**Last Updated**: 2026-02-17
 **Current Phase**: DEBUG
-**Priority**: Inference diagnostics implementation
+**Priority**: **ROOT CAUSE FIX - Encoder Normalization**
+
+**BREAKING UPDATE**: Deep dive analysis identified CRITICAL root cause - encoder normalization breaks energy learning. All previous tasks deprioritized until normalization fix is validated.
+
+**Full Analysis**: `documentation/deep-dive-analysis.md` (11 pages)
+**Executive Summary**: `documentation/CRITICAL-FINDINGS.md`
 
 ---
 
-## High Priority (Do First)
+## 🚨 CRITICAL PRIORITY (Do Immediately)
+
+### T0: Diagnostic Experiment - Disable Normalization
+**Status**: READY TO START
+**Assigned**: IMMEDIATE
+**Blockers**: None
+**Time Estimate**: 4 hours (1h code + 3h training)
+**Priority**: **HIGHEST**
+**Description**: Verify that encoder normalization is the root cause of energy landscape failure
+
+**Root Cause Identified**:
+- Encoder normalizes embeddings to unit sphere: `||embedding|| = 1.0` always
+- Energy function `E = scale * ||output||^2 + bias` cannot discriminate (||output||^2 ≈ 1.0 always)
+- Result: 54% correct vs 46% inverted energy landscapes (random 50/50 split)
+
+**Implementation**:
+```bash
+# 1. Disable normalization (1 line change)
+# src/algebra/algebra_encoder.py line 135
+# Change: if self.normalize_embeddings:
+# To:     if False:  # DISABLED for diagnostic
+
+# 2. Train ONE model (distribute) for 10k steps
+python train_algebra.py --rule distribute --train_steps 10000 \
+    --output_dir results/diagnostic_no_norm \
+    --batch_size 2048
+
+# 3. Evaluate on 100 problems to measure energy landscape quality
+python eval_algebra.py --model_dir results/diagnostic_no_norm \
+    --eval_type single_rule --rule distribute \
+    --max_samples 100 --enable_diagnostics
+```
+
+**Success Criteria**:
+- Energy landscape correctness improves from 54% to >80%
+- Single-rule accuracy improves from 6% to >30%
+- Energy scale parameters show meaningful learned values
+
+**If Successful**: Proceed to T0b (full retraining)
+**If Unsuccessful**: Investigate Issue #2 (energy scale parameter optimization)
+
+### T0b: Full Retraining Without Normalization
+**Status**: BLOCKED ON T0
+**Assigned**: After T0 success
+**Blockers**: T0 must confirm fix
+**Time Estimate**: 30 hours (5 models × 6 hours each)
+**Priority**: **CRITICAL**
+**Description**: Retrain all 5 models with normalization disabled
+
+**Implementation**:
+```bash
+# Launch 5 parallel training jobs (distribute, combine, isolate, divide, monolithic)
+# Submit to cluster with normalization disabled
+
+bash submit_cluster_training.sh  # Starts all 5 jobs
+# Monitor: Energy scale parameters should learn meaningful values
+# Target: 9-10 unit energy gaps (same as before) but with better generalization
+```
+
+**Success Criteria**:
+- All 5 models converge (9-10 unit energy gaps)
+- Energy scale parameters != 1.0 (showing they learned)
+- Training logs show no gradient vanishing for scale/bias params
+
+### T0c: Full Re-Evaluation with Fixed Models
+**Status**: BLOCKED ON T0b
+**Assigned**: After T0b completion
+**Blockers**: T0b must complete
+**Time Estimate**: 6 hours (6 experiments × 1 hour each)
+**Priority**: **CRITICAL**
+**Description**: Re-run full evaluation suite with retrained models
+
+**Experiments**:
+- exp_001 (single-rule) - target >70% accuracy
+- exp_002, exp_003, exp_004 (multi-rule 2,3,4) - target >15% accuracy
+- exp_005 (constrained) - target >10% accuracy
+- exp_007 (comparison) - measure compositional advantage
+
+**Success Criteria**:
+- Single-rule accuracy >70% (vs current 6.3%)
+- Multi-rule accuracy >15% (vs current 0%)
+- Energy landscapes >80% correct (vs current 54%)
+
+---
+
+## High Priority (Do Second - After Normalization Fix)
 
 ### T1: Add Inference Logging Infrastructure
 **Status**: PENDING

@@ -131,7 +131,14 @@ class CharacterLevelEncoder(nn.Module):
         # CRITICAL FIX: Normalize embeddings for diffusion process
         # The diffusion model expects data roughly in [-1, 1] range
         # Normalizing to unit L2 norm ensures bounded, well-behaved embeddings
-        if self.normalize_embeddings:
+        #
+        # DIAGNOSTIC EXPERIMENT (2026-02-17): Normalization DISABLED
+        # Root cause analysis found normalization breaks energy learning:
+        # - All embeddings forced to ||x|| = 1.0 (unit sphere constraint)
+        # - Energy function E = scale * ||output||^2 + bias cannot discriminate
+        # - Result: 54% correct vs 46% inverted energy landscapes (random)
+        # See: documentation/deep-dive-analysis.md, documentation/CRITICAL-FINDINGS.md
+        if False:  # self.normalize_embeddings - DISABLED FOR DIAGNOSTIC
             embedding = torch.nn.functional.normalize(embedding, p=2, dim=-1)
         
         return embedding

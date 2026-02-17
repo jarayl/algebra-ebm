@@ -1,5 +1,63 @@
 # Debugging Log
 
+## Issue: ROOT CAUSE IDENTIFIED - Encoder Normalization Breaks Energy Learning (2026-02-17 05:00 UTC)
+
+### Summary
+**CRITICAL ROOT CAUSE CONFIRMED**: Encoder normalization (`||embedding|| = 1.0`) creates a geometric constraint that prevents the energy function `E = scale * ||output||^2 + bias` from learning meaningful energy differences.
+
+**Evidence**: 54% correct vs 46% inverted energy landscapes (essentially random 50/50 split)
+
+**Fix**: Disable encoder normalization in `src/algebra/algebra_encoder.py` line 135 and retrain all models
+
+**Full Analysis**: See `documentation/deep-dive-analysis.md` (11 pages, 6 issues identified)
+**Executive Summary**: See `documentation/CRITICAL-FINDINGS.md` (immediate action plan)
+
+### Technical Details
+
+**The Problem**:
+1. Encoder normalizes all embeddings: `||embedding|| = 1.0` always
+2. Energy function: `E = scale * ||output||^2 + bias = scale * 1.0 + bias`
+3. Result: Energy can only vary via learned scale/bias parameters
+4. These parameters lack sufficient degrees of freedom to discriminate all problems
+5. Outcome: ~50% of test problems get inverted energy landscapes
+
+**Why Training Metrics Mislead**:
+- Training shows "9-10 unit energy gaps" (PosE=4.8, NegE=14.5)
+- But this only means E(positive) < E(negative) **on average** on training data
+- Doesn't guarantee geometrically meaningful landscapes on test data
+- The learned scale/bias overfits to training distribution geometry
+
+**Immediate Fix**:
+```python
+# src/algebra/algebra_encoder.py line 135
+# Change from:
+if self.normalize_embeddings:
+    embedding = torch.nn.functional.normalize(embedding, p=2, dim=-1)
+# To:
+if False:  # DISABLED: normalization breaks energy learning
+    embedding = torch.nn.functional.normalize(embedding, p=2, dim=-1)
+```
+
+Then retrain all 5 models.
+
+**Expected Outcome**: Energy landscape correctness improves from 54% to >80%, single-rule accuracy from 6.3% to 50-85%
+
+### Related Issues Identified
+- Issue #2: Energy scale parameters may not be updating (needs gradient logging verification)
+- Issue #3: Insufficient inference iterations (50 vs needed 200+)
+- Issue #4: Numerical instability from sphere geometry
+- Issue #5: Rule weight computation (already fixed via AUDIT-001)
+- Issue #6: Dataset generation (validated as correct)
+
+See `documentation/deep-dive-analysis.md` for complete technical analysis.
+
+### Timestamp
+- Analysis completed: 2026-02-17T05:00:00Z
+- Root cause: Encoder normalization + insufficient energy discriminative power
+- Next action: Diagnostic experiment with normalization disabled
+
+---
+
 ## Issue: Comprehensive Evaluation Failure - Compositional Approach Non-Functional (2026-02-16 23:30 UTC)
 
 ### Summary

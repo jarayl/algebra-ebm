@@ -35,6 +35,8 @@ This TODO tracks implementation of inference diagnostics to understand why IRED 
 - [x] JSON files generated with correct format in diagnostics_dir
 - [x] Per-iteration data collected: energy, gradient_norm, embedding_distance, step_size, accepted
 
+**Status**: COMPLETED (2026-02-16T23:30:00Z)
+
 ---
 
 ### ✅ T2: Implement Multi-Start Inference
@@ -57,6 +59,8 @@ This TODO tracks implementation of inference diagnostics to understand why IRED 
 - [x] Multi-start metadata tracked (winning_start_idx, best_energy)
 - [x] Different random seeds per start (idx * 1000 + start_idx)
 
+**Status**: COMPLETED (2026-02-16T23:30:00Z)
+
 ---
 
 ### ✅ T3: Make Iteration Count Configurable
@@ -76,6 +80,8 @@ This TODO tracks implementation of inference diagnostics to understand why IRED 
 - [x] Maps to `max_iterations` in InferenceConfig via inference_params['T']
 - [x] Can be configured via command-line or config files
 - [x] Ready to test with 50, 100, 500 iterations in diagnostic experiments
+
+**Status**: COMPLETED (2026-02-16T23:30:00Z)
 
 ---
 
@@ -144,6 +150,8 @@ All use distribute rule on 100 problems with diagnostics enabled.
 - [x] Configs reference correct model paths (/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results)
 - [x] All configs enable diagnostics with appropriate output directories
 
+**Status**: COMPLETED (2026-02-16T23:40:00Z)
+
 ---
 
 ### ✅ T7: Create Diagnostic SLURM Scripts
@@ -169,6 +177,9 @@ All configured for gpu partition, 1 GPU, proper rsync back to home directory.
 - [x] Results synced back via rsync
 - [x] Scripts made executable (chmod +x)
 - [x] Ready for cluster submission
+- [x] All 4 jobs submitted successfully (Job IDs: 60662646, 60662654, 60662655, 60662660)
+
+**Status**: COMPLETED (2026-02-16T23:45:00Z)
 
 ---
 
