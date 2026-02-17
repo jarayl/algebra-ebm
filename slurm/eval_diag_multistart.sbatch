@@ -32,7 +32,7 @@ pip install --user -e .
 
 # Run diagnostic evaluation
 python eval_algebra.py \
-    --model_dir results \
+    --model_dir /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results \
     --eval_type single_rule \
     --rule distribute \
     --single_rule_problems 100 \
