@@ -23,15 +23,12 @@ WORK_DIR="/tmp/algebra-ebm-diag-job-$SLURM_JOB_ID"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
-# Clone repo
-git clone https://github.com/mdkrasnow/research-repo.git .
+# Clone algebra-ebm repo directly
+git clone https://github.com/mdkrasnow/algebra-ebm.git .
 git checkout "$GIT_SHA"
 
 # Install dependencies
 pip install --user -e .
-
-# Navigate to project
-cd projects/algebra-ebm
 
 # Run diagnostic evaluation
 python eval_algebra.py \
