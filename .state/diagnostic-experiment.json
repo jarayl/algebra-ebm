@@ -1,0 +1,68 @@
+{
+  "experiment_type": "diagnostic",
+  "purpose": "Verify encoder normalization is root cause of energy landscape failure",
+  "hypothesis": "Encoder normalization (||embedding|| = 1.0) breaks energy learning, causing 54% correct vs 46% inverted landscapes",
+  "fix_applied": "Disabled encoder normalization in src/algebra/algebra_encoder.py line 135",
+  "started_at": "2026-02-17T05:30:00Z",
+  "git_commit": "6753b08",
+  "training_job": {
+    "job_id": "60698745",
+    "sbatch": "slurm/train_diagnostic_no_norm.sbatch",
+    "partition": "gpu",
+    "gpu": 1,
+    "time_limit": "06:00:00",
+    "status": "submitted",
+    "submitted_at": "2026-02-17T05:30:00Z",
+    "config": {
+      "rule": "distribute",
+      "train_steps": 10000,
+      "batch_size": 2048,
+      "timesteps": 10,
+      "output_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostic_no_norm"
+    },
+    "expected_runtime": "~3 hours"
+  },
+  "evaluation_job": {
+    "job_id": null,
+    "sbatch": "slurm/eval_diagnostic_no_norm.sbatch",
+    "partition": "gpu",
+    "gpu": 1,
+    "time_limit": "02:00:00",
+    "status": "pending",
+    "depends_on": "60698745",
+    "config": {
+      "rule": "distribute",
+      "num_problems": 100,
+      "enable_diagnostics": true,
+      "output_dir": "/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostic_no_norm/evaluation"
+    },
+    "expected_runtime": "~10 minutes"
+  },
+  "baseline_metrics": {
+    "energy_landscape_correctness": "54%",
+    "single_rule_accuracy": "6.3%",
+    "multi_rule_accuracy": "0%"
+  },
+  "target_metrics": {
+    "energy_landscape_correctness": ">80%",
+    "single_rule_accuracy": ">30%"
+  },
+  "decision_criteria": {
+    "if_gt_80_pct": "ROOT CAUSE CONFIRMED → Full retraining (T0b)",
+    "if_60_to_80_pct": "PARTIAL FIX → Investigate Issue #2 (energy scale learning)",
+    "if_lt_60_pct": "HYPOTHESIS REJECTED → Alternative root causes"
+  },
+  "analysis_script": "scripts/analyze_energy_landscapes.py",
+  "documentation": {
+    "full_analysis": "documentation/deep-dive-analysis.md",
+    "executive_summary": "documentation/CRITICAL-FINDINGS.md",
+    "how_to_run": "RUN-DIAGNOSTIC.md",
+    "status": "DIAGNOSTIC-READY.md"
+  },
+  "next_steps": [
+    "Monitor training job 60698745 (~3 hours)",
+    "Submit evaluation job when training completes",
+    "Run analysis script on evaluation results",
+    "Make decision based on energy landscape quality"
+  ]
+}
