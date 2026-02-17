@@ -1,18 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name=alg_diag_train
-#SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diagnostic_train_%j.out
-#SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diagnostic_train_%j.err
+#SBATCH --output=projects/algebra-ebm/slurm/logs/%x_%j.out
+#SBATCH --error=projects/algebra-ebm/slurm/logs/%x_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=06:00:00
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=mkrasnow@fas.harvard.edu
 
 # Diagnostic Training: distribute model without encoder normalization
 # Purpose: Verify that encoder normalization is the root cause (Issue #1)
 # Expected: Energy landscapes improve from 54% to >80% correct
+
+set -euo pipefail
 
 echo "========================================================================"
 echo "DIAGNOSTIC TRAINING: Encoder Normalization Fix"
@@ -37,6 +37,15 @@ echo "  - Single-rule accuracy improves from 6% to >30%"
 echo "========================================================================"
 echo ""
 
+# Configuration
+GIT_URL="${GIT_URL:-https://github.com/mdkrasnow/research-repo.git}"
+GIT_SHA="${GIT_SHA:-main}"
+RULE="distribute"
+OUTPUT_DIR="/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostic_no_norm"
+TRAIN_STEPS=10000
+BATCH_SIZE=2048
+TIMESTEPS=10
+
 # Load required modules
 module load cuda/11.8.0-fasrc01
 module load python/3.10.12-fasrc01
@@ -57,7 +66,6 @@ mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
 # Clone the repo
-GIT_SHA="${GIT_SHA:-HEAD}"
 echo "Cloning repository at commit $GIT_SHA..."
 git clone "$GIT_URL" .
 git checkout "$GIT_SHA"
@@ -89,13 +97,6 @@ pip install --upgrade pip
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 
-# Training configuration
-RULE="distribute"
-OUTPUT_DIR="/n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostic_no_norm"
-TRAIN_STEPS=10000
-BATCH_SIZE=2048
-TIMESTEPS=10
-
 # Create output directory on persistent storage
 mkdir -p "$OUTPUT_DIR"
 
@@ -125,7 +126,8 @@ python train_algebra.py \
     --use-contrastive-energy-loss True \
     --use-innerloop-opt True \
     --step_size_multiplier 0.1 \
-    --save_and_sample_every 2000
+    --save_and_sample_every 2000 \
+    --compile_backend disable
 
 TRAIN_EXIT=$?
 
