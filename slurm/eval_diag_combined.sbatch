@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=algebra_diag_combined
-#SBATCH --output=slurm/logs/algebra_diag_combined_%j.out
-#SBATCH --error=slurm/logs/algebra_diag_combined_%j.err
+#SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_combined_%j.out
+#SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_combined_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2
@@ -39,13 +39,10 @@ python eval_algebra.py \
     --inference_T 100 \
     --num_inference_starts 10 \
     --enable_diagnostics \
-    --diagnostics_dir results/diagnostics/combined \
-    --output_dir results/diagnostics/combined \
+    --diagnostics_dir /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/combined \
+    --output_dir /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/combined \
     --seed 42
 
-# Copy results back
-rsync -av results/diagnostics/combined/ /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/combined/
-
-# Cleanup
+# Cleanup temp workspace (results already written to home dir)
 cd /
 rm -rf "$WORK_DIR"

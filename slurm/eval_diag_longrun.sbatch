@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=algebra_diag_longrun
-#SBATCH --output=slurm/logs/algebra_diag_longrun_%j.out
-#SBATCH --error=slurm/logs/algebra_diag_longrun_%j.err
+#SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_longrun_%j.out
+#SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_longrun_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2
@@ -39,13 +39,10 @@ python eval_algebra.py \
     --inference_T 500 \
     --num_inference_starts 1 \
     --enable_diagnostics \
-    --diagnostics_dir results/diagnostics/longrun \
-    --output_dir results/diagnostics/longrun \
+    --diagnostics_dir /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/longrun \
+    --output_dir /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/longrun \
     --seed 42
 
-# Copy results back
-rsync -av results/diagnostics/longrun/ /n/home03/mkrasnow/research-repo/projects/algebra-ebm/results/diagnostics/longrun/
-
-# Cleanup
+# Cleanup temp workspace (results already written to home dir)
 cd /
 rm -rf "$WORK_DIR"
