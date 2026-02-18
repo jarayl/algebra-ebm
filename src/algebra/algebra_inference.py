@@ -51,7 +51,7 @@ class InferenceConfig:
     """
     
     # Core inference parameters  
-    step_size: float = 0.01  # Gradient descent step size (reduced from 0.1 for stability)
+    step_size: float = 10.0  # Gradient descent step size (IRED/IREM papers use λ=100; 10.0 is conservative match)
     max_iterations: int = 50  # Gradient steps per landscape (increased from 20 for convergence)
     K: int = 10  # Number of energy landscapes to traverse
     
@@ -60,8 +60,8 @@ class InferenceConfig:
     energy_threshold: float = 1e-6  # Early stopping threshold for very low energy
     
     # Adaptive step size parameters
-    step_size_decay_rate: float = 0.7  # Exponential decay rate for adaptive step sizing
-    step_size_decay_interval: int = 3  # Apply decay every N landscapes
+    step_size_decay_rate: float = 0.9  # Exponential decay rate for adaptive step sizing (gentler with larger initial step)
+    step_size_decay_interval: int = 5  # Apply decay every N landscapes (gentler with larger initial step)
     
     # TODO: Future safety features (currently not implemented to avoid "security theater")
     # 
@@ -420,11 +420,9 @@ class AlgebraInference:
         
         batch_size = inp_embedding.shape[0]
 
-        # Initialize from noise
-        # CRITICAL FIX (AUDIT-005): Normalize to unit sphere to match training embeddings
-        # Models trained on unit-norm embeddings (||z|| = 1.0), must initialize on same space
+        # Initialize scaled to first noise level (IRED paper: start at sigma_K noise scale)
         out = torch.randn(batch_size, 128, device=self.device)
-        out = torch.nn.functional.normalize(out, p=2, dim=-1)  # Project to unit sphere
+        # No normalization - work in Euclidean space like IRED
         out = out.requires_grad_(True)
         
         # Track optimization statistics (bounded by config parameters)
@@ -512,60 +510,18 @@ class AlgebraInference:
                 # Gradient descent step
                 out_new = out - current_step_size * grad
 
-                # CRITICAL FIX (AUDIT-005): Re-normalize after gradient step to stay on unit sphere
-                # Without this, optimization drifts into unbounded space where energy landscapes are wrong
-                out_new = torch.nn.functional.normalize(out_new, p=2, dim=-1)
-
                 # DIAGNOSTIC: Compute embedding distance from initial state if diagnostics enabled
                 if enable_diagnostics:
                     embedding_distance = torch.norm(out - out_new).item()
 
-                # Metropolis acceptance criteria with temperature schedule
+                # Energy-decrease-only acceptance (matches IRED paper: accept iff E_new <= E_old)
+                # M-H with deterministic proposals causes stuck loops: same position -> same gradient -> perpetual rejection
                 energy_after = self.compose_energies(inp_embedding, out_new, k, rule_weights, timestep_tensor)
                 # Handle batched energy tensors: take mean across batch for comparison
                 energy_after_val = energy_after.mean().item()
-                delta_E = energy_after_val - energy_before_val
-                
-                # Temperature schedule constants (extracted per maintainability requirements)
-                # Controls annealing: high temp early (exploration), low temp later (exploitation)
-                # Values empirically chosen to maintain acceptance rates 0.2-0.6
-                # NOTE: May need theoretical validation per simulated annealing convergence requirements
-                LANDSCAPE_DECAY = -0.05  # Decay across K landscapes (gentler than original -0.1)
-                ITERATION_DECAY = -0.02  # Decay within landscape (gentler than original -0.05)
-                MIN_TEMPERATURE = 0.1    # Floor to ensure continued exploration
-                
-                # Energy clipping constant (extracted per maintainability requirements)
-                # When T=MIN_TEMPERATURE (0.1), clips at 5.0; when T=1.0, clips at 50.0
-                # For clipped_delta_E=50*T: exp(-50) ≈ 1.9e-22 (effectively zero acceptance probability)
-                MAX_ENERGY_DELTA_MULTIPLIER = 50.0
-                
-                # Safe division: max_iterations validated >0 in InferenceConfig.__post_init__
-                # If max_iterations=0 possible, add validation there (not defensive max() here)
-                temperature = 1.0 * math.exp(LANDSCAPE_DECAY * k) * math.exp(ITERATION_DECAY * t / config.max_iterations)
-                temperature = max(temperature, MIN_TEMPERATURE)
-                
-                # Metropolis acceptance probability: P(accept) = min(1, exp(-delta_E / T))
-                # For delta_E <= 0: always accept (energy decrease or floating-point zero)
-                # Prevents accept_prob > 1.0 for negative delta_E
-                if delta_E <= 0:
-                    accept_prob = 1.0
-                else:
-                    # Numerical stability: clip large energy differences to prevent exp() overflow
-                    # Asymmetric behavior at low T: clips at 5.0 when T=0.1, at 50.0 when T=1.0
-                    clipped_delta_E = min(delta_E, MAX_ENERGY_DELTA_MULTIPLIER * temperature)
-                    accept_prob = math.exp(-clipped_delta_E / temperature)
-                
-                # Probabilistic acceptance decision
-                # Use Python random.random() for CPU-based generation (avoids GPU-CPU sync overhead)
-                # For reproducibility: call random.seed(seed) before inference
-                # NOTE: This is scientific computing (Metropolis sampling), not cryptographic context
-                import random
-                random_sample = random.random()
-                accepted = random_sample < accept_prob
-                
-                # Debug logging removed from hot loop for performance and security
-                # Summary statistics logged after loop completion
-                
+
+                accepted = energy_after_val <= energy_before_val
+
                 if accepted:
                     # Update with gradient tracking preserved (detach to avoid graph accumulation)
                     out = out_new.detach().requires_grad_(True)

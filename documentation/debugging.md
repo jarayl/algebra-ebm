@@ -1,5 +1,20 @@
 # Debugging Log
 
+## Issue: Diagnostic eval results lost due to relative paths in sbatch scripts (2026-02-18)
+
+### Summary
+3 diagnostic eval jobs (multistart 60663434, longrun 60663435, combined 60664524) completed with exit code 0 but produced no accessible results.
+
+### Root Cause
+SLURM `--output`/`--error` directives used relative paths (`slurm/logs/...`). Since jobs `cd` into `/tmp/algebra-ebm-diag-job-$SLURM_JOB_ID`, logs were written there. The `rm -rf "$WORK_DIR"` cleanup at the end destroyed both logs and any results that weren't rsync'd (rsync source was also relative).
+
+### Fix Applied
+- Changed all 4 sbatch scripts to use absolute paths for `--output`, `--error`, `--diagnostics_dir`, and `--output_dir`
+- Removed rsync step (no longer needed since output goes directly to home dir)
+- Resubmitted all 4 jobs: 60968487 (baseline), 60968499 (multistart), 60968500 (longrun), 60968512 (combined)
+
+---
+
 ## Issue: ROOT CAUSE IDENTIFIED - Encoder Normalization Breaks Energy Learning (2026-02-17 05:00 UTC)
 
 ### Summary
@@ -986,3 +1001,284 @@ Also fixed `solve_equation()` return tuple handling for integer solution validat
 - Validation correctly rejects invalid pairs (`2*x+3=7 → x=99` returns False)
 - Validation correctly accepts valid pairs (`2*x+3=7 → x=2` returns True)
 - Regenerated all 175 test dataset problems — 0 errors via independent SymPy verification
+
+---
+
+## DEEP ARCHITECTURE ANALYSIS: Six Fundamental Inference Bugs (2026-02-18)
+
+### Overview
+
+Following the failure of all inference diagnostic experiments (6.3% single-rule, 0% multi-rule, 97-99% cache hit rate indicating fixed attractor collapse), a comprehensive code-level inspection was conducted. This analysis identifies six bugs ranging from a fundamental energy-landscape design flaw to incorrect mathematical formulations. These bugs collectively explain **why gradient descent during inference converges to the wrong answer regardless of training quality**.
+
+This analysis supersedes earlier hypotheses (inverted landscapes, normalization issues, hyperparameter mismatches) and identifies the true root causes at the mathematical and algorithmic levels.
+
+---
+
+### BUG-INF-001: Energy Global Minimum at Zero, Not at Correct Answer
+
+**Severity**: CRITICAL — This is the primary cause of fixed attractor collapse.
+
+**Description**
+
+The energy function computes:
+
+```python
+raw_energy = output.pow(2).sum(dim=-1, keepdim=True)  # ||fc4(h)||²
+energy = energy_scale * raw_energy + energy_bias
+```
+
+The global minimum of this function occurs when `fc4(h) = 0`, which gives `energy ≈ energy_bias` (near 0). Training, however, pushes the model toward:
+
+- Correct pairs: energy ≈ 1.0
+- Incorrect pairs: energy ≈ 10.0
+
+The correct answer sits at a **local minimum** (E≈1.0), but the global minimum (E≈0) is elsewhere in the embedding space. Gradient descent during inference is a global optimization procedure — it follows the steepest descent regardless of which minimum is "correct." It therefore converges to the global minimum E≈0 rather than to the correct-answer local minimum E≈1.0.
+
+**Why the E≈0 Attractor is Input-Independent**
+
+The E≈0 attractor is the null space of the learned weight matrix `fc4`. This null space is a fixed geometric object determined by the weights, not by the input. For any input `inp`, the combined embedding `[inp, out_null]` satisfies `fc4([inp, out_null]) ≈ 0`. The `out_null` solution is approximately constant across different inputs because it depends primarily on `fc4`'s null space structure. This is why all inputs converge to the same output — the 97-99% cache hit rate is a direct signature of this null-space attractor.
+
+**Code Location**
+
+`src/algebra/algebra_models.py`: energy head definition (fc4 + squared-norm energy).
+
+**Root Cause**
+
+Using `||fc4(h)||²` as the energy function creates an implicit E=0 global minimum at the network's null space. This design is fundamentally incompatible with inference-by-gradient-descent unless E=0 coincides with correct answers.
+
+**Proposed Fix**
+
+Option A (preferred): Switch to a signed energy function without a fixed global minimum, e.g., a single scalar output from fc4 with no squaring: `energy = energy_scale * fc4(h).squeeze(-1) + energy_bias`. This removes the pathological E=0 attractor.
+
+Option B: Train the model so that `fc4(h) = 0` encodes the correct answer (i.e., contrastive training pushes correct pairs to the null space). This requires redesigning the training objective.
+
+Option C: Use a residual energy formulation: `energy = ||fc4(h) - target_activation||²` where `target_activation` is the correct answer's activation. This requires knowing the target at inference time, so it only works as a sanity check.
+
+---
+
+### BUG-INF-002: Annealing Schedule Completely Neutered by Unit Sphere Renormalization
+
+**Severity**: MAJOR — The annealing mechanism does nothing.
+
+**Description**
+
+The inference implements a multi-landscape annealing schedule intended to start broad and narrow in. Between landscapes, the output is rescaled:
+
+```python
+# Between landscapes: scale to next sigma
+out = out.detach() * scale_factor   # scale_factor = sigma_k_next / sigma_k
+```
+
+However, every gradient step within a landscape unconditionally renormalizes the output to the unit sphere:
+
+```python
+# Every iteration: renormalize
+out_new = torch.nn.functional.normalize(out_new, p=2, dim=-1)
+```
+
+The scaling between landscapes is immediately undone on the very first gradient step of the next landscape. The annealing schedule has zero effect on the optimization trajectory.
+
+**Code Location**
+
+`src/algebra/algebra_inference.py`: the per-step normalization (within the iteration loop) and the between-landscape scaling (between outer loop iterations).
+
+**Root Cause**
+
+The design assumes that inter-landscape scaling changes the effective temperature of the optimization, but this effect is destroyed by the mandatory renormalization at every step. The annealing schedule was designed for unconstrained Euclidean space; it is meaningless on the unit sphere.
+
+**Proposed Fix**
+
+If optimization is constrained to the unit sphere, the annealing should be implemented via the step size or noise level, not via scale factors. Remove the between-landscape scaling and instead decrease `step_size` across landscapes: `step_size_k = step_size_0 * (sigma_k / sigma_0)`. This achieves the intended coarse-to-fine behavior without violating the sphere constraint.
+
+---
+
+### BUG-INF-003: Euclidean Gradient Descent on Riemannian Manifold (Unit Sphere)
+
+**Severity**: MAJOR — Incorrect optimization geometry.
+
+**Description**
+
+Embeddings are constrained to the unit sphere S^(d-1) (d=128). Gradient descent on a Riemannian manifold requires projecting the gradient onto the tangent space of the manifold at the current point before taking a step. The correct update for the sphere is:
+
+```python
+# Correct Riemannian gradient descent on S^(d-1)
+grad_tangent = grad - (grad * out).sum(dim=-1, keepdim=True) * out
+out_new = normalize(out - lr * grad_tangent)
+```
+
+The code instead applies the full Euclidean gradient and then projects back to the sphere:
+
+```python
+# Current code: Euclidean gradient + renormalization
+out_new = normalize(out - lr * grad_euclidean)
+```
+
+These are not equivalent. The Euclidean update includes a radial component that is not a valid direction of movement on the sphere. When this is removed by renormalization, the effective step in the tangential direction is distorted — its magnitude and direction both change relative to the true Riemannian gradient step.
+
+**Code Location**
+
+`src/algebra/algebra_inference.py`: gradient descent update step.
+
+**Root Cause**
+
+Applying Euclidean gradient descent to a manifold-constrained variable and then projecting back is a valid first-order approximation only when the step size is very small relative to the manifold curvature. For practical step sizes, the distortion is significant and leads to poor convergence directions.
+
+**Proposed Fix**
+
+Replace the Euclidean gradient update with the Riemannian (projected) gradient update shown above. Alternatively, use a geodesic update: `out_new = normalize(cos(alpha) * out + sin(alpha) * normalize(grad_tangent))` where `alpha` is the step size in radians. Both are standard for optimization on the sphere.
+
+---
+
+### BUG-INF-004: Metropolis-Hastings Acceptance Incompatible with Deterministic Gradient Proposals
+
+**Severity**: MAJOR — Creates pathological stuck states.
+
+**Description**
+
+The inference applies Metropolis-Hastings (M-H) acceptance/rejection to gradient descent proposals. When a step is rejected:
+
+1. `out` stays at the same position
+2. The next iteration computes the identical gradient from the same position
+3. The identical proposed step is generated
+4. The identical energy increase is computed
+5. The step is rejected again
+6. The system is stuck indefinitely
+
+This creates pathological absorbing states wherever the energy landscape has any upward-sloping direction after renormalization. Since the sphere renormalization can cause an energy increase even when the Euclidean gradient step decreases the energy (BUG-INF-003), M-H rejections are common.
+
+**Code Location**
+
+`src/algebra/algebra_inference.py`: Metropolis acceptance check within the iteration loop.
+
+**Root Cause**
+
+M-H acceptance is designed for stochastic proposals (e.g., Langevin dynamics with noise). With a deterministic proposal, either the step is always accepted (rendering M-H redundant) or the system gets stuck. The combination of deterministic gradient descent with M-H acceptance has no theoretical justification.
+
+**Proposed Fix**
+
+Option A (minimal): Remove M-H acceptance entirely. Pure gradient descent is self-correcting — steps always decrease energy (before renormalization). If the renormalized energy sometimes increases, this is a consequence of BUG-INF-003 and should be fixed there.
+
+Option B (principled): Add noise to the proposal to make it stochastic (Langevin dynamics): `out_proposal = out - lr * grad_tangent + sqrt(2*lr*T) * noise`. Then M-H acceptance is theoretically valid and corrects for the Euler-Maruyama integration error.
+
+---
+
+### BUG-INF-005: Discriminative Training Incompatible with Inference-by-Optimization
+
+**Severity**: CRITICAL — Fundamental paradigm mismatch.
+
+**Description**
+
+The model is trained with a contrastive (discriminative) loss that learns relative energy ordering:
+
+```
+E(inp, correct_out) < E(inp, incorrect_out)
+```
+
+This is a discriminative objective: it ensures the correct output has lower energy than the incorrect one. However, inference by gradient descent assumes a generative objective:
+
+```
+out* = argmin_out E(inp, out)
+```
+
+This requires that the global minimum of `E(inp, ·)` is located at the correct output. Discriminative training guarantees only that the correct output has lower energy than the specific negative examples seen during training. It provides no guarantee about the global structure of the energy landscape.
+
+In practice, with the `||fc4(h)||²` energy formulation (BUG-INF-001), the global minimum is the E≈0 null-space attractor, not the correct output. Even without BUG-INF-001, a discriminatively-trained model has no incentive to make the correct output a basin of attraction for gradient descent — only to make it lower-energy than training negatives.
+
+**Code Location**
+
+`src/algebra/algebra_train.py`: loss function definition (contrastive/hinge loss on energy pairs).
+
+**Root Cause**
+
+Contrastive EBMs learn an energy function that acts as a classifier over (positive, negative) pairs. This is fundamentally different from a generative EBM where `p(out|inp) ∝ exp(-E(out|inp))` and inference is MAP estimation. Using gradient descent inference on a discriminatively-trained model conflates these two regimes.
+
+**Proposed Fix**
+
+Option A: Retrain with a generative objective. Use contrastive divergence (CD) or noise-contrastive estimation (NCE) where the negative examples are generated by Langevin sampling from the current model. This ensures the energy landscape is shaped to make the correct output a basin of attraction for the same type of gradient descent used at inference time.
+
+Option B: Change the inference procedure. Instead of gradient descent on the energy, use the trained model as a discriminator and perform inference by beam search or exhaustive scoring over a candidate set. This respects the discriminative nature of the training.
+
+Option C: Use the model as an energy-based re-ranker: generate candidates by another method (e.g., a seq2seq model), then select the candidate with the lowest energy. This is the most practical near-term fix.
+
+---
+
+### BUG-INF-006: Negative Examples Too Easy — Missing Hard Negatives Near Decision Boundary
+
+**Severity**: MODERATE — Reduces generalization of energy landscape to inference trajectories.
+
+**Description**
+
+Training uses randomly sampled negative examples (incorrect outputs drawn uniformly from the dataset). These negatives are typically semantically and geometrically far from the correct answer in embedding space. The energy landscape is well-shaped far from the correct answer but may be flat, misleading, or even incorrectly oriented in the region near the correct answer — exactly the region that gradient descent traverses during inference.
+
+Specifically, the gradient steps during inference trace a path from a random initialization toward (ideally) the correct answer. If the training negatives never populate this path, the energy function has not been forced to be informative along it. The model may have learned to separate "random wrong outputs" from "correct outputs" while leaving the landscape near the correct output unstructured.
+
+**Code Location**
+
+`src/algebra/algebra_dataset.py`: negative example sampling in the training dataset.
+
+**Root Cause**
+
+Random negative sampling is standard in contrastive learning but is known to be insufficient for learning energy landscapes suitable for gradient-based inference. The problem is that easy negatives do not constrain the energy function in the regions that matter most for inference-time optimization.
+
+**Proposed Fix**
+
+Introduce hard negative mining:
+
+1. **Lattice negatives**: Sample negatives at various distances from the correct answer in embedding space (close, medium, far). This forces the energy function to be a proper repulsive field around the correct answer, not just a binary classifier.
+2. **Inference-trajectory negatives**: During training, run short inference trajectories from random initializations and record the intermediate states as negatives. This directly trains the energy function to be repulsive along the paths that inference will traverse.
+3. **IRED-style negatives**: Use the same Langevin/gradient dynamics as inference to generate negatives during training (standard contrastive divergence approach).
+
+---
+
+### Overall Assessment
+
+The algebra-EBM system fails at inference due to a combination of a fundamental energy design flaw (BUG-INF-001, BUG-INF-005) and several implementation errors (BUG-INF-002, BUG-INF-003, BUG-INF-004) that prevent even a well-designed energy landscape from being navigated correctly.
+
+**The failure chain:**
+
+1. Training succeeds at its stated objective (discriminative energy gap of 9-10 units). This is not disputed.
+2. The energy function's global minimum is at E≈0 (null space of fc4), which is not the correct answer (BUG-INF-001).
+3. Gradient descent at inference time finds this global minimum, converging to the same input-independent attractor for all problems.
+4. The annealing schedule that might have helped escape local minima does nothing because it is immediately overridden by sphere renormalization (BUG-INF-002).
+5. Even on the correct energy landscape, gradient descent is using the wrong geometry (Euclidean vs Riemannian, BUG-INF-003) and a broken acceptance criterion (BUG-INF-004).
+6. Even if all implementation bugs were fixed, the discriminative training objective does not guarantee that the correct answer is a basin of attraction for gradient descent (BUG-INF-005).
+7. Hard negatives would be needed to shape the landscape near the correct answer, but only easy random negatives are used (BUG-INF-006).
+
+The 97-99% cache hit rate (fixed attractor) and 6% single-rule accuracy are fully explained by BUG-INF-001 and BUG-INF-005 alone. The other bugs prevent recovery even in favorable conditions.
+
+---
+
+### Path Forward: Ranked Recommendations
+
+Ranked by impact-to-effort ratio (highest first):
+
+**Rank 1 — Change inference to candidate re-ranking (1-2 days, no retraining)**
+
+Use the current trained model as a discriminator, not a generator. Generate candidate output equations by rule-based methods or a lightweight seq2seq model, then score each candidate with the EBM energy function and select the lowest-energy candidate. This completely bypasses BUG-INF-001 through BUG-INF-004 while still using the trained energy signal. Expected accuracy improvement: 6% → 30-50% (limited by candidate generation quality).
+
+**Rank 2 — Fix energy function to remove E=0 global minimum (1 day + retraining)**
+
+Change the energy head to output a signed scalar (linear activation on fc4 output) instead of `||fc4(h)||²`. Retrain all 5 models. This eliminates BUG-INF-001 and removes the fixed attractor. Combined with Riemannian gradient correction (Rank 3), this should enable meaningful gradient-based inference. Expected accuracy improvement: 6% → 40-70%.
+
+**Rank 3 — Fix gradient descent geometry (Riemannian correction + remove broken M-H) (1 day, no retraining)**
+
+Replace Euclidean gradient update with the Riemannian (tangent-space projected) update. Remove the Metropolis-Hastings acceptance check (or replace with Langevin noise to make it valid). This fixes BUG-INF-003 and BUG-INF-004. Can be done without retraining and immediately improves optimization quality on whatever energy landscape exists.
+
+**Rank 4 — Fix annealing schedule (0.5 days, no retraining)**
+
+Replace the between-landscape scale-factor annealing with step-size annealing (`step_size_k = step_size_0 * sigma_k`). This fixes BUG-INF-002 and restores the intended coarse-to-fine optimization behavior. Low effort, meaningful improvement to convergence reliability.
+
+**Rank 5 — Switch to generative (CD) training objective (3-5 days + retraining)**
+
+Retrain using contrastive divergence: generate negative examples via short Langevin chains from the current model's energy landscape rather than random sampling. This fixes BUG-INF-005 and BUG-INF-006 simultaneously by ensuring the energy landscape is shaped by the same dynamics used at inference. This is the most theoretically sound fix but requires the most compute. Expected accuracy improvement (combined with Ranks 2-4): 6% → 70-90%.
+
+**Rank 6 — Hard negative mining (1 day + retraining)**
+
+Add hard negatives (embeddings near the correct answer, inference-trajectory states) to the training dataset. Partial fix for BUG-INF-006. Less complete than full CD training but faster to implement. Expected accuracy improvement over random negatives alone: +10-20 percentage points.
+
+**Recommended immediate action**: Implement Ranks 3 and 4 (no retraining, fast to test), then evaluate whether the attractor collapse persists (it will, until Rank 2 is applied). This gives quick signal on whether the inference code fixes alone produce meaningful improvement, then proceed to Rank 2.
+
+### Timestamp
+- Analysis completed: 2026-02-18T00:00:00Z
+- Method: Direct code inspection of `src/algebra/algebra_models.py`, `src/algebra/algebra_inference.py`, `src/algebra/algebra_train.py`
+- Status: No code changes made — analysis only. Fixes require explicit implementation step.

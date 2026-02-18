@@ -28,8 +28,8 @@ class AlgebraEBM(nn.Module):
     Architecture matches IRED Table 8 specification:
     - Time MLP: SinusoidalPosEmb(128) → Linear(128) → GELU → Linear(128)
     - FC1: Linear(inp_dim + out_dim → 512) + Swish  
-    - FC2: Linear(512 → 512) + FiLM(time_emb) + Swish
-    - FC3: Linear(512 → 512) + FiLM(time_emb) + Swish
+    - FC2: Linear(512 → 512) + FiLM(time_emb + inp) + Swish
+    - FC3: Linear(512 → 512) + FiLM(time_emb + inp) + Swish
     - Output: Linear(512 → out_dim), energy = ||output_vector||^2
     
     Args:
@@ -74,9 +74,9 @@ class AlgebraEBM(nn.Module):
         self.fc3 = nn.Linear(hidden_dim, hidden_dim)
         self.fc4 = nn.Linear(hidden_dim, out_dim)
         
-        # FiLM conditioning layers for timestep injection
-        self.t_map_fc2 = nn.Linear(time_dim, 2 * hidden_dim)  # scale + bias for FC2
-        self.t_map_fc3 = nn.Linear(time_dim, 2 * hidden_dim)  # scale + bias for FC3
+        # FiLM conditioning layers for input+timestep conditioning
+        self.t_map_fc2 = nn.Linear(time_dim + inp_dim, 2 * hidden_dim)  # scale + bias for FC2
+        self.t_map_fc3 = nn.Linear(time_dim + inp_dim, 2 * hidden_dim)  # scale + bias for FC3
         
         # Learnable energy scaling to match contrastive loss targets
         # This allows the model to output energies in the target range (pos~1, neg~10)
@@ -162,11 +162,13 @@ class AlgebraEBM(nn.Module):
         # Compute time embedding
         t_emb = self.time_mlp(t)  # (B, time_dim)
         
-        # Extract FiLM parameters for conditioning
-        fc2_params = self.t_map_fc2(t_emb)  # (B, 2 * hidden_dim)
+        # Extract FiLM parameters for conditioning (input-conditional gating)
+        t_inp_cond = torch.cat([t_emb, inp], dim=-1)  # (B, time_dim + inp_dim)
+
+        fc2_params = self.t_map_fc2(t_inp_cond)  # (B, 2 * hidden_dim)
         fc2_gain, fc2_bias = torch.chunk(fc2_params, 2, dim=-1)  # Each (B, hidden_dim)
-        
-        fc3_params = self.t_map_fc3(t_emb)  # (B, 2 * hidden_dim)
+
+        fc3_params = self.t_map_fc3(t_inp_cond)  # (B, 2 * hidden_dim)
         fc3_gain, fc3_bias = torch.chunk(fc3_params, 2, dim=-1)  # Each (B, hidden_dim)
         
         # Forward through layers with FiLM conditioning
@@ -432,20 +434,16 @@ class ContrastiveEnergyLoss:
             )
             raise ValueError(error_msg)
         
-        # L2 loss pushing positive energies toward low target
-        pos_loss = F.mse_loss(pos_energies, torch.full_like(pos_energies, self.pos_target))
-        
-        # L2 loss pushing negative energies toward high target  
-        neg_loss = F.mse_loss(neg_energies, torch.full_like(neg_energies, self.neg_target))
-        
         # Margin loss ensuring separation E_neg > E_pos + margin
+        # Pure margin loss: only relative difference matters, not absolute values
+        # This avoids the "square-square" anti-pattern (LeCun 2006) that creates flat landscapes
         pos_mean = pos_energies.mean()
         neg_mean = neg_energies.mean()
         energy_gap = neg_mean - pos_mean
         margin_loss = F.relu(self.margin - energy_gap)
-        
-        # Combined loss with equal weighting
-        total_loss = pos_loss + neg_loss + margin_loss
+
+        # Pure margin loss only - no MSE to fixed absolute targets
+        total_loss = margin_loss
         
         # Update monitoring statistics (deque automatically maintains size limit)
         self.energy_gap_history.append(energy_gap.item())
@@ -457,8 +455,6 @@ class ContrastiveEnergyLoss:
                 'energy_gap': energy_gap.item(),
                 'pos_energy_mean': pos_mean.item(),
                 'neg_energy_mean': neg_mean.item(),
-                'pos_loss': pos_loss.item(),
-                'neg_loss': neg_loss.item(),
                 'margin_loss': margin_loss.item(),
                 'energy_ratio': (neg_mean / torch.clamp(pos_mean, min=1e-6)).item()
             }
