@@ -210,6 +210,12 @@ class AlgebraInference:
         
         # Compute cosine schedule for landscape scaling
         self.alphas_cumprod = compute_alphas_cumprod(self.config.K).to(device)
+
+        # Compute IRED schedule-derived step sizes: opt_step_size = betas * sqrt(1/(1-alphas_cumprod))
+        # This matches GaussianDiffusion1D.opt_step_size buffer used in opt_step():
+        #   img_new = img - extract(self.opt_step_size, t, grad.shape) * grad * sf
+        betas = cosine_beta_schedule(self.config.K).to(device)
+        self.opt_step_sizes = betas * torch.sqrt(1.0 / (1.0 - self.alphas_cumprod))
         
         # Set models to evaluation mode
         for model in self.rule_models.values():
@@ -458,8 +464,9 @@ class AlgebraInference:
         for k in range(config.K):
             sigma_k = torch.sqrt(1 - self.alphas_cumprod[k]).item()
 
-            # Adaptive step size using config method
-            current_step_size = config.get_adaptive_step_size(k)
+            # Schedule-derived step size (IRED paper): betas[k] * sqrt(1/(1-alphas_cumprod[k]))
+            # This matches GaussianDiffusion1D.opt_step_size used during training (opt_step method)
+            current_step_size = self.opt_step_sizes[k].item()
             info['step_sizes'].append(current_step_size)
             
             logger.debug(f"Landscape {k}, sigma_k={sigma_k:.4f}, step_size={current_step_size:.4f}")
