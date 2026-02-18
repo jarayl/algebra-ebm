@@ -60,7 +60,7 @@ echo "Starting distribute rule training..."
 cd projects/algebra-ebm
 python train_algebra.py \
     --rule distribute \
-    --train_steps 50000 \
+    --train_steps 20000 \
     --batch_size 2048 \
     --train_lr 0.0001 \
     --compile_model False \
