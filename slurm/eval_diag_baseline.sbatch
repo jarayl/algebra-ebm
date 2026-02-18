@@ -2,7 +2,7 @@
 #SBATCH --job-name=algebra_diag_baseline
 #SBATCH --output=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_baseline_%j.out
 #SBATCH --error=/n/home03/mkrasnow/research-repo/projects/algebra-ebm/slurm/logs/algebra_diag_baseline_%j.err
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_test
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
